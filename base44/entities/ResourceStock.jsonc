@@ -1,0 +1,33 @@
+{
+  "name": "ResourceStock",
+  "type": "object",
+  "properties": {
+    "city_id": {
+      "type": "string",
+      "title": "Ville"
+    },
+    "resource_type": {
+      "type": "string",
+      "title": "Type de ressource"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Quantit\u00e9 disponible",
+      "default": 0
+    },
+    "max_quantity": {
+      "type": "number",
+      "title": "Quantit\u00e9 maximale",
+      "default": 100
+    },
+    "base_price": {
+      "type": "number",
+      "title": "Prix de base",
+      "default": 5
+    }
+  },
+  "required": [
+    "city_id",
+    "resource_type"
+  ]
+}

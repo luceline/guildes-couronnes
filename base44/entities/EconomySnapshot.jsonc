@@ -1,0 +1,38 @@
+{
+  "name": "EconomySnapshot",
+  "type": "object",
+  "properties": {
+    "date": {
+      "type": "string",
+      "title": "Date (YYYY-MM-DD)"
+    },
+    "total_players_gold": {
+      "type": "number",
+      "title": "Or total joueurs",
+      "default": 0
+    },
+    "total_cities_gold": {
+      "type": "number",
+      "title": "Or total tr\u00e9soreries",
+      "default": 0
+    },
+    "total_circulation": {
+      "type": "number",
+      "title": "Total en circulation",
+      "default": 0
+    },
+    "player_count": {
+      "type": "number",
+      "title": "Nb joueurs",
+      "default": 0
+    },
+    "inflation_rate": {
+      "type": "number",
+      "title": "Taux inflation quotidien (%)",
+      "default": 0
+    }
+  },
+  "required": [
+    "date"
+  ]
+}

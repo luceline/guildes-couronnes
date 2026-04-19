@@ -1,0 +1,78 @@
+{
+  "name": "MilitaryCampaign",
+  "type": "object",
+  "properties": {
+    "attacker_city_id": {
+      "type": "string",
+      "title": "Ville attaquante"
+    },
+    "defender_city_id": {
+      "type": "string",
+      "title": "Ville d\u00e9fenderesse"
+    },
+    "status": {
+      "type": "string",
+      "title": "Statut",
+      "enum": [
+        "contributing",
+        "traveling",
+        "resolved"
+      ],
+      "default": "contributing"
+    },
+    "declared_at": {
+      "type": "string",
+      "title": "D\u00e9clar\u00e9e le (ISO)"
+    },
+    "departure_at": {
+      "type": "string",
+      "title": "D\u00e9part le (ISO)"
+    },
+    "arrival_at": {
+      "type": "string",
+      "title": "Arriv\u00e9e le (ISO)"
+    },
+    "return_at": {
+      "type": "string",
+      "title": "Retour le (ISO)"
+    },
+    "units_committed": {
+      "type": "object",
+      "title": "Unit\u00e9s engag\u00e9es (type \u2192 quantit\u00e9)",
+      "default": {}
+    },
+    "contributors": {
+      "type": "array",
+      "title": "Contributeurs (joueurs ayant engag\u00e9 des unit\u00e9s)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "player_email": {
+            "type": "string"
+          },
+          "player_name": {
+            "type": "string"
+          },
+          "units": {
+            "type": "object"
+          }
+        }
+      },
+      "default": []
+    },
+    "result": {
+      "type": "object",
+      "title": "R\u00e9sultat de la campagne",
+      "default": {}
+    },
+    "loot": {
+      "type": "object",
+      "title": "Butin obtenu",
+      "default": {}
+    }
+  },
+  "required": [
+    "attacker_city_id",
+    "defender_city_id"
+  ]
+}

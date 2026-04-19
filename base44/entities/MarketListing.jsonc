@@ -1,0 +1,88 @@
+{
+  "name": "MarketListing",
+  "type": "object",
+  "properties": {
+    "seller_email": {
+      "type": "string",
+      "title": "Email du vendeur"
+    },
+    "seller_name": {
+      "type": "string",
+      "title": "Nom du vendeur"
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Ville"
+    },
+    "item_name": {
+      "type": "string",
+      "title": "Nom de l'objet"
+    },
+    "item_category": {
+      "type": "string",
+      "title": "Catégorie",
+      "enum": [
+        "bois",
+        "pierre",
+        "fer",
+        "nourriture",
+        "tissu",
+        "outils",
+        "armes",
+        "armures",
+        "bijoux",
+        "potions",
+        "parchemins",
+        "meubles"
+      ]
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Quantité"
+    },
+    "price_per_unit": {
+      "type": "number",
+      "title": "Prix unitaire (pièces d'or)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Statut",
+      "enum": [
+        "active",
+        "sold",
+        "cancelled"
+      ],
+      "default": "active"
+    },
+    "item_key": {
+      "type": "string",
+      "title": "Clé item"
+    },
+    "item_tier": {
+      "type": "number",
+      "title": "Tier de l'item",
+      "default": 1
+    },
+    "quantity_initial": {
+      "type": "number",
+      "title": "Quantité initiale",
+      "default": 0
+    },
+    "created_date": {
+      "type": "string",
+      "title": "Date de création"
+    },
+    "expires_at": {
+      "type": "string",
+      "title": "Expire le"
+    }
+  },
+  "required": [
+    "seller_email",
+    "city_id",
+    "item_name",
+    "item_category",
+    "quantity",
+    "price_per_unit"
+  ]
+}

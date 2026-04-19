@@ -1,0 +1,62 @@
+{
+  "name": "Biome",
+  "type": "object",
+  "properties": {
+    "player_email": {
+      "type": "string",
+      "title": "Email du joueur"
+    },
+    "biome_key": {
+      "type": "string",
+      "title": "Cl\u00e9 du biome (foret, champs, mine, atelier, forge, guilde)",
+      "enum": [
+        "foret",
+        "champs",
+        "mine",
+        "atelier",
+        "forge",
+        "guilde"
+      ]
+    },
+    "date": {
+      "type": "string",
+      "title": "Date YYYY-MM-DD du dernier acc\u00e8s"
+    },
+    "combats_restants": {
+      "type": "number",
+      "title": "Combats restants aujourd'hui (max 5)",
+      "default": 5
+    },
+    "monstres_du_jour": {
+      "type": "array",
+      "title": "Monstres al\u00e9atoires du jour",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "icon": {
+            "type": "string"
+          },
+          "score": {
+            "type": "number",
+            "description": "1=facile, 2=normal, 3=difficile"
+          },
+          "combattu": {
+            "type": "boolean"
+          }
+        }
+      },
+      "default": []
+    }
+  },
+  "required": [
+    "player_email",
+    "biome_key",
+    "date"
+  ]
+}

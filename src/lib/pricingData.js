@@ -1,0 +1,220 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// pricingData.js — Système de pricing DYNAMIQUE basé sur recettes
+// ═══════════════════════════════════════════════════════════════════════════
+// PRINCIPES :
+// • T1 : prix fixes (référence marché)
+// • T2 : moyenne(prix T1 des ingrédients) × facteur effort
+// • T3-T5 : progression multiplicatrice depuis T2
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── PRIX CONSEILLÉS T1 (références pour nouvelles ventes) ──
+export const SUGGESTED_PRICES_T1 = {
+  bois_brut:    { min: 1, max: 6 },
+  ble:          { min: 1, max: 3 },
+  laine_brute:  { min: 1, max: 6 },
+  herbes:       { min: 1, max: 3 },
+  minerai_fer:  { min: 1, max: 6 },
+  quartz_brut:  { min: 1, max: 6 },
+  pierre:       { min: 1, max: 6 },
+};
+
+// ── PRIX SPÉCIAUX (items non-craftés, parchemins fixes) ──
+export const SUGGESTED_PRICES_SPECIAL = {
+  autorisation_marche: { min: 3, max: 8 },
+  contrat_artisan:     { min: 55, max: 80  },
+};
+
+/**
+ * Obtient le prix T1 moyen (réel ou suggéré)
+ * @param {string} itemKey - Clé de l'item
+ * @param {number} realPrice - Prix réel du marché (optionnel)
+ * @returns {number} Prix moyen
+ */
+export function getT1Price(itemKey, realPrice) {
+  if (realPrice) return realPrice;
+  const suggested = SUGGESTED_PRICES_T1[itemKey];
+  return suggested ? (suggested.min + suggested.max) / 2 : 3;
+}
+
+/**
+ * Calcule le multiplicateur économique basé sur l'or moyen par joueur
+ * @param {number} orMoyen - Or moyen par joueur
+ * @returns {number} Multiplicateur (0.8 à 2.0)
+ */
+export function getPriceMultiplier(orMoyen) {
+  if (!orMoyen || orMoyen < 200) return 0.8;
+  if (orMoyen < 500)  return 1.0;
+  if (orMoyen < 1000) return 1.2;
+  if (orMoyen < 2000) return 1.5;
+  return 2.0;
+}
+
+/**
+ * Crée une fourchette de prix (min/max) depuis un prix de base
+ * @param {number} basePrice - Prix de base calculé
+ * @param {number} costGold - Coût en or de la recette
+ * @returns {Object} { min, max }
+ */
+function createPriceRange(basePrice, costGold = 0) {
+  const withCost = basePrice + costGold;
+  return {
+    min: Math.max(Math.round(withCost * 0.9), 1),
+    max: Math.round(withCost * 1.2)
+  };
+}
+
+/**
+ * Échantillonne des joueurs actifs et des listings T1
+ * Réduit les API calls pour le calcul économique à grande échelle
+ * 
+ * @param {Array} players - Tous les joueurs
+ * @param {Array} listings - Toutes les listings actives
+ * @returns {Object} { sampledPlayers, sampledListings, sampleSize, listingsByCategory }
+ */
+export function sampleEconomyData(players = [], listings = []) {
+  // Panel de 100 joueurs actifs max (ou moins si moins de 100 joueurs)
+  const PANEL_SIZE = 100;
+  
+  // Filtrer joueurs actifs : last_active_at dans les 7 derniers jours
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const activePlayers = players.filter(p => 
+    p.last_active_at && new Date(p.last_active_at) >= sevenDaysAgo
+  );
+  
+  // Si moins de PANEL_SIZE joueurs actifs, on prend tous les actifs
+  const targetSize = Math.min(PANEL_SIZE, activePlayers.length);
+  const sampledPlayers = [];
+  
+  if (targetSize >= activePlayers.length) {
+    sampledPlayers.push(...activePlayers);
+  } else {
+    // Fisher-Yates shuffle et prendre les N premiers
+    const shuffled = [...activePlayers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    sampledPlayers.push(...shuffled.slice(0, targetSize));
+  }
+  
+  // Grouper listings T1 par catégorie et en prendre 10 au hasard chacun
+  const listingsByCategory = {};
+  const LISTINGS_PER_CATEGORY = 10;
+  
+  Object.keys(SUGGESTED_PRICES_T1).forEach(itemKey => {
+    const listingsForItem = listings.filter(l => 
+      l.status === 'active' && l.item_key === itemKey && l.item_tier === 1
+    );
+    
+    if (listingsForItem.length > 0) {
+      // Prendre min(10, all) listings
+      const sampleCount = Math.min(LISTINGS_PER_CATEGORY, listingsForItem.length);
+      const sampled = [];
+      
+      if (sampleCount >= listingsForItem.length) {
+        sampled.push(...listingsForItem);
+      } else {
+        const shuffled = [...listingsForItem];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        sampled.push(...shuffled.slice(0, sampleCount));
+      }
+      
+      listingsByCategory[itemKey] = sampled;
+    }
+  });
+  
+  return {
+    sampledPlayers,
+    sampleSize: sampledPlayers.length,
+    listingsByCategory,
+  };
+}
+
+/**
+ * NOUVEL ALGO : Calcule les prix T2-T5 DYNAMIQUEMENT
+ * Basé sur les recettes actuelles et les prix T1 réels du marché
+ * 
+ * @param {Array} listings - Annonces MarketListing actives
+ * @param {Array} recipes - Recettes CRAFTING_RECIPES (avec ingrédients T1/T2/T3/T4)
+ * @returns {Object} { tier2: {...}, tier3: {...}, tier4: {...}, tier5: {...} }
+ */
+export function calculateDynamicPrices(listings = [], recipes = []) {
+  // === ÉTAPE 1 : Construire base de prix réels T1 ===
+  const t1RealPrices = {};
+  SUGGESTED_PRICES_T1 && Object.keys(SUGGESTED_PRICES_T1).forEach(key => {
+    const listingsForKey = listings.filter(l => l.item_key === key);
+    if (listingsForKey.length > 0) {
+      const sum = listingsForKey.reduce((s, l) => s + l.price_per_unit, 0);
+      t1RealPrices[key] = Math.round(sum / listingsForKey.length);
+    }
+  });
+
+  // === ÉTAPE 2 : Index tous les items/prix par tier ===
+  const pricesByTier = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+  
+  // Peupler T1 avec prix réels ou suggérés
+  Object.entries(SUGGESTED_PRICES_T1).forEach(([key, suggested]) => {
+    pricesByTier[1][key] = t1RealPrices[key] || (suggested.min + suggested.max) / 2;
+  });
+
+  // === ÉTAPE 3 : Calculer T2-T5 récursivement ===
+  recipes.forEach(recipe => {
+    if (!recipe.output || !recipe.output.key) return;
+
+    const { output, inputs, tier, costGold = 0 } = recipe;
+    
+    // Calculer prix moyen des ingrédients utilisés
+    let ingredientSum = 0;
+    if (inputs && inputs.length > 0) {
+      ingredientSum = inputs.reduce((sum, ing) => {
+        const ingPrice = pricesByTier[tier - 1] ? pricesByTier[tier - 1][ing.key] : 5;
+        return sum + (ingPrice || 5);
+      }, 0);
+    }
+
+    const avgIngredientPrice = inputs.length > 0 ? ingredientSum / inputs.length : 5;
+    const basePrice = Math.round(avgIngredientPrice * 1.1); // +10% effort
+    
+    // Appliquer multiplicateurs par tier
+    const tieredMultiplier = {
+      2: 1.3,  // T2 = +30% markup
+      3: 1.5,  // T3 = +50% markup
+      4: 1.8,  // T4 = +80% markup
+      5: 2.2,  // T5 = +120% markup
+    };
+
+    const finalPrice = Math.round(basePrice * (tieredMultiplier[tier] || 1.0) + costGold);
+    pricesByTier[tier][output.key] = finalPrice;
+  });
+
+  // === ÉTAPE 4 : Retourner fourchettes (min/max) ===
+  const result = { tier2: {}, tier3: {}, tier4: {}, tier5: {} };
+  
+  [2, 3, 4, 5].forEach(tier => {
+    Object.entries(pricesByTier[tier]).forEach(([itemKey, basePrice]) => {
+      result[`tier${tier}`][itemKey] = createPriceRange(basePrice, 0);
+    });
+  });
+
+  return result;
+}
+
+/**
+ * Helper : obtient la fourchette de prix conseillée pour un item
+ * @param {string} itemKey - Clé de l'item
+ * @param {number} tier - Tier (1-5)
+ * @returns {Object|null} { min, max } ou null si non trouvé
+ */
+export function getSuggestedPrice(itemKey, tier) {
+  if (tier === 1) {
+    return SUGGESTED_PRICES_T1[itemKey] || null;
+  }
+  if (SUGGESTED_PRICES_SPECIAL[itemKey]) {
+    return SUGGESTED_PRICES_SPECIAL[itemKey];
+  }
+  return null;
+}

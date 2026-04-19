@@ -1,0 +1,81 @@
+{
+  "name": "BuildingTypeDef",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "title": "Cl\u00e9 unique"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nom du b\u00e2timent"
+    },
+    "icon": {
+      "type": "string",
+      "title": "Ic\u00f4ne (emoji)"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "pop_bonus": {
+      "type": "number",
+      "title": "Bonus population",
+      "default": 2
+    },
+    "cost_or": {
+      "type": "number",
+      "title": "Co\u00fbt en or",
+      "default": 200
+    },
+    "cost_bois": {
+      "type": "number",
+      "title": "Co\u00fbt en bois",
+      "default": 0
+    },
+    "cost_pierre": {
+      "type": "number",
+      "title": "Co\u00fbt en pierre",
+      "default": 0
+    },
+    "cost_fer": {
+      "type": "number",
+      "title": "Co\u00fbt en fer",
+      "default": 0
+    },
+    "function_type": {
+      "type": "string",
+      "title": "Fonction du b\u00e2timent",
+      "enum": [
+        "chat",
+        "production_bonus",
+        "market_discount",
+        "storage_bonus",
+        "travel_speed",
+        "tax_reduction",
+        "crafting_bonus"
+      ],
+      "default": "production_bonus"
+    },
+    "function_description": {
+      "type": "string",
+      "title": "Description de l'effet pour les joueurs"
+    },
+    "function_value": {
+      "type": "number",
+      "title": "Valeur de l'effet (ex: 20 pour 20%)",
+      "default": 10
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Actif",
+      "default": true
+    }
+  },
+  "required": [
+    "key",
+    "name",
+    "icon",
+    "function_type"
+  ]
+}

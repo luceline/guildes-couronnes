@@ -1,0 +1,18 @@
+{
+  "name": "SystemMessage",
+  "type": "object",
+  "properties": {
+    "message": {
+      "type": "string",
+      "title": "Message"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Actif",
+      "default": true
+    }
+  },
+  "required": [
+    "message"
+  ]
+}

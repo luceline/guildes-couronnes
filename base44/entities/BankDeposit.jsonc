@@ -1,0 +1,68 @@
+{
+  "name": "BankDeposit",
+  "type": "object",
+  "properties": {
+    "depositor_email": {
+      "type": "string",
+      "title": "Email du déposant"
+    },
+    "depositor_name": {
+      "type": "string",
+      "title": "Nom du déposant"
+    },
+    "banker_email": {
+      "type": "string",
+      "title": "Email du banquier"
+    },
+    "banker_name": {
+      "type": "string",
+      "title": "Nom du banquier"
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Ville du banquier"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Montant déposé (or)"
+    },
+    "duration_days": {
+      "type": "number",
+      "title": "Durée (jours)"
+    },
+    "interest_rate": {
+      "type": "number",
+      "title": "Taux d'intérêt (%)"
+    },
+    "interest_amount": {
+      "type": "number",
+      "title": "Intérêts calculés (or)"
+    },
+    "banker_fee": {
+      "type": "number",
+      "title": "Commission banquier (or)"
+    },
+    "deposited_at": {
+      "type": "string",
+      "title": "Date de dépôt"
+    },
+    "matures_at": {
+      "type": "string",
+      "title": "Date d'échéance"
+    },
+    "status": {
+      "type": "string",
+      "title": "Statut",
+      "enum": ["active", "matured", "withdrawn", "cancelled"],
+      "default": "active"
+    }
+  },
+  "required": [
+    "depositor_email",
+    "banker_email",
+    "city_id",
+    "amount",
+    "duration_days",
+    "interest_rate"
+  ]
+}

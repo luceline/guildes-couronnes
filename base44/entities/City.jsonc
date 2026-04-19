@@ -1,0 +1,404 @@
+{
+  "name": "City",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nom de la ville"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "territory_id": {
+      "type": "string",
+      "title": "Territoire"
+    },
+    "mayor_name": {
+      "type": "string",
+      "title": "Nom du maire"
+    },
+    "tax_rate": {
+      "type": "number",
+      "title": "Taux de taxe (%)",
+      "default": 10
+    },
+    "tax_last_updated": {
+      "type": "string",
+      "title": "Dernière mise à jour des taxes"
+    },
+    "population": {
+      "type": "number",
+      "title": "Population actuelle",
+      "default": 0
+    },
+    "max_population": {
+      "type": "number",
+      "title": "Population maximale",
+      "default": 5
+    },
+    "level": {
+      "type": "number",
+      "title": "Niveau de la ville",
+      "default": 1
+    },
+    "gold_treasury": {
+      "type": "number",
+      "title": "Trésorerie (or)",
+      "default": 0
+    },
+    "buildings": {
+      "type": "array",
+      "title": "Bâtiments construits",
+      "items": {
+        "type": "object",
+        "properties": {
+          "building_type": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "level": {
+            "type": "number"
+          },
+          "built_date": {
+            "type": "string"
+          }
+        }
+      },
+      "default": []
+    },
+    "warehouse": {
+      "type": "object",
+      "title": "Entrepôt communautaire",
+      "properties": {
+        "bois_brut": {
+          "type": "number",
+          "default": 0
+        },
+        "pierre": {
+          "type": "number",
+          "default": 0
+        },
+        "minerai_fer": {
+          "type": "number",
+          "default": 0
+        },
+        "ble": {
+          "type": "number",
+          "default": 0
+        },
+        "laine_brute": {
+          "type": "number",
+          "default": 0
+        },
+        "herbes": {
+          "type": "number",
+          "default": 0
+        },
+        "quartz_brut": {
+          "type": "number",
+          "default": 0
+        },
+        "or": {
+          "type": "number",
+          "default": 0
+        },
+        "planches": {
+          "type": "number",
+          "default": 0
+        },
+        "pierre_brute": {
+          "type": "number",
+          "default": 0
+        },
+        "fil": {
+          "type": "number",
+          "default": 0
+        },
+        "charbon": {
+          "type": "number",
+          "default": 0
+        },
+        "extrait": {
+          "type": "number",
+          "default": 0
+        },
+        "quartz_poli": {
+          "type": "number",
+          "default": 0
+        },
+        "encre": {
+          "type": "number",
+          "default": 0
+        },
+        "farine": {
+          "type": "number",
+          "default": 0
+        },
+        "meuble": {
+          "type": "number",
+          "default": 0
+        },
+        "lingots_fer": {
+          "type": "number",
+          "default": 0
+        },
+        "tissu": {
+          "type": "number",
+          "default": 0
+        },
+        "pain": {
+          "type": "number",
+          "default": 0
+        },
+        "potion_soin": {
+          "type": "number",
+          "default": 0
+        },
+        "lingot_royal": {
+          "type": "number",
+          "default": 0
+        },
+        "lingots_or": {
+          "type": "number",
+          "default": 0
+        },
+        "parchemin": {
+          "type": "number",
+          "default": 0
+        },
+        "contrat_artisan": {
+          "type": "number",
+          "default": 0
+        },
+        "epee_courte": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "default": {}
+    },
+    "maintenance_last_run": {
+      "type": "string",
+      "title": "Dernier entretien des bâtiments"
+    },
+    "resources": {
+      "type": "object",
+      "title": "Ressources de la ville (legacy)",
+      "properties": {
+        "bois": {
+          "type": "number",
+          "default": 0
+        },
+        "pierre": {
+          "type": "number",
+          "default": 0
+        },
+        "fer": {
+          "type": "number",
+          "default": 0
+        },
+        "nourriture": {
+          "type": "number",
+          "default": 0
+        },
+        "tissu": {
+          "type": "number",
+          "default": 0
+        },
+        "or": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "default": {}
+    },
+    "image_url": {
+      "type": "string",
+      "title": "Image de la ville"
+    },
+    "daily_mayor_cost": {
+      "type": "number",
+      "title": "Coût pour devenir maire aujourd'hui (💰)",
+      "default": 500
+    },
+    "mayor_id": {
+      "type": "string",
+      "title": "ID du maire"
+    },
+    "mayor_until": {
+      "type": "string",
+      "title": "Mandat maire jusqu'au"
+    },
+    "daily_tax_per_player": {
+      "type": "number",
+      "title": "Impôt journalier par joueur",
+      "default": 0
+    },
+    "treasury_cumulative": {
+      "type": "number",
+      "title": "Trésorerie cumulée (prestige)",
+      "default": 0
+    },
+    "is_bot_city": {
+      "type": "boolean",
+      "title": "Ville bot",
+      "default": false
+    },
+    "warehouse_buyback_prices": {
+      "type": "object",
+      "title": "Prix de rachat entrepôt",
+      "default": {}
+    },
+    "buyback_price_date": {
+      "type": "string",
+      "title": "Date prix de rachat"
+    },
+    "loan_rate": {
+      "type": "number",
+      "title": "Taux prêt bancaire (%)",
+      "default": 0
+    },
+    "deposit_rate": {
+      "type": "number",
+      "title": "Taux dépôt bancaire (%)",
+      "default": 0
+    },
+    "disabled_buildings": {
+      "type": "object",
+      "title": "Bâtiments désactivés",
+      "default": {}
+    },
+    "interests_last_run": {
+      "type": "string",
+      "title": "Dernier run intérêts"
+    },
+    "warehouse_rachat_enabled": {
+      "type": "boolean",
+      "title": "Rachat entrepôt activé",
+      "default": false
+    },
+    "warehouse_rachat_budget": {
+      "type": "number",
+      "title": "Budget journalier rachat (💰)",
+      "default": 0
+    },
+    "warehouse_rachat_budget_used": {
+      "type": "number",
+      "title": "Budget utilisé aujourd'hui",
+      "default": 0
+    },
+    "building_likes": {
+      "type": "object",
+      "title": "J'aimes bâtiments du jour",
+      "default": {}
+    },
+    "last_level": {
+      "type": "number",
+      "title": "Dernier niveau atteint",
+      "default": 1
+    },
+    "election_candidates": {
+      "type": "array",
+      "title": "Candidats à l'élection",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "election_votes": {
+      "type": "object",
+      "title": "Votes électoraux (voter_email → candidate_email)",
+      "default": {}
+    },
+    "mayor_satisfaction": {
+      "type": "object",
+      "title": "Votes de satisfaction du maire (profile_id → vote_key)",
+      "default": {}
+    },
+    "rachat_t1_offers": {
+      "type": "object",
+      "title": "Offres achat T1",
+      "default": {}
+    },
+    "rachat_t2t3_offers": {
+      "type": "object",
+      "title": "Offres achat T2/T3",
+      "default": {}
+    },
+    "rachat_t1_bought_today": {
+      "type": "object",
+      "title": "T1 achetes aujourd hui",
+      "default": {}
+    },
+    "rachat_t2t3_bought_today": {
+      "type": "object",
+      "title": "T2/T3 achetes aujourd hui",
+      "default": {}
+    },
+    "resident_salary_enabled": {
+      "type": "boolean",
+      "title": "Salaire résidents activé",
+      "default": false
+    },
+    "resident_salary": {
+      "type": "number",
+      "title": "Salaire journalier par résident",
+      "default": 5
+    },
+    "lingots_cumul": {
+      "type": "number",
+      "title": "Lingots royaux cumulés",
+      "default": 0
+    },
+    "tax_rate_next": {
+      "type": "number",
+      "title": "Taux de taxe J+1"
+    },
+    "daily_tax_collected": {
+      "type": "number",
+      "title": "Taxes marché collectées aujourd'hui",
+      "default": 0
+    },
+    "pending_effects": {
+      "type": "object",
+      "title": "Effets T5 en attente",
+      "default": {}
+    },
+    "contrat_noble_active": {
+      "type": "boolean",
+      "title": "Contrat Noble actif",
+      "default": false
+    },
+    "sceaux_en_vente": {
+      "type": "number",
+      "title": "Sceaux royaux en vente",
+      "default": 0
+    },
+    "maintenance_daily": {
+      "type": "object",
+      "title": "Coût entretien quotidien",
+      "default": {}
+    },
+    "mayor_message": {
+      "type": "string",
+      "title": "Message du maire"
+    },
+    "army_food": {
+      "type": "number",
+      "title": "Jauge nourriture armée",
+      "default": 0
+    },
+    "army_energy": {
+      "type": "number",
+      "title": "Jauge énergie armée",
+      "default": 0
+    }
+  },
+  "required": [
+    "name",
+    "mayor_name"
+  ]
+}

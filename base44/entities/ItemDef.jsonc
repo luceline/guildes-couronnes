@@ -1,0 +1,83 @@
+{
+  "name": "ItemDef",
+  "type": "object",
+  "properties": {
+    "key": {
+      "type": "string",
+      "title": "Cl\u00e9 unique (ex: bois_brut)"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nom affich\u00e9"
+    },
+    "icon": {
+      "type": "string",
+      "title": "Emoji ic\u00f4ne"
+    },
+    "category": {
+      "type": "string",
+      "title": "Cat\u00e9gorie march\u00e9",
+      "enum": [
+        "bois",
+        "pierre",
+        "fer",
+        "nourriture",
+        "tissu",
+        "outils",
+        "armes",
+        "armures",
+        "bijoux",
+        "potions",
+        "parchemins",
+        "meubles",
+        "or"
+      ]
+    },
+    "tier": {
+      "type": "number",
+      "title": "Tier (1-5)",
+      "default": 1
+    },
+    "use": {
+      "type": "string",
+      "title": "Description / Effet"
+    },
+    "hunger_restore": {
+      "type": "number",
+      "title": "Faim restaur\u00e9e (si aliment)",
+      "default": 0
+    },
+    "fatigue_restore": {
+      "type": "number",
+      "title": "\u00c9nergie restaur\u00e9e",
+      "default": 0
+    },
+    "market_price_suggested": {
+      "type": "number",
+      "title": "Prix conseill\u00e9 march\u00e9 (\ud83d\udcb0)",
+      "default": 0
+    },
+    "is_competitive": {
+      "type": "boolean",
+      "title": "Item JCJ / offensif",
+      "default": false
+    },
+    "expires_days": {
+      "type": "number",
+      "title": "Expire apr\u00e8s N jours (0 = permanent)",
+      "default": 0
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Actif en jeu",
+      "default": true
+    }
+  },
+  "required": [
+    "key",
+    "name",
+    "icon",
+    "category",
+    "tier"
+  ]
+}

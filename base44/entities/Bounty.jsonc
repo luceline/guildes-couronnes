@@ -1,0 +1,65 @@
+{
+  "name": "Bounty",
+  "type": "object",
+  "properties": {
+    "poster_email": {
+      "type": "string",
+      "title": "Poseur de la prime"
+    },
+    "poster_name": {
+      "type": "string",
+      "title": "Nom du poseur"
+    },
+    "target_email": {
+      "type": "string",
+      "title": "Cible"
+    },
+    "target_name": {
+      "type": "string",
+      "title": "Nom de la cible"
+    },
+    "reward_gold": {
+      "type": "number",
+      "title": "R\u00e9compense (or bloqu\u00e9)",
+      "default": 50
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Taverne (ville)"
+    },
+    "city_name": {
+      "type": "string",
+      "title": "Nom de la taverne"
+    },
+    "note": {
+      "type": "string",
+      "title": "Message / raison (optionnel)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Statut",
+      "enum": [
+        "active",
+        "claimed",
+        "cancelled"
+      ],
+      "default": "active"
+    },
+    "claimed_by_email": {
+      "type": "string",
+      "title": "R\u00e9clam\u00e9 par (email)"
+    },
+    "claimed_by_name": {
+      "type": "string",
+      "title": "R\u00e9clam\u00e9 par (nom)"
+    }
+  },
+  "required": [
+    "poster_email",
+    "poster_name",
+    "target_email",
+    "target_name",
+    "reward_gold",
+    "city_id"
+  ]
+}

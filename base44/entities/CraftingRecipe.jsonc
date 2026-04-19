@@ -1,0 +1,87 @@
+{
+  "name": "CraftingRecipe",
+  "type": "object",
+  "properties": {
+    "recipe_id": {
+      "type": "string",
+      "title": "ID unique (ex: craft_planches)"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nom de la recette"
+    },
+    "icon": {
+      "type": "string",
+      "title": "Emoji"
+    },
+    "profession": {
+      "type": "string",
+      "title": "Profession requise",
+      "enum": [
+        "B\u00fbcheron",
+        "Mineur",
+        "Fermier",
+        "Tisserand",
+        "Forgeron",
+        "Alchimiste",
+        "Orf\u00e8vre",
+        "Marchand"
+      ]
+    },
+    "tier": {
+      "type": "number",
+      "title": "Tier du produit (2-5)",
+      "default": 2
+    },
+    "output_key": {
+      "type": "string",
+      "title": "Cl\u00e9 item produit"
+    },
+    "output_quantity": {
+      "type": "number",
+      "title": "Quantit\u00e9 produite",
+      "default": 1
+    },
+    "cost_gold": {
+      "type": "number",
+      "title": "Co\u00fbt en or (\ud83d\udcb0)",
+      "default": 0
+    },
+    "requires_building": {
+      "type": "string",
+      "title": "B\u00e2timent requis (optionnel)"
+    },
+    "inputs": {
+      "type": "array",
+      "title": "Ingr\u00e9dients",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        }
+      },
+      "default": []
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Actif en jeu",
+      "default": true
+    }
+  },
+  "required": [
+    "recipe_id",
+    "name",
+    "profession",
+    "output_key",
+    "output_quantity"
+  ]
+}

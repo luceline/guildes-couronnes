@@ -1,0 +1,31 @@
+{
+  "name": "DailyReset",
+  "type": "object",
+  "properties": {
+    "reset_date": {
+      "type": "string",
+      "title": "Date du dernier reset (YYYY-MM-DD UTC)"
+    },
+    "reset_time": {
+      "type": "string",
+      "title": "Heure du dernier reset (ISO)"
+    },
+    "triggered_by": {
+      "type": "string",
+      "title": "Email du joueur qui a d\u00e9clench\u00e9 le reset"
+    },
+    "status": {
+      "type": "string",
+      "title": "Statut",
+      "enum": [
+        "pending",
+        "running",
+        "done"
+      ],
+      "default": "done"
+    }
+  },
+  "required": [
+    "reset_date"
+  ]
+}

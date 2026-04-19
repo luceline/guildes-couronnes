@@ -1,0 +1,80 @@
+{
+  "name": "PlayerObjective",
+  "type": "object",
+  "properties": {
+    "player_email": {
+      "type": "string",
+      "title": "Joueur"
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Ville cible"
+    },
+    "type": {
+      "type": "string",
+      "title": "Type d'objectif",
+      "enum": [
+        "deposit",
+        "produce",
+        "sell",
+        "contribute",
+        "travel"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "title": "Titre"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "target_item": {
+      "type": "string",
+      "title": "Ressource ciblée"
+    },
+    "target_quantity": {
+      "type": "number",
+      "title": "Quantité requise"
+    },
+    "current_quantity": {
+      "type": "number",
+      "title": "Quantité accomplie",
+      "default": 0
+    },
+    "reward_gold": {
+      "type": "number",
+      "title": "Récompense or",
+      "default": 50
+    },
+    "status": {
+      "type": "string",
+      "title": "Statut",
+      "enum": [
+        "active",
+        "completed",
+        "expired"
+      ],
+      "default": "active"
+    },
+    "parchemin_type": {
+      "type": "string",
+      "title": "Type de parchemin activé (ex: contrat_noble)"
+    },
+    "created_date": {
+      "type": "string",
+      "title": "Date de création (YYYY-MM-DD)"
+    },
+    "target_city_id": {
+      "type": "string",
+      "title": "Ville cible"
+    }
+  },
+  "required": [
+    "player_email",
+    "type",
+    "title",
+    "target_item",
+    "target_quantity"
+  ]
+}

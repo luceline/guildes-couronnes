@@ -1,0 +1,67 @@
+{
+  "name": "EconomySettings",
+  "type": "object",
+  "properties": {
+    "setting_key": {
+      "type": "string",
+      "title": "Clé unique (always 'global')"
+    },
+    "economy_zone": {
+      "type": "string",
+      "title": "Zone économique actuelle",
+      "default": "saine"
+    },
+    "or_moyen_par_joueur": {
+      "type": "number",
+      "title": "Or moyen par joueur (hier)",
+      "default": 0
+    },
+    "inflation_daily_rate": {
+      "type": "number",
+      "title": "Taux inflation quotidien (%)",
+      "default": 0
+    },
+    "objective_reward_base": {
+      "type": "number",
+      "title": "Récompense de base pour objectifs (💰)",
+      "default": 50
+    },
+    "travel_cost_multiplier": {
+      "type": "number",
+      "title": "Multiplicateur frais voyage",
+      "default": 1.0
+    },
+    "tax_bonus": {
+      "type": "number",
+      "title": "Bonus impôt journalier (+💰)",
+      "default": 0
+    },
+    "objective_reward_multiplier": {
+      "type": "number",
+      "title": "Multiplicateur récompenses objectifs",
+      "default": 1.0
+    },
+    "mayor_cost_multiplier": {
+      "type": "number",
+      "title": "Multiplicateur coût investiture maire",
+      "default": 1.0
+    },
+    "last_updated": {
+      "type": "string",
+      "title": "Dernière mise à jour (YYYY-MM-DD)"
+    },
+    "world_events": {
+      "type": "object",
+      "title": "Événements monde actifs",
+      "default": {}
+    },
+    "dynamic_prices": {
+      "type": "object",
+      "title": "Prix dynamiques calculés",
+      "default": {}
+    }
+  },
+  "required": [
+    "setting_key"
+  ]
+}

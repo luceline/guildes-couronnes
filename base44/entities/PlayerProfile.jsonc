@@ -1,0 +1,468 @@
+{
+  "name": "PlayerProfile",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "title": "Email du joueur"
+    },
+    "character_name": {
+      "type": "string",
+      "title": "Nom du personnage"
+    },
+    "sex": {
+      "type": "string",
+      "title": "Sexe",
+      "enum": [
+        "Homme",
+        "Femme"
+      ]
+    },
+    "height": {
+      "type": "string",
+      "title": "Taille",
+      "enum": [
+        "Petit",
+        "Moyen",
+        "Grand"
+      ]
+    },
+    "profession": {
+      "type": "string",
+      "title": "Métier",
+      "enum": [
+        "Marchand",
+        "Forgeron",
+        "Tisserand",
+        "Alchimiste",
+        "Bûcheron",
+        "Mineur",
+        "Fermier",
+        "Orfèvre"
+      ]
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Ville actuelle"
+    },
+    "home_city_id": {
+      "type": "string",
+      "title": "Ville d'origine"
+    },
+    "gold": {
+      "type": "number",
+      "title": "Or",
+      "default": 100
+    },
+    "debt_by_city": {
+      "type": "object",
+      "title": "Dette par ville (city_id → montant dû)",
+      "default": {}
+    },
+    "inventory": {
+      "type": "array",
+      "title": "Inventaire",
+      "items": {
+        "type": "object",
+        "properties": {
+          "item_key": {
+            "type": "string"
+          },
+          "item_name": {
+            "type": "string"
+          },
+          "item_category": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number"
+          }
+        }
+      },
+      "default": []
+    },
+    "housing_level": {
+      "type": "string",
+      "title": "Niveau de logement",
+      "enum": [
+        "tente",
+        "cabane",
+        "maison",
+        "manoir"
+      ],
+      "default": "tente"
+    },
+    "housing_obtained_free": {
+      "type": "boolean",
+      "title": "Logement actuel obtenu gratuitement (bijou)",
+      "default": false
+    },
+    "is_traveling": {
+      "type": "boolean",
+      "title": "En déplacement",
+      "default": false
+    },
+    "travel_destination_id": {
+      "type": "string",
+      "title": "Destination du voyage"
+    },
+    "travel_arrival_time": {
+      "type": "string",
+      "title": "Heure d'arrivée"
+    },
+    "production_cooldowns": {
+      "type": "object",
+      "title": "Cooldowns de production",
+      "default": {}
+    },
+    "fatigue": {
+      "type": "number",
+      "title": "Fatigue actuelle",
+      "default": 100
+    },
+    "fatigue_last_reset": {
+      "type": "string",
+      "title": "Dernier reset quotidien de fatigue"
+    },
+    "tavern_sleep_date": {
+      "type": "string",
+      "title": "Date du dernier sommeil à la taverne"
+    },
+    "banker_rates": {
+      "type": "object",
+      "title": "Taux bancaires (Banquier uniquement)",
+      "default": {}
+    },
+    "avatar_url": {
+      "type": "string",
+      "title": "Avatar"
+    },
+    "hunger": {
+      "type": "number",
+      "title": "Faim actuelle",
+      "default": 10
+    },
+    "hunger_regen_at": {
+      "type": "string",
+      "title": "Dernière régén faim (ISO)"
+    },
+    "competitive_cooldowns": {
+      "type": "object",
+      "title": "Cooldowns compétitifs",
+      "default": {}
+    },
+    "daily_tax_paid": {
+      "type": "string",
+      "title": "Date dernier impôt payé"
+    },
+    "tool_charges": {
+      "type": "number",
+      "title": "Charges outils restantes",
+      "default": 0
+    },
+    "visited_cities": {
+      "type": "array",
+      "title": "Villes visitées",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "convoi_expires_at": {
+      "type": "string",
+      "title": "Expiration bon de convoi"
+    },
+    "active_loans": {
+      "type": "array",
+      "title": "Prêts actifs",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "active_deposits": {
+      "type": "array",
+      "title": "Dépôts actifs",
+      "items": {
+        "type": "object"
+      },
+      "default": []
+    },
+    "bot_trade_cooldowns": {
+      "type": "object",
+      "title": "Cooldowns troc",
+      "default": {}
+    },
+    "warehouse_sold_today": {
+      "type": "object",
+      "title": "Vendu entrepôt aujourd'hui",
+      "default": {}
+    },
+    "loan_defaulted": {
+      "type": "boolean",
+      "title": "Prêt en retard (fatigue/faim plafonnés à 1)",
+      "default": false
+    },
+    "last_active_at": {
+      "type": "string",
+      "title": "Dernière activité (ISO)"
+    },
+    "vacation_until": {
+      "type": "string",
+      "title": "Mode vacances jusqu'au (ISO)"
+    },
+    "inactivity_warned_at": {
+      "type": "string",
+      "title": "Email d'avertissement inactivité envoyé le (ISO)"
+    },
+    "cumul_contributions_warehouse": {
+      "type": "number",
+      "title": "Contributions entrepôt cumulées (classement contributeur)",
+      "default": 0
+    },
+    "cumul_ventes_or": {
+      "type": "number",
+      "title": "Ventes cumulées en or (classement vendeur)",
+      "default": 0
+    },
+    "cumul_t5_envoyes": {
+      "type": "number",
+      "title": "Attaques T5 lancées cumulées (classement militaire)",
+      "default": 0
+    },
+    "pending_market_tax": {
+      "type": "object",
+      "title": "Taxes marché en attente par ville",
+      "default": {}
+    },
+    "sceau_balance": {
+      "type": "number",
+      "title": "Solde Sceau royal",
+      "default": 0
+    },
+    "login_streak": {
+      "type": "number",
+      "title": "Série de connexions consécutives (jours)",
+      "default": 0
+    },
+    "last_login_date": {
+      "type": "string",
+      "title": "Date de dernière connexion (YYYY-MM-DD)"
+    },
+    "streak_rewarded_today": {
+      "type": "boolean",
+      "title": "Récompense streak déjà accordée aujourd'hui",
+      "default": false
+    },
+    "player_level": {
+      "type": "number",
+      "title": "Niveau du joueur (1-50)",
+      "default": 1
+    },
+    "player_xp_total": {
+      "type": "number",
+      "title": "XP total accumulé",
+      "default": 0
+    },
+    "biome_combat_started_at": {
+      "type": "string",
+      "title": "Combat biome démarré le"
+    },
+    "biome_combat_monster_id": {
+      "type": "string",
+      "title": "Monstre biome en cours"
+    },
+    "biome_combat_duration": {
+      "type": "number",
+      "title": "Durée combat biome (s)",
+      "default": 30
+    },
+    "biome_combat_resolved": {
+      "type": "boolean",
+      "title": "Combat biome résolu",
+      "default": false
+    },
+    "biome_combat_result": {
+      "type": "object",
+      "title": "Résultat combat biome",
+      "default": {}
+    },
+    "biome_cooldown_bonus_expires_at": {
+      "type": "string",
+      "title": "Buff biome expire le"
+    },
+    "biome_cooldown_bonus_value": {
+      "type": "number",
+      "title": "Valeur buff cooldown biome",
+      "default": 0
+    },
+    "biome_double_prod_bonus": {
+      "type": "number",
+      "title": "Bonus double prod biome",
+      "default": 0.1
+    },
+    "biome_mastery": {
+      "type": "object",
+      "title": "Maîtrise biomes",
+      "default": {}
+    },
+    "daily_combats_count": {
+      "type": "number",
+      "title": "Combats biome aujourd'hui",
+      "default": 0
+    },
+    "daily_combats_date": {
+      "type": "string",
+      "title": "Date compteur combats biome"
+    },
+    "attack_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus attaque expire le"
+    },
+    "attack_bonus_value": {
+      "type": "number",
+      "title": "Valeur bonus attaque",
+      "default": 0
+    },
+    "defense_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus défense expire le"
+    },
+    "defense_bonus_value": {
+      "type": "number",
+      "title": "Valeur bonus défense",
+      "default": 0
+    },
+    "cooldown_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus cooldown expire le"
+    },
+    "cooldown_bonus_value": {
+      "type": "number",
+      "title": "Valeur bonus cooldown",
+      "default": 0
+    },
+    "energy_max_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus énergie max expire le"
+    },
+    "energy_max_bonus_value": {
+      "type": "number",
+      "title": "Valeur bonus énergie max",
+      "default": 0
+    },
+    "energy_regen_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus regen énergie expire le"
+    },
+    "energy_regen_interval_min": {
+      "type": "number",
+      "title": "Intervalle regen énergie (min)",
+      "default": 0
+    },
+    "energy_regen_value": {
+      "type": "number",
+      "title": "Valeur regen énergie bonus",
+      "default": 0
+    },
+    "fatigue_regen_at": {
+      "type": "string",
+      "title": "Dernier tick regen énergie"
+    },
+    "hunger_max_bonus": {
+      "type": "number",
+      "title": "Bonus faim max",
+      "default": 0
+    },
+    "hunger_regen_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus regen faim expire le"
+    },
+    "hunger_regen_interval_min": {
+      "type": "number",
+      "title": "Intervalle regen faim (min)",
+      "default": 0
+    },
+    "hunger_regen_value": {
+      "type": "number",
+      "title": "Valeur regen faim bonus",
+      "default": 0
+    },
+    "inventory_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus inventaire expire le"
+    },
+    "inventory_bonus_value": {
+      "type": "number",
+      "title": "Valeur bonus inventaire",
+      "default": 0
+    },
+    "meuble_discount": {
+      "type": "number",
+      "title": "Réduction meuble",
+      "default": 0
+    },
+    "meuble_expires_at": {
+      "type": "string",
+      "title": "Meuble actif jusqu'au"
+    },
+    "travel_discount": {
+      "type": "number",
+      "title": "Réduction durée voyage",
+      "default": 0
+    },
+    "atelier_vitrine": {
+      "type": "object",
+      "title": "Vitrine atelier",
+      "default": {}
+    },
+    "harvest_started_at": {
+      "type": "string",
+      "title": "Récolte AFK démarrée le"
+    },
+    "harvest_biome_key": {
+      "type": "string",
+      "title": "Biome récolte AFK"
+    },
+    "biome_harvest_bonus_expires_at": {
+      "type": "string",
+      "title": "Buff bonus récolte biome — expire le"
+    },
+    "epidemie_malus_until": {
+      "type": "string",
+      "title": "Malus épidémie jusqu'au"
+    },
+    "harvest_gold_spent": {
+      "type": "number",
+      "title": "Or déjà déduit pour la récolte en cours",
+      "default": 0
+    },
+    "last_travel_route_id": {
+      "type": "string",
+      "title": "Dernière route empruntée"
+    },
+    "sceau_last_bought": {
+      "type": "string",
+      "title": "Dernier achat sceau royal"
+    },
+    "biome_harvest_bonus": {
+      "type": "number",
+      "title": "Bonus récolte biome en attente",
+      "default": 0
+    },
+    "double_prod_bonus": {
+      "type": "number",
+      "title": "Bonus chance double production (cumulable)",
+      "default": 0
+    },
+    "double_prod_bonus_expires_at": {
+      "type": "string",
+      "title": "Bonus double prod expire le"
+    }
+  },
+  "required": [
+    "user_email",
+    "character_name",
+    "profession"
+  ]
+}

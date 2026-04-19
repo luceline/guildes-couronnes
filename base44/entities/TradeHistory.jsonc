@@ -1,0 +1,50 @@
+{
+  "name": "TradeHistory",
+  "type": "object",
+  "properties": {
+    "buyer_email": {
+      "type": "string",
+      "title": "Acheteur"
+    },
+    "seller_email": {
+      "type": "string",
+      "title": "Vendeur"
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Ville"
+    },
+    "item_name": {
+      "type": "string",
+      "title": "Objet"
+    },
+    "item_category": {
+      "type": "string",
+      "title": "Cat\u00e9gorie"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Quantit\u00e9"
+    },
+    "price_per_unit": {
+      "type": "number",
+      "title": "Prix unitaire"
+    },
+    "total_price": {
+      "type": "number",
+      "title": "Prix total"
+    },
+    "tax_amount": {
+      "type": "number",
+      "title": "Montant des taxes"
+    }
+  },
+  "required": [
+    "buyer_email",
+    "seller_email",
+    "city_id",
+    "item_name",
+    "quantity",
+    "total_price"
+  ]
+}

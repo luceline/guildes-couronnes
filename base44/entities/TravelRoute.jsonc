@@ -1,0 +1,37 @@
+{
+  "name": "TravelRoute",
+  "type": "object",
+  "properties": {
+    "city_from_id": {
+      "type": "string",
+      "title": "Ville de départ"
+    },
+    "city_to_id": {
+      "type": "string",
+      "title": "Ville d'arrivée"
+    },
+    "travel_time_minutes": {
+      "type": "number",
+      "title": "Temps de trajet (minutes)"
+    },
+    "danger_level": {
+      "type": "string",
+      "title": "Niveau de danger",
+      "enum": [
+        "sûr",
+        "modéré",
+        "dangereux"
+      ],
+      "default": "sûr"
+    },
+    "road_type": {
+      "type": "string",
+      "title": "Type de route"
+    }
+  },
+  "required": [
+    "city_from_id",
+    "city_to_id",
+    "travel_time_minutes"
+  ]
+}

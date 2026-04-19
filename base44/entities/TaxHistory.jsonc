@@ -1,0 +1,31 @@
+{
+  "name": "TaxHistory",
+  "type": "object",
+  "properties": {
+    "city_id": {
+      "type": "string",
+      "title": "Ville"
+    },
+    "city_name": {
+      "type": "string",
+      "title": "Nom de la ville"
+    },
+    "tax_rate": {
+      "type": "number",
+      "title": "Taux de taxe (%)"
+    },
+    "date": {
+      "type": "string",
+      "title": "Date"
+    },
+    "reason": {
+      "type": "string",
+      "title": "Raison du maire"
+    }
+  },
+  "required": [
+    "city_id",
+    "tax_rate",
+    "date"
+  ]
+}

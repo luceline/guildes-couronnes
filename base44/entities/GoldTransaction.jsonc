@@ -1,0 +1,60 @@
+{
+  "name": "GoldTransaction",
+  "type": "object",
+  "properties": {
+    "player_email": {
+      "type": "string",
+      "title": "Email du joueur"
+    },
+    "player_name": {
+      "type": "string",
+      "title": "Nom du personnage"
+    },
+    "city_id": {
+      "type": "string",
+      "title": "Ville"
+    },
+    "city_name": {
+      "type": "string",
+      "title": "Nom de la ville"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Montant (+ entr\u00e9e / - sortie)"
+    },
+    "type": {
+      "type": "string",
+      "title": "Type de transaction",
+      "enum": [
+        "vente",
+        "achat",
+        "taxe_marche",
+        "impot",
+        "peage",
+        "frais_voyage",
+        "rachat_entrepot",
+        "pret",
+        "remboursement",
+        "depot",
+        "retrait_depot",
+        "vol_recu",
+        "vol_subi",
+        "cout_production",
+        "logement",
+        "maire",
+        "demenagement",
+        "objectif",
+        "salaire"
+      ]
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    }
+  },
+  "required": [
+    "player_email",
+    "amount",
+    "type"
+  ]
+}

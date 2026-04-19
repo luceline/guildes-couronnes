@@ -1,0 +1,22 @@
+{
+  "name": "Territory",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nom du territoire"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description"
+    },
+    "cities_count": {
+      "type": "number",
+      "title": "Nombre de villes",
+      "default": 0
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
