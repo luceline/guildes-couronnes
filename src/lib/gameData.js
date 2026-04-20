@@ -3,6 +3,7 @@
 // ── Admin access list ──
 export const ADMIN_EMAILS = [
   "lucas.brunet51@gmail.com",
+  "lucas.brunet51@hotmail.fr",
 ];
 
 export const PROFESSIONS = {

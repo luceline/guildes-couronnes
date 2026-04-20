@@ -298,7 +298,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     }).then(objs => {
       // Garder uniquement les quêtes deposit du jour
       const todayDeposit = (objs || []).filter(o =>
-        o.type === "deposit" && o.created_date && o.created_date.startsWith(todayStr)
+        o.type === "deposit" && (o.created_date || o.quest_date || "").startsWith(todayStr)
       );
       setDepositObjectives(todayDeposit);
     }).catch(() => {});
@@ -886,6 +886,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           <TabsTrigger value="competitif">⚔️ Guerre</TabsTrigger>
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
           <TabsTrigger value="batiments">🏗️ Bâtiments</TabsTrigger>
+{hasTavern && <TabsTrigger value="taverne">🍺 Taverne</TabsTrigger>}
         </TabsList>
 
         {/* ── MAIRIE ── */}
@@ -1218,7 +1219,18 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
             })}
           </div>
         </TabsContent>
-
+{hasTavern && (
+  <TabsContent value="taverne" className="space-y-4 mt-4">
+    <div className="text-center py-8 space-y-3">
+      <div className="text-5xl">🍺</div>
+      <h2 className="font-heading text-xl">La Taverne</h2>
+      <p className="text-sm text-muted-foreground font-body">Retrouvez vos compagnons, échangez des nouvelles du royaume.</p>
+      <Link to="/taverne">
+        <Button className="font-heading gap-2">🍺 Accéder à la Taverne</Button>
+      </Link>
+    </div>
+  </TabsContent>
+)}
         {/* ── ENTREPÔT ── */}
         <TabsContent value="entrepot" className="space-y-4 mt-4">
           <Card>

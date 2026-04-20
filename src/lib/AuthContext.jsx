@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { base44, pb } from '@/api/pocketbaseClient';
+import { base44, pb } from '@/api/base44Client';
 
 const AuthContext = createContext();
 
@@ -14,10 +14,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     checkAuth();
 
-    // Écouter les changements d'état auth (refresh token, logout)
     const unsub = pb.authStore.onChange(() => {
       if (pb.authStore.isValid) {
-        const model = pb.authStore.model;
+        const model = pb.authStore.record ?? pb.authStore.model;
         setUser({ email: model.email, id: model.id, name: model.name });
         setIsAuthenticated(true);
       } else {
@@ -33,14 +32,14 @@ export const AuthProvider = ({ children }) => {
     setIsLoadingAuth(true);
     try {
       if (pb.authStore.isValid) {
-        // Token valide en localStorage — rafraîchir
         try {
           await pb.collection('users').authRefresh();
-          const model = pb.authStore.model;
+          const model = pb.authStore.record ?? pb.authStore.model;
           setUser({ email: model.email, id: model.id, name: model.name });
           setIsAuthenticated(true);
+          setAuthError(null);
+          setShowLoginForm(false);
         } catch {
-          // Token expiré
           pb.authStore.clear();
           setAuthError({ type: 'auth_required', message: 'Session expirée' });
           setIsAuthenticated(false);
@@ -63,6 +62,7 @@ export const AuthProvider = ({ children }) => {
       setUser(result);
       setIsAuthenticated(true);
       setAuthError(null);
+      setShowLoginForm(false);
       return result;
     } catch (e) {
       const msg = e?.data?.message || 'Email ou mot de passe incorrect';
@@ -77,6 +77,7 @@ export const AuthProvider = ({ children }) => {
       setUser(result);
       setIsAuthenticated(true);
       setAuthError(null);
+      setShowLoginForm(false);
       return result;
     } catch (e) {
       setAuthError({ type: 'signin_failed', message: 'Connexion Google échouée' });
@@ -90,9 +91,10 @@ export const AuthProvider = ({ children }) => {
       setUser(result);
       setIsAuthenticated(true);
       setAuthError(null);
+      setShowLoginForm(false);
       return result;
     } catch (e) {
-      const msg = e?.data?.message || 'Erreur lors de l\'inscription';
+      const msg = e?.data?.message || "Erreur lors de l'inscription";
       setAuthError({ type: 'signup_failed', message: msg });
       throw e;
     }
@@ -102,6 +104,8 @@ export const AuthProvider = ({ children }) => {
     base44.auth.logout();
     setUser(null);
     setIsAuthenticated(false);
+    setShowLoginForm(false);
+    setAuthError({ type: 'auth_required', message: 'Connexion requise' });
   };
 
   const navigateToLogin = () => {

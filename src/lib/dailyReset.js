@@ -118,6 +118,7 @@ async function runDailyReset(resetDate) {
   await snapshotEconomy(resetDate, players, cities);
   await spawnSceauxRoyaux(players, updatedCities, resetDate);
   await applyMilitaryMaintenance(updatedCities);
+  await applyPopulationConsumption(updatedCities, players);
   await expireMarketListings(resetDate);
 }
 
@@ -516,7 +517,9 @@ async function resetCity(city, resetDate, players = []) {
 
     if (buildings.length > 0) {
       // Copie de travail de l'entrepôt
-      const warehouse = { ...(city.warehouse || {}) };
+      // L'or d'entretien est prélevé sur la trésorerie de la ville, pas sur l'entrepôt
+      const warehouse = { ...(city.warehouse || {}), or: city.gold_treasury || 0 };
+      let treasuryGoldUsed = 0;
       // Multiplicateur entretien : +20% par résident supplémentaire
       const residentCount = players.filter(p => p.home_city_id === city.id).length;
       const maintMultiplier = 1 + 0.2 * Math.max(0, residentCount - 1);
@@ -564,6 +567,13 @@ async function resetCity(city, resetDate, players = []) {
         }
       }
 
+      // Retirer l'or utilisé de la trésorerie (pas du warehouse)
+      const orUsed = (city.gold_treasury || 0) - warehouse.or;
+      if (orUsed > 0) {
+        cityUpdates.gold_treasury = Math.max(0, (city.gold_treasury || 0) - orUsed);
+      }
+      // Supprimer or du warehouse (il n'y est pas stocké)
+      delete warehouse.or;
       cityUpdates.warehouse            = warehouse;
       cityUpdates.buildings            = surviving;
       cityUpdates.maintenance_last_run = resetDate;
@@ -1303,6 +1313,47 @@ async function expireMarketListings(resetDate) {
       console.log(`expireMarketListings: ${expired.length} annonce(s) expirée(s), items restitués.`);
     }
   } catch(e) { console.warn("expireMarketListings error:", e); }
+}
+
+
+async function applyPopulationConsumption(cities, players) {
+  // Chaque résident actif coûte 1 ressource T1 aléatoire/jour à l'entrepôt communautaire
+  const T1_KEYS = ["bois_brut", "pierre_brute", "minerai_fer", "ble", "laine_brute", "herbes", "quartz_brut"];
+
+  for (const city of cities) {
+    if (city.is_bot_city) continue;
+    const residents = players.filter(p => p.home_city_id === city.id);
+    if (residents.length === 0) continue;
+
+    const warehouse = { ...(city.warehouse || {}) };
+    let changed = false;
+
+    for (const resident of residents) {
+      // Choisir une ressource T1 aléatoire à consommer
+      const needed = T1_KEYS[Math.floor(Math.random() * T1_KEYS.length)];
+      if ((warehouse[needed] || 0) >= 1) {
+        warehouse[needed] = (warehouse[needed] || 0) - 1;
+        changed = true;
+      } else {
+        // T1 manquante → perd 20% d'une T1 aléatoire existante
+        const available = T1_KEYS.filter(k => (warehouse[k] || 0) > 0);
+        if (available.length > 0) {
+          const fallback = available[Math.floor(Math.random() * available.length)];
+          const loss = Math.floor((warehouse[fallback] || 0) * 0.20);
+          if (loss > 0) {
+            warehouse[fallback] = Math.max(0, (warehouse[fallback] || 0) - loss);
+            changed = true;
+            console.log(`PopulationConsumption [${city.name}] : ${resident.character_name || resident.user_email} — manque ${needed}, perd ${loss}× ${fallback}`);
+          }
+        }
+      }
+    }
+
+    if (changed) {
+      await base44.entities.City.update(city.id, { warehouse }).catch(() => {});
+      console.log(`PopulationConsumption [${city.name}] : ${residents.length} résidents consommés`);
+    }
+  }
 }
 
 async function applyMilitaryMaintenance(cities) {

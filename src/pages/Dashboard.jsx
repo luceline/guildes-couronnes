@@ -63,7 +63,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
       try {
         const todayStr = new Date().toISOString().split("T")[0];
         const allObjs = await base44.entities.PlayerObjective.filter({ player_email: profile.user_email });
-        const todayQuests = allObjs.filter(q => q.created_date?.startsWith(todayStr) && !q.parchemin_type);
+        const todayQuests = allObjs.filter(q => (q.created_date || q.quest_date || "").startsWith(todayStr) && !q.parchemin_type);
         setQuests(todayQuests);
       } catch(e) {}
       // Annonces marché actives
@@ -154,8 +154,8 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
 
           // Biome
           biomeCombatsLeft > 0
-            ? { to: "/city", icon: "🌿", title: "Biome", sub: `${biomeCombatsLeft} combat${biomeCombatsLeft > 1 ? "s" : ""} disponible${biomeCombatsLeft > 1 ? "s" : ""}`, state: "warn" }
-            : { to: "/city", icon: "🌿", title: "Biome", sub: "Combats épuisés pour aujourd'hui", state: "done" },
+            ? { to: "/travel", icon: "🌿", title: "Biome", sub: `${biomeCombatsLeft} combat${biomeCombatsLeft > 1 ? "s" : ""} disponible${biomeCombatsLeft > 1 ? "s" : ""}`, state: "warn" }
+            : { to: "/travel", icon: "🌿", title: "Biome", sub: "Combats épuisés pour aujourd'hui", state: "done" },
 
           // Production
           hasCooldownReady
@@ -302,3 +302,4 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
     </div>
   );
 }
+

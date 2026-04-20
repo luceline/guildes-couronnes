@@ -140,7 +140,7 @@ export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
     city_id:          cityId,
     current_quantity: 0,
     status:           "active",
-    created_date:     todayStr,
+    quest_date: todayStr,
     reward_gold:      reward(QUEST_TEMPLATES[type]?.reward),
     ...overrides,
   });
@@ -196,3 +196,4 @@ export const PROFESSION_EMOJIS = {
   Bûcheron: "🌲", Mineur: "⛏️", Fermier: "🌾", Tisserand: "🧵",
   Forgeron: "⚒️", Alchimiste: "🧪", Orfèvre: "💎", Marchand: "💼",
 };
+

@@ -6,6 +6,14 @@ export default function LandingPage() {
   return (
     <div style={{ background: "#0e0b05", minHeight: "100vh", fontFamily: "Georgia, serif", color: "#f5e6c0", overflowX: "hidden" }}>
 
+
+    {/* ── Bannière PWA installation ── */}
+    <div style={{ background: "#c9a44a", padding: "0.6rem 1rem", textAlign: "center", position: "sticky", top: 0, zIndex: 100 }}>
+      <p style={{ fontFamily: "sans-serif", fontSize: 12, fontWeight: 600, color: "#0e0b05", margin: 0, letterSpacing: 0.5 }}>
+        📲 Installez le jeu sur votre appareil — Chrome/Edge : icône ⊕ dans la barre d'adresse · Safari iOS : Partager ↑ → "Sur l'écran d'accueil"
+      </p>
+    </div>
+
       {/* HERO */}
       <div style={{ position: "relative", minHeight: 340, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3.5rem 1rem 2rem", overflow: "hidden", background: "#0e0b05" }}>
         <a href="https://fr.tipeee.com/guildes-couronnes/" target="_blank" rel="noopener noreferrer" style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 10 }}>
@@ -298,6 +306,42 @@ export default function LandingPage() {
         <p style={{ marginTop: "1.5rem" }}>
           <a href="https://fr.tipeee.com/guildes-couronnes/" target="_blank" rel="noopener noreferrer" style={{ color: "#c9a44a", textDecoration: "none", fontSize: 12, fontFamily: "sans-serif", letterSpacing: 1, fontWeight: 500 }}>💛 Soutenir le conteur</a>
         </p>
+      </div>
+
+
+      {/* ── PWA Install ── */}
+      <div style={{ background: "#0a0804", borderTop: "1px solid #3d2a0a", padding: "3rem 2rem", textAlign: "center" }}>
+        <p style={{ fontFamily: "sans-serif", fontSize: 12, letterSpacing: 4, textTransform: "uppercase", color: "#c9a44a", marginBottom: "0.5rem" }}>Jouer comme une application</p>
+        <h2 style={{ fontSize: "1.5rem", fontWeight: 400, color: "#f5e6c0", marginBottom: "1.5rem", letterSpacing: 1 }}>Installer sur votre appareil</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.5rem", maxWidth: 800, margin: "0 auto", textAlign: "left" }}>
+          <div style={{ background: "#120e06", border: "1px solid #3d2a0a", borderRadius: "0.75rem", padding: "1.25rem" }}>
+            <p style={{ fontFamily: "sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#c9a44a", marginBottom: "0.75rem" }}>🖥️ PC / Mac (Chrome ou Edge)</p>
+            <ol style={{ color: "#b8956b", fontFamily: "sans-serif", fontSize: 13, lineHeight: 1.8, paddingLeft: "1.2rem", margin: 0 }}>
+              <li>Ouvrez le site dans Chrome ou Edge</li>
+              <li>Cliquez sur l'icône <strong style={{ color: "#f5e6c0" }}>⊕</strong> dans la barre d'adresse</li>
+              <li>Cliquez sur <strong style={{ color: "#f5e6c0" }}>"Installer"</strong></li>
+              <li>Le jeu s'ouvre comme une application !</li>
+            </ol>
+          </div>
+          <div style={{ background: "#120e06", border: "1px solid #3d2a0a", borderRadius: "0.75rem", padding: "1.25rem" }}>
+            <p style={{ fontFamily: "sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#c9a44a", marginBottom: "0.75rem" }}>🤖 Android (Chrome)</p>
+            <ol style={{ color: "#b8956b", fontFamily: "sans-serif", fontSize: 13, lineHeight: 1.8, paddingLeft: "1.2rem", margin: 0 }}>
+              <li>Ouvrez le site dans Chrome</li>
+              <li>Appuyez sur le menu <strong style={{ color: "#f5e6c0" }}>⋮</strong> en haut à droite</li>
+              <li>Choisissez <strong style={{ color: "#f5e6c0" }}>"Ajouter à l'écran d'accueil"</strong></li>
+              <li>Confirmez — l'icône apparaît sur votre écran !</li>
+            </ol>
+          </div>
+          <div style={{ background: "#120e06", border: "1px solid #3d2a0a", borderRadius: "0.75rem", padding: "1.25rem" }}>
+            <p style={{ fontFamily: "sans-serif", fontSize: 11, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", color: "#c9a44a", marginBottom: "0.75rem" }}>🍎 iPhone / iPad (Safari)</p>
+            <ol style={{ color: "#b8956b", fontFamily: "sans-serif", fontSize: 13, lineHeight: 1.8, paddingLeft: "1.2rem", margin: 0 }}>
+              <li>Ouvrez le site dans <strong style={{ color: "#f5e6c0" }}>Safari</strong></li>
+              <li>Appuyez sur le bouton <strong style={{ color: "#f5e6c0" }}>Partager ↑</strong></li>
+              <li>Choisissez <strong style={{ color: "#f5e6c0" }}>"Sur l'écran d'accueil"</strong></li>
+              <li>Confirmez — l'icône apparaît sur votre écran !</li>
+            </ol>
+          </div>
+        </div>
       </div>
 
       <style>{`

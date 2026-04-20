@@ -76,7 +76,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
         status: "active",
         type: "travel",
       });
-      const travelObjectives = allTravelObjs.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+      const travelObjectives = allTravelObjs.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
       for (const obj of travelObjectives) {
         const newQty = (obj.current_quantity || 0) + 1;
         const done = newQty >= (obj.target_quantity || 1);
@@ -675,3 +675,4 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
               </div>
               );
               }
+

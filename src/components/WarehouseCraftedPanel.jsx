@@ -78,7 +78,7 @@ export default function WarehouseCraftedPanel({
       const rawDepositObjs = await base44.entities.PlayerObjective.filter({
         player_email: profile.user_email, status: "active", type: "deposit",
       });
-      const activeObjs = rawDepositObjs.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+      const activeObjs = rawDepositObjs.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
       for (const obj of activeObjs) {
         // Correspondance exacte sur la clé item (les quêtes deposit ont maintenant un item_key précis)
         const matches = obj.target_item === item.key || obj.target_item === "any_t2" || obj.target_item === "any_t3";

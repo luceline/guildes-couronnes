@@ -24,7 +24,7 @@ export default function WarehouseDepositPanel({
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-      {[...WAREHOUSE_T1, { key: "or", name: "Or", icon: "💰" }].map(item => {
+      {[...WAREHOUSE_T1].map(item => {
         const isGold = item.key === "or";
         const playerStock = isGold
           ? (profile.gold || 0)

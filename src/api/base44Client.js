@@ -1,6 +1,6 @@
 import PocketBase from 'pocketbase';
 
-const PB_URL = 'http://178.104.201.139';
+const PB_URL = 'https://guildescouronnes.fr';
 
 export const pb = new PocketBase(PB_URL);
 pb.autoCancellation(false);
@@ -159,7 +159,7 @@ const auth = {
     if (!pb.authStore.isValid) return null;
     try {
       await pb.collection('users').authRefresh();
-      const user = pb.authStore.record || pb.authStore.model;
+      const user = pb.authStore.record ?? pb.authStore.model;
       console.log('[auth.me] user:', JSON.stringify(user));
       return { email: user.email, id: user.id, name: user.name || user.email };
     } catch {
@@ -197,3 +197,5 @@ const entitiesProxy = new Proxy({}, {
 
 export const base44 = { entities: entitiesProxy, auth };
 export default pb;
+
+

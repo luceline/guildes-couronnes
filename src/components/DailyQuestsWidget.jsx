@@ -20,7 +20,7 @@ function useCountdown() {
     const tick = () => {
       const now = new Date();
       const midnight = new Date();
-      midnight.setHours(24, 0, 0, 0);
+      midnight.setUTCDate(midnight.getUTCDate() + 1); midnight.setUTCHours(6, 0, 0, 0); // 6h UTC du lendemain
       const diff = midnight - now;
       const h = String(Math.floor(diff / 3600000)).padStart(2, "0");
       const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, "0");
@@ -42,18 +42,24 @@ export default function DailyQuestsWidget({ profile, city }) {
 
   const todayStr = new Date().toISOString().split("T")[0];
 
+  const isToday = (q) => {
+    // created_date vient de normalizeRecord (champ PocketBase "created")
+    // quest_date est le champ texte qu'on stocke dans la collection
+    const d = q.created_date || q.quest_date || "";
+    return d.startsWith(todayStr);
+  };
+
   const loadQuests = useCallback(async () => {
     if (!profile?.user_email) return;
     setLoading(true);
     const all = await base44.entities.PlayerObjective.filter({
       player_email: profile.user_email,
     });
-    // Garder uniquement les quêtes du jour (avec created_date = aujourd'hui), sans les contrats
+    // Garder uniquement les quêtes du jour, sans les contrats
     const todayQuests = all.filter(q => {
-      if (!q.created_date) return false; // exclure les anciennes sans date
       if (q.parchemin_type) return false; // exclure les contrats
-      return q.created_date.startsWith(todayStr);
-    });
+      return isToday(q);
+    }).slice(-6); // garder les 6 plus récentes
     setQuests(todayQuests);
     setLoading(false);
     return todayQuests;
@@ -77,12 +83,10 @@ export default function DailyQuestsWidget({ profile, city }) {
   useEffect(() => {
     loadQuests().then(async (q) => {
       if (!q || q.length > 0) return;
-      // Vérifier s'il existe des quêtes today même expirées (reset en cours ou déjà passé)
-      // pour éviter la race condition avec dailyReset qui génère déjà 6 quêtes
       const todayAll = await base44.entities.PlayerObjective.filter({
         player_email: profile?.user_email,
       }).catch(() => []);
-      const alreadyGeneratedToday = todayAll.some(o => o.created_date && o.created_date.startsWith(todayStr));
+      const alreadyGeneratedToday = todayAll.some(o => isToday(o) && !o.parchemin_type);
       if (!alreadyGeneratedToday) generateQuests();
     });
   }, [profile?.user_email]);
@@ -137,7 +141,6 @@ export default function DailyQuestsWidget({ profile, city }) {
             const meta = TYPE_META[q.type] || TYPE_META.produce;
             const pct = Math.min(100, Math.floor(((q.current_quantity || 0) / (q.target_quantity || 1)) * 100));
             const done = q.status === "completed";
-            // Détecter si c'est la quête métier (reward plus élevé que les autres)
             const maxReward = Math.max(...quests.map(x => x.reward_gold || 0));
             const isBigQuest = (q.reward_gold || 0) === maxReward && maxReward > (quests.filter(x => x.reward_gold !== maxReward)[0]?.reward_gold || 0);
 
@@ -200,3 +203,6 @@ export default function DailyQuestsWidget({ profile, city }) {
     </Card>
   );
 }
+
+
+

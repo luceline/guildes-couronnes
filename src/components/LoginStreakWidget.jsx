@@ -92,11 +92,13 @@ export default function LoginStreakWidget({ profile, onProfileUpdate }) {
     const goldEarned = streakReward.gold;
 
     // Enregistrer la mise à jour
+    const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
+    const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
     const updates = {
       login_streak: newStreak,
       last_login_date: today,
       streak_rewarded_today: true,
-      gold: (profile.gold || 0) + goldEarned,
+      gold: currentGold + goldEarned,
     };
 
     await base44.entities.PlayerProfile.update(profile.id, updates);

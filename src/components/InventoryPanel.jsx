@@ -141,6 +141,10 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
         const maxH = MAX_HUNGER + (profile.hunger_max_bonus || 0);
         updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+      } else if (itemDef.effect === "fatigue_restore") {
+        const maxFatigue = (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0);
+        updates.fatigue = Math.min(maxFatigue, (profile.fatigue ?? 20) + (itemDef.value || 5));
+        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
       } else if (itemDef.effect === "hunger_and_regen") {
         const maxH = MAX_HUNGER + (profile.hunger_max_bonus || 0);
         updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));

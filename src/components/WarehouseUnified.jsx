@@ -158,7 +158,7 @@ export default function WarehouseUnified({
             status: "active",
             type: "contribute",
           });
-          const contributeObjs = allContrib.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+          const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
               const newQty = (obj.current_quantity || 0) + actualQty;
@@ -191,19 +191,27 @@ export default function WarehouseUnified({
         : (profile.inventory || [])
           .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - qty } : i)
           .filter(i => i.quantity > 0);
-      const newWarehouse = { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + qty };
+      const newWarehouse = isGold
+        ? { ...(warehouse || {}) }  // l'or va en trésorerie, pas dans warehouse
+        : { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + qty };
 
       try {
         setContributing(true);
         await Promise.all([
-          base44.entities.City.update(city.id, { warehouse: newWarehouse }),
+          base44.entities.City.update(city.id, {
+            warehouse: newWarehouse,
+            ...(isGold ? { gold_treasury: (city.gold_treasury || 0) + qty, treasury_cumulative: (city.treasury_cumulative || 0) + qty } : {}),
+          }),
           base44.entities.PlayerProfile.update(profile.id, {
             gold: isGold ? (profile.gold || 0) - qty : (profile.gold || 0),
             inventory: isGold ? (profile.inventory || []) : newInv,
             cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + qty,
           })
         ]);
-        toast.success(`📦 ${qty}× ${WAREHOUSE_LABELS[itemKey]} versé(e)s à l'entrepôt communautaire — la ville vous remercie !`);
+        toast.success(isGold
+          ? `💰 ${qty} or versé à la trésorerie de la ville — la ville vous remercie !`
+          : `📦 ${qty}× ${WAREHOUSE_LABELS[itemKey]} versé(e)s à l'entrepôt communautaire — la ville vous remercie !`
+        );
 
         if (isHomeCity) for (const obj of depositObjectives) {
           if (obj.target_item === itemKey) {
@@ -233,7 +241,7 @@ export default function WarehouseUnified({
             status: "active",
             type: "contribute",
           });
-          const contributeObjs = allContrib.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+          const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
               const newQty = (obj.current_quantity || 0) + qty;
@@ -340,7 +348,7 @@ export default function WarehouseUnified({
             status: "active",
             type: "contribute",
           });
-          const contributeObjs = allContrib.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+          const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
               const newQty = (obj.current_quantity || 0) + actualQty;
@@ -414,7 +422,7 @@ export default function WarehouseUnified({
             status: "active",
             type: "contribute",
           });
-          const contributeObjs = allContrib.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+          const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
               const newQty = (obj.current_quantity || 0) + qty;
@@ -475,7 +483,7 @@ export default function WarehouseUnified({
         {/* Grille d'items */}
         {selectedTier === "t1" ? (
           <div className="space-y-2">
-            {[...items, { key: "or", name: "Or", icon: "💰" }].map(item => {
+            {[...items].map(item => {
               const isGold = item.key === "or";
               const playerStock = isGold
                 ? (profile.gold || 0)
@@ -677,3 +685,4 @@ export default function WarehouseUnified({
     </Card>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { runMayorTick, mayerTryBuild, rotateResources, runWealthTax, runMaintenanceCosts, distributeTreasury, runBuildingMaintenance, runTreasuryInterests } from "../lib/mayorAI";
 import { BUILDING_TYPES, generateDailyTax, getTodayDateStr, PROFESSIONS, ADMIN_EMAILS } from "../lib/gameData";
+const BUILDING_TYPE_MAP = BUILDING_TYPES;
 import { CRAFTING_RECIPES, ITEMS, PROFESSION_PRODUCTION } from "../lib/craftingData";
 import { toast } from "sonner";
 import GameDataManager from "../components/admin/GameDataManager";
@@ -360,23 +361,7 @@ export default function AdminPage() {
     setRunning(false);
   };
 
-  const runMayorBuilding = async () => {
-    setRunning(true);
-    for (const city of cities) {
-      const result = await mayerTryBuild(city);
-      if (result) toast.success(`${city.name} → Construction: ${result.building}`);
-      else toast(`${city.name} → Pas assez de ressources pour construire.`);
-    }
-    await loadAll();
-    setRunning(false);
-  };
-
-  const runResourceRotation = async () => {
-    setRunning(true);
-    await rotateResources(cities);
-    toast.success("Rotation des ressources effectuée !");
-    setRunning(false);
-  };
+  // runMayorBuilding et runResourceRotation supprimés (désactivés/obsolètes)
 
   const runWealthTaxAll = async () => {
     setRunning(true);
@@ -432,6 +417,48 @@ export default function AdminPage() {
     }
     await loadAll();
     setRunning(false);
+  };
+
+  // ── Construction admin manuelle ──
+  const [adminBuildCity, setAdminBuildCity] = React.useState("");
+  const [adminBuildType, setAdminBuildType] = React.useState("");
+
+  const handleAdminBuild = async () => {
+    if (!adminBuildCity || !adminBuildType) { toast.error("Choisissez une ville et un bâtiment."); return; }
+    const city = cities.find(c => c.id === adminBuildCity);
+    if (!city) return;
+    const BUILDING_TYPES_KEYS = Object.keys(BUILDING_TYPE_MAP);
+    const bType = BUILDING_TYPE_MAP[adminBuildType];
+    if (!bType) { toast.error("Bâtiment inconnu."); return; }
+    const alreadyHas = (city.buildings || []).some(b => b.building_type === adminBuildType);
+    if (alreadyHas && bType.unique) { toast.error(`${bType.name} existe déjà dans cette ville.`); return; }
+    const newBuildings = [...(city.buildings || []), {
+      building_type: adminBuildType,
+      name: bType.name,
+      level: 1,
+      built_date: new Date().toISOString().split("T")[0],
+    }];
+    const newMaxPop = bType.popBonus > 0
+      ? (city.max_population || 3) + bType.popBonus
+      : (city.max_population || 3);
+    await base44.entities.City.update(city.id, {
+      buildings: newBuildings,
+      max_population: newMaxPop,
+    });
+    toast.success(`🏗️ ${bType.name} construite dans ${city.name} !`);
+    await loadAll();
+    setAdminBuildType("");
+  };
+
+  const handleAdminDestroyBuilding = async (cityId, buildingIdx) => {
+    const city = cities.find(c => c.id === cityId);
+    if (!city) return;
+    const building = (city.buildings || [])[buildingIdx];
+    if (!window.confirm(`Supprimer "${building?.name || building?.building_type}" de ${city.name} ?`)) return;
+    const newBuildings = (city.buildings || []).filter((_, i) => i !== buildingIdx);
+    await base44.entities.City.update(cityId, { buildings: newBuildings });
+    toast.success(`🗑️ Bâtiment supprimé.`);
+    await loadAll();
   };
 
   const handleDistribute = async () => {
@@ -616,12 +643,6 @@ export default function AdminPage() {
               <Button onClick={forceRandomTaxAll} disabled={running} variant="secondary" className="font-heading">
                 🎲 Régénérer toutes les taxes
               </Button>
-              <Button onClick={runMayorBuilding} disabled={running} variant="secondary" className="font-heading">
-                🏗️ IA Construction (tous maires)
-              </Button>
-              <Button onClick={runResourceRotation} disabled={running} variant="outline" className="font-heading">
-                🔄 Rotation ressources
-              </Button>
               <Button onClick={runWealthTaxAll} disabled={running} variant="secondary" className="font-heading">
                 💰 Prélever taxe richesse
               </Button>
@@ -634,6 +655,55 @@ export default function AdminPage() {
               <Button onClick={runTreasuryInterestsAll} disabled={running} variant="secondary" className="font-heading">
                 🏦 Intérêts trésorerie (1%/jour)
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="font-heading text-lg">🏗️ Construction manuelle</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground font-body">Construire ou supprimer un bâtiment dans une ville sans coût de ressources — utile pour corriger un bug.</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <div className="space-y-1">
+                  <Label className="font-body">Ville</Label>
+                  <Select value={adminBuildCity} onValueChange={setAdminBuildCity}>
+                    <SelectTrigger><SelectValue placeholder="Choisir une ville" /></SelectTrigger>
+                    <SelectContent>
+                      {cities.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="font-body">Bâtiment</Label>
+                  <Select value={adminBuildType} onValueChange={setAdminBuildType}>
+                    <SelectTrigger><SelectValue placeholder="Choisir un bâtiment" /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(BUILDING_TYPE_MAP).map(([key, b]) => (
+                        <SelectItem key={key} value={key}>{b.icon} {b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={handleAdminBuild} disabled={!adminBuildCity || !adminBuildType} className="font-heading">
+                  🏗️ Construire
+                </Button>
+              </div>
+              {adminBuildCity && (() => {
+                const city = cities.find(c => c.id === adminBuildCity);
+                if (!city || !(city.buildings || []).length) return null;
+                return (
+                  <div className="space-y-2">
+                    <p className="text-xs font-body font-semibold text-muted-foreground">Bâtiments existants :</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(city.buildings || []).map((b, i) => (
+                        <div key={i} className="flex items-center gap-1 bg-muted rounded-lg px-2 py-1 text-xs font-body">
+                          <span>{BUILDING_TYPE_MAP[b.building_type]?.icon || "🏗️"} {b.name || b.building_type}</span>
+                          <button onClick={() => handleAdminDestroyBuilding(city.id, i)} className="text-red-500 hover:text-red-700 ml-1 font-bold">×</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
@@ -1261,3 +1331,4 @@ export default function AdminPage() {
     </div>
   );
 }
+

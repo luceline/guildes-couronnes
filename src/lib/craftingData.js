@@ -190,8 +190,9 @@ export const ITEMS = {
   },
   encre: {
     name: "Encre", icon: "🖋️", category: "parchemins", tier: 2,
-    trigger: "consumed", effect: "travel_and_gamble", value: 0.20, gamble_max: 60, xp_reward: 50,
-    use: "Consommé : −20% prochain voyage + gamble 0–60💰 (votre livre est-il un succès ?) · +50 XP",
+    trigger: "durability", effect: "travel_and_gamble", value: 0.20, gamble_max: 60, xp_reward: 50,
+    durability: 4, craft_tier_bonus: 2, craft_bonus_output_tier: 1, cooldown_reduction: 0.10,
+    use: "Consommé : −20% prochain voyage + gamble 0–60💰 · +50 XP. Équipée : −10% cooldown. Craft T2 → génère une ressource T1 aléatoire en bonus. Durabilité 4.",
   },
   farine: {
     name: "Farine", icon: "🧺", category: "nourriture", tier: 2,
@@ -220,8 +221,9 @@ export const ITEMS = {
   },
   epee_courte: {
     name: "Épée courte", icon: "🗡️", category: "armes", tier: 3,
-    trigger: "durability", effect: "attack_bonus", value: 2, durability: 3, steal_pct: 0.10,
-    use: "+2 attaque vol. Vol réussi : vole 10% or. Durabilité 3 + nécessaire pour crafter du T4",
+    trigger: "durability", effect: "attack_bonus", value: 2, durability: 4, steal_pct: 0.10,
+    craft_tier_bonus: 3, craft_bonus_output_tier: 2, cooldown_reduction: 0.20,
+    use: "+2 attaque vol. Vol réussi : vole 10% or. −20% cooldown. Craft T3 → génère une ressource T2 aléatoire en bonus. Durabilité 4.",
   },
   potion_soin: {
     name: "Potion de soin", icon: "🧪", category: "potions", tier: 3,
@@ -263,8 +265,9 @@ export const ITEMS = {
   },
   outils: {
     name: "Outils", icon: "🔧", category: "outils", tier: 4,
-    trigger: "durability", effect: "cooldown_reduction", value: 0.30, durability: 3,
-    use: "−30% cooldown production. Produire des T3 génère une ressource T2 aléatoire en plus. Durabilité 3",
+    trigger: "durability", effect: "cooldown_reduction", value: 0.30, durability: 4,
+    craft_tier_bonus: 4, craft_bonus_output_tier: 3, cooldown_reduction: 0.30,
+    use: "−30% cooldown production. Craft T4 → génère une ressource T3 aléatoire en bonus. Durabilité 4.",
   },
   ragout: {
     name: "Ragoût", icon: "🍲", category: "nourriture", tier: 4,

@@ -215,7 +215,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           status: "active",
           type: "sell",
         });
-        const sellObjs = allSell.filter(o => o.created_date && o.created_date.startsWith(todayStr));
+        const sellObjs = allSell.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
         for (const obj of sellObjs) {
           const tierMatch = obj.target_item === "any_t2" || obj.target_item === "any_t3" || obj.target_item === "any" || obj.target_item === item.item_key || obj.target_item === item.item_category;
           if (!tierMatch) continue;

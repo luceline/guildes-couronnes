@@ -199,8 +199,10 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   }
 
   const today = getTodayDateStr();
+  const freshProfile = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
+  const currentGold = freshProfile ? (freshProfile.gold || 0) : (profile.gold || 0);
   const profileUpdates = {
-    gold: (profile.gold || 0) + goldReward,
+    gold: currentGold + goldReward,
     inventory: newInventory,
     fatigue: newFatigue,
     hunger: newHunger,

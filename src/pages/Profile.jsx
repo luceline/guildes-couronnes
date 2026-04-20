@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import PatchnoteModal from "../components/PatchnoteModal";
 import { Badge } from "@/components/ui/badge";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import { PROFESSIONS, HOUSING } from "../lib/gameData";
@@ -26,7 +27,8 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
   const [liveCities, setLiveCities] = useState(cities);
   const [residentsPerCity, setResidentsPerCity] = useState({});
   const [liveProfile, setLiveProfile] = useState(profile);
-  const [moveConfirm, setMoveConfirm] = useState(null); // city id en attente de confirmation
+  const [moveConfirm, setMoveConfirm] = useState(null);
+  const [showPatchnote, setShowPatchnote] = useState(false); // city id en attente de confirmation
 
   useEffect(() => {
     setLiveCities(cities);
@@ -303,9 +305,15 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
         </CardContent>
       </Card>
 
+      <Button variant="outline" className="w-full font-body" onClick={() => setShowPatchnote(true)}>
+        📜 Chroniques du royaume
+      </Button>
+
       <Button variant="outline" className="w-full font-body" onClick={handleLogout}>
         Se déconnecter
       </Button>
+
+      <PatchnoteModal forceOpen={showPatchnote} onClose={() => setShowPatchnote(false)} />
     </div>
   );
 }

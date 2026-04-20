@@ -23,6 +23,7 @@ import {
 import { getTodayPvpRecipes } from "../lib/pvpRecipes";
 import { OBJECTIVE_TEMPLATES, QUEST_TEMPLATES } from "../lib/objectiveGenerator";
 import { toast } from "sonner";
+import GameModal from "../components/GameModal";
 import ItemTooltip from "../components/ItemTooltip";
 import HelpTooltip from "../components/HelpTooltip";
 import AtelierVitrine from "../components/AtelierVitrine";
@@ -57,6 +58,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     }).catch(() => {});
   }, []);
   const [producing, setProducing] = useState(null);
+  const [coupDeMaitre, setCoupDeMaitre] = useState(null);
+  const [travelingError, setTravelingError] = useState(false);
   const [crafting, setCrafting] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [consumingFood, setConsumingFood] = useState(null);
@@ -521,8 +524,20 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const recipe = allRecipes.find(r => r.id === recipeId);
     if (!recipe) return 0;
     const hasToolCharges = (profile?.tool_charges || 0) > 0;
-    const reduction = hasToolCharges ? (ITEM_EFFECTS.outils?.value || 0) : 0;
-    const penalty = hasToolCharges ? 1 : COOLDOWN_PENALTY_NO_TOOLS;
+    // Détection items craft équipés (encre T2, épée courte T3, outils T4)
+    const inv = profile?.inventory || [];
+    const encreEquipped = inv.find(i => i.item_key === "encre" && (i.durability ?? 0) > 0);
+    const epeeEquipped  = inv.find(i => i.item_key === "epee_courte" && (i.durability ?? 0) > 0);
+    const outilsEquipped = inv.find(i => i.item_key === "outils" && (i.durability ?? 0) > 0);
+    const allRecipesForItem = [...farmRecipes || [], ...CRAFTING_RECIPES, ...getTodayPvpRecipes()];
+    const recipeForCooldown = allRecipesForItem.find(r => r.id === recipeId);
+    const recipeOutputTier = recipeForCooldown ? (ITEMS[recipeForCooldown?.output?.key]?.tier || recipeForCooldown?.tier || 1) : 1;
+    let craftItemReduction = 0;
+    if (recipeOutputTier >= 2 && encreEquipped) craftItemReduction = Math.max(craftItemReduction, 0.10);
+    if (recipeOutputTier >= 3 && epeeEquipped)  craftItemReduction = Math.max(craftItemReduction, 0.20);
+    if (recipeOutputTier >= 4 && outilsEquipped) craftItemReduction = Math.max(craftItemReduction, 0.30);
+    const reduction = hasToolCharges ? (ITEM_EFFECTS.outils?.value || 0) : craftItemReduction;
+    const penalty = hasToolCharges ? 1 : (outilsEquipped ? 1 : COOLDOWN_PENALTY_NO_TOOLS);
     const tractsActive = city?.production_malus?.tracts_greve_active_until && new Date(city.production_malus.tracts_greve_active_until) > new Date();
     const tractsMalus = tractsActive ? 1.2 : 1;
     const cityLingotBonus = getCityBonuses(city?.lingots_cumul || 0).cooldownReduction / 100;
@@ -545,7 +560,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   const farmRecipes = PROFESSION_PRODUCTION[profile?.profession] || [];
 
   const handleFarm = async (recipe) => {
-    if (profile.is_traveling) { toast.error("🐴 Votre monture avance — on ne forge pas en chemin !"); return; }
+    if (profile.is_traveling) { setTravelingError(true); return; }
     if (currentHunger <= 0) { toast.error("🍽️ Votre ventre crie famine — nul artisan ne travaille à jeun. Mangez d'abord !"); return; }
     if (currentFatigue < actualFatigueCost) { toast.error("⚡ Vos bras ne répondent plus — reposez-vous à la taverne ou mangez pour reprendre des forces."); return; }
     if (wouldExceedCapacity(profile, recipe.quantity)) {
@@ -609,7 +624,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         biomeDoubleChanceProd > 0 ? `biome` : null,
         charbonBonus          > 0 ? `charbon` : null,
       ].filter(Boolean).join(" + ");
-      toast.success(`🎲 Coup de maître ! +${doubleBonus} ${item?.name || recipe.name} en bonus ! (${sources})`, { duration: 4000 });
+      setCoupDeMaitre({ qty: doubleBonus, itemName: item?.name || recipe.name, sources });
     }
     // Biome harvest bonus T1 (timer 5min — indépendant du double prod)
     let biomeHarvestBonus = 0;
@@ -722,7 +737,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   };
 
   const handleCraft = async (recipe) => {
-    if (profile.is_traveling) { toast.error("🐴 Impossible de fabriquer pendant un voyage !"); return; }
+    if (profile.is_traveling) { setTravelingError(true); return; }
     if (currentHunger <= 0) { toast.error("🍽️ Votre ventre crie famine — nul artisan ne travaille à jeun. Mangez d'abord !"); return; }
     if (currentFatigue < actualFatigueCost) { toast.error("⚡ Vos bras ne répondent plus — reposez-vous à la taverne ou mangez pour reprendre des forces."); return; }
 
@@ -798,7 +813,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         biomeDoubleChanceCraft  > 0 ? `biome` : null,
         charbonBonusCraft       > 0 ? `charbon` : null,
       ].filter(Boolean).join(" + ");
-      toast.success(`🎲 Coup de maître ! +${doubleBonusCraft} ${ITEMS[recipe.output.key]?.name || recipe.name} en bonus ! (${sources})`, { duration: 4000 });
+      setCoupDeMaitre({ qty: doubleBonusCraft, itemName: ITEMS[recipe.output.key]?.name || recipe.name, sources });
     }
 
     const totalQty = recipe.output.quantity + forgeBonusQty + cityBonusQty + doubleBonusCraft;
@@ -851,8 +866,53 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       }
     }
 
+    // ── Bonus ressource + usure items craft équipés ──
+    const invForCraft = [...finalInv];
+    const outputTierForBonus = ITEMS[recipe.output?.key]?.tier || 1;
+
+    const T1_KEYS = ["bois_brut", "pierre_brute", "minerai_fer", "ble", "laine_brute", "herbes", "quartz_brut"];
+    const T2_KEYS = ["planches", "pierre_taillee", "fer_forge", "farine", "laine_filée", "extrait_herbes", "lingots_or"];
+    const T3_KEYS = ["meubles", "outils", "armure_legere", "pain", "tissu_fin", "potion_soin", "quartz_poli"];
+
+    function addBonusResource(inv, keys) {
+      const key = keys[Math.floor(Math.random() * keys.length)];
+      const item = ITEMS[key];
+      if (!item) return inv;
+      const existing = inv.find(i => i.item_key === key);
+      if (existing) existing.quantity += 1;
+      else inv.push({ item_key: key, item_name: item.name, item_category: item.category, quantity: 1 });
+      toast(`🎁 Bonus : +1 ${item.name} !`, { duration: 2500 });
+      return inv;
+    }
+
+    function wearItem(inv, itemKey) {
+      const idx = inv.findIndex(i => i.item_key === itemKey && (i.durability ?? 0) > 0);
+      if (idx < 0) return inv;
+      inv[idx] = { ...inv[idx], durability: (inv[idx].durability ?? 1) - 1 };
+      if (inv[idx].durability <= 0) {
+        inv.splice(idx, 1);
+        toast(`💔 ${ITEMS[itemKey]?.name || itemKey} brisé(e) !`, { duration: 3000 });
+      }
+      return inv;
+    }
+
+    const encreInCraft  = invForCraft.find(i => i.item_key === "encre" && (i.durability ?? 0) > 0);
+    const epeeInCraft   = invForCraft.find(i => i.item_key === "epee_courte" && (i.durability ?? 0) > 0);
+    const outilsInCraft = invForCraft.find(i => i.item_key === "outils" && (i.durability ?? 0) > 0);
+
+    if (outputTierForBonus === 2 && encreInCraft) {
+      addBonusResource(invForCraft, T1_KEYS);
+      wearItem(invForCraft, "encre");
+    } else if (outputTierForBonus === 3 && epeeInCraft) {
+      addBonusResource(invForCraft, T2_KEYS);
+      wearItem(invForCraft, "epee_courte");
+    } else if (outputTierForBonus === 4 && outilsInCraft) {
+      addBonusResource(invForCraft, T3_KEYS);
+      wearItem(invForCraft, "outils");
+    }
+
     await base44.entities.PlayerProfile.update(profile.id, {
-      inventory: finalInv,
+      inventory: invForCraft,
       fatigue: newFatigue,
       tool_charges: newToolCharges,
       hunger: newHunger,
@@ -1589,6 +1649,28 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
           </CardContent>
         </Card>
       )}
+    <GameModal
+      show={!!coupDeMaitre}
+      type="success"
+      icon="⭐"
+      title="Coup de Maître !"
+      message={coupDeMaitre ? `+${coupDeMaitre.qty} ${coupDeMaitre.itemName} en bonus ! (${coupDeMaitre.sources})` : ""}
+      onClose={() => setCoupDeMaitre(null)}
+      duration={3500}
+    />
+    <GameModal
+      show={travelingError}
+      type="warning"
+      icon="🐴"
+      title="En déplacement"
+      message="Vous ne pouvez pas produire pendant un voyage !"
+      onClose={() => setTravelingError(false)}
+      duration={3000}
+    />
     </div>
   );
 }
+
+
+
+
