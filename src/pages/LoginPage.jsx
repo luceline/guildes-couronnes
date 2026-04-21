@@ -11,7 +11,7 @@ import { useMusicPlayer } from "../lib/MusicContext";
 export default function LoginPage() {
   const { signIn, signUp } = useAuth();
   const { togglePlay, isPlaying, enabled } = useMusicPlayer();
-  const [mode, setMode] = useState("login");
+  const [mode, setMode] = useState("login"); // "login" | "register" | "reset" | "reset_sent"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -29,9 +29,7 @@ export default function LoginPage() {
         await signUp(email.toLowerCase(), password, name);
         toast.success("Compte créé ! Bienvenue dans les chroniques ⚔️");
       }
-      if (enabled && !isPlaying) {
-        setTimeout(() => togglePlay(), 500);
-      }
+      if (enabled && !isPlaying) setTimeout(() => togglePlay(), 500);
     } catch (e) {
       toast.error(e?.data?.message || (mode === "login" ? "Email ou mot de passe incorrect." : "Erreur lors de l'inscription."));
     } finally {
@@ -45,8 +43,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await pb.collection("users").requestPasswordReset(email.toLowerCase());
-      toast.success("Email envoyé ! Vérifiez votre boîte mail pour réinitialiser votre mot de passe.");
-      setMode("login");
+      setMode("reset_sent");
     } catch (e) {
       console.error('reset error:', e);
       toast.error("Erreur lors de l'envoi. Vérifiez votre email.");
@@ -90,27 +87,43 @@ export default function LoginPage() {
               {mode === "login" && "Connectez-vous pour rejoindre le royaume"}
               {mode === "register" && "Créez votre compte pour entrer dans les chroniques"}
               {mode === "reset" && "Réinitialisez votre mot de passe"}
+              {mode === "reset_sent" && "Email envoyé !"}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mode === "register" && (
-              <div className="space-y-1">
-                <Label className="font-body">Votre nom</Label>
-                <Input placeholder="Nom d'affichage" value={name} onChange={e => setName(e.target.value)} className="font-body" />
+
+            {mode === "reset_sent" ? (
+              <div className="space-y-4">
+                <div style={{ background: "#1a0a00", border: "2px solid #c9a44a", borderRadius: "0.75rem", padding: "1.25rem" }}>
+                  <p style={{ color: "#ffd700", fontWeight: "bold", marginBottom: "0.75rem", fontFamily: "Georgia, serif", fontSize: "0.95rem" }}>
+                    📧 Vérifiez votre boîte mail
+                  </p>
+                  <ul style={{ color: "#f5e6c0", fontFamily: "sans-serif", fontSize: "0.85rem", lineHeight: 2, paddingLeft: "1.2rem", margin: 0 }}>
+                    <li>Consultez vos <strong style={{ color: "#ffd700" }}>spams / courriers indésirables</strong></li>
+                    <li>L'email peut mettre 1 à 2 minutes à arriver</li>
+                    <li>L'expéditeur est <strong style={{ color: "#ffd700" }}>lucas.brunet51@gmail.com</strong></li>
+                  </ul>
+                </div>
+                <div style={{ background: "#0a0804", border: "1px solid #3d2a0a", borderRadius: "0.5rem", padding: "1rem" }}>
+                  <p style={{ color: "#a89070", fontFamily: "sans-serif", fontSize: "0.8rem", lineHeight: 1.7, margin: 0 }}>
+                    🛠️ <strong style={{ color: "#c9a44a" }}>Bug en jeu ?</strong> Appuyez sur <strong style={{ color: "#c9a44a" }}>Ctrl + Shift + R</strong> pour vider le cache et forcer le rechargement.
+                  </p>
+                </div>
+                <p className="text-center text-xs text-muted-foreground font-body">
+                  En cas de problème : <a href="mailto:lucas.brunet51@gmail.com" className="text-primary underline">lucas.brunet51@gmail.com</a>
+                </p>
+                <Button className="w-full font-heading" onClick={() => setMode("login")}>
+                  Retour à la connexion
+                </Button>
               </div>
-            )}
-            <div className="space-y-1">
-              <Label className="font-body">Email</Label>
-              <Input type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} className="font-body" onKeyDown={e => e.key === "Enter" && (mode === "reset" ? handleReset() : handleSubmit())} />
-            </div>
-            {mode !== "reset" && (
-              <div className="space-y-1">
-                <Label className="font-body">Mot de passe</Label>
-                <Input type="password" placeholder="••••••••••" value={password} onChange={e => setPassword(e.target.value)} className="font-body" onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-              </div>
-            )}
-            {mode === "reset" ? (
+
+            ) : mode === "reset" ? (
               <>
+                <div className="space-y-1">
+                  <Label className="font-body">Email</Label>
+                  <Input type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} className="font-body"
+                    onKeyDown={e => e.key === "Enter" && handleReset()} />
+                </div>
                 <Button className="w-full font-heading" onClick={handleReset} disabled={loading}>
                   {loading ? "Envoi..." : "📧 Envoyer le lien de réinitialisation"}
                 </Button>
@@ -118,8 +131,25 @@ export default function LoginPage() {
                   <button onClick={() => setMode("login")} className="text-primary underline">Retour à la connexion</button>
                 </p>
               </>
+
             ) : (
               <>
+                {mode === "register" && (
+                  <div className="space-y-1">
+                    <Label className="font-body">Votre nom</Label>
+                    <Input placeholder="Nom d'affichage" value={name} onChange={e => setName(e.target.value)} className="font-body" />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label className="font-body">Email</Label>
+                  <Input type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} className="font-body"
+                    onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="font-body">Mot de passe</Label>
+                  <Input type="password" placeholder="••••••••••" value={password} onChange={e => setPassword(e.target.value)} className="font-body"
+                    onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+                </div>
                 <Button className="w-full font-heading" onClick={handleSubmit} disabled={loading}>
                   {loading ? "..." : mode === "login" ? "Se connecter ⚔️" : "Créer mon compte ⚔️"}
                 </Button>
@@ -137,14 +167,16 @@ export default function LoginPage() {
                     <>Déjà un compte ?{" "}<button onClick={() => setMode("login")} className="text-primary underline">Se connecter</button></>
                   )}
                 </p>
+                <p className="text-center text-xs text-muted-foreground font-body pt-2 border-t border-border">
+                  En cas de problème lors de la migration :<br />
+                  <a href="mailto:lucas.brunet51@gmail.com" className="text-primary underline">lucas.brunet51@gmail.com</a>
+                </p>
               </>
             )}
+
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
-
-
-

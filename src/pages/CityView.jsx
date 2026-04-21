@@ -29,6 +29,7 @@ import MaireOffresPanel from "../components/MaireOffresPanel";
 import WarehouseUnified from "../components/WarehouseUnified";
 import AtelierCommande from "../components/AtelierCommande";
 import MairieTab from "../components/MairieTab";
+import MaireDashboard from "../components/MaireDashboard";
 import ProfessionChangePanel from "../components/ProfessionChangePanel";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
@@ -39,7 +40,7 @@ const WAREHOUSE_T1 = [
   { key: "pierre",      name: "Pierre",          icon: "🪨" },
   { key: "minerai_fer", name: "Minerai de fer",  icon: "⚙️" },
   { key: "ble",         name: "Blé",             icon: "🌾" },
-  { key: "laine_brute", name: "Laine brute",     icon: "🐑" },
+  { key: "laine_brute", name: "Laine brute",     icon: "🧶" },
   { key: "herbes",      name: "Herbes",          icon: "🌿" },
   { key: "quartz_brut", name: "Quartz brut",     icon: "🔮" },
 ];
@@ -489,7 +490,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           : 0.10;
       let stolen = Math.max(1, Math.floor((targetPlayer.gold || 0) * stealPct));
 
-      // Bourse de protection : plafonne le vol à 100 or, réduit la durabilité
+      // Bourse de protection : plafonne le vol à 10 or, réduit la durabilité
       const freshTargetForBourse = await base44.entities.PlayerProfile.filter({ user_email: targetPlayer.user_email });
       const freshTargetData = freshTargetForBourse[0] || targetPlayer;
       const bourseItem = (freshTargetData.inventory || []).find(i => i.item_key === "bourse_protection" && (i.durability ?? 3) > 0);
@@ -501,14 +502,14 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         stolen = Math.min(stolen, maxStealArmure);
       }
       if (bourseItem) {
-        stolen = Math.min(stolen, 100);
+        stolen = Math.min(stolen, 10);
         const newTargetInvBourse = (freshTargetData.inventory || []).map(i =>
           i.item_key === "bourse_protection" && (i.durability ?? 3) > 0
             ? { ...i, durability: (i.durability ?? 3) - 1 }
             : i
         ).filter(i => i.item_key !== "bourse_protection" || (i.durability ?? 3) > 0);
         await base44.entities.PlayerProfile.update(freshTargetData.id, { inventory: newTargetInvBourse });
-        toast(`👜 ${targetPlayer.character_name} avait une Bourse de protection — vol limité à ${stolen}💰 !`);
+        toast(`👜 ${targetPlayer.character_name} avait une Bourse de protection — vol limité à 10💰 !`);
       }
 
       let attackerNewInv = reduceEquipDurability([...(profile.inventory || [])], 1);
@@ -573,6 +574,9 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       });
       await logGold(profile.user_email, profile.character_name, city.id, city.name,
         0, "vol_echoue", `Tentative de vol sur ${targetPlayer.character_name} — échec`);
+      // Log pour la victime : tentative repoussée
+      await logGold(targetPlayer.user_email, targetPlayer.character_name, city.id, city.name,
+        0, "vol_repousse", `Tentative de vol repoussée par ${profile.character_name}`);
       // XP défenseur +50 si résistance réussie
       const freshDefender = await base44.entities.PlayerProfile.filter({ user_email: targetPlayer.user_email }).catch(() => []);
       if (freshDefender[0]) await base44.entities.PlayerProfile.update(freshDefender[0].id, { player_xp_total: (freshDefender[0].player_xp_total || 0) + 50 });
@@ -591,6 +595,28 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     city.mayor_until >= todayStr
   );
   const isMayor = mayorActive && city.mayor_id === profile?.id;
+  // ── Rôles nommés par le maire ──
+  const cityRoles = city?.city_roles || {};
+  const isPercepteur = !isMayor && cityRoles.percepteur_id === profile?.id;
+  const isChefGuerre  = !isMayor && cityRoles.chef_guerre_id === profile?.id;
+  const isAcheteur    = !isMayor && cityRoles.acheteur_id === profile?.id;
+
+  // ── Nommer un rôle (maire uniquement) ──
+  const handleSetRole = async (role, player) => {
+    const roles = { ...(city.city_roles || {}) };
+    if (player) {
+      roles[`${role}_id`]   = player.id;
+      roles[`${role}_name`] = player.character_name;
+    } else {
+      delete roles[`${role}_id`];
+      delete roles[`${role}_name`];
+    }
+    await base44.entities.City.update(city.id, { city_roles: roles });
+    toast.success(player
+      ? `👑 ${player.character_name} nommé(e) comme ${role === "percepteur" ? "Percepteur" : role === "chef_guerre" ? "Chef de guerre" : "Acheteur"} !`
+      : `Rôle retiré.`);
+    onRefresh?.();
+  };
   const isAdmin = ADMIN_EMAILS.includes(profile?.user_email);
 
   const isResident = profile?.home_city_id === city?.id;
@@ -880,9 +906,8 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       {/* Onglets en haut */}
       <Tabs defaultValue="mairie" className="sticky top-0 z-20 bg-background border-b">
         <TabsList className="font-heading flex-wrap h-auto gap-1 w-full justify-center rounded-none border-b-0">
-          <TabsTrigger value="mairie">🏛️ Ville</TabsTrigger>
+          <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
           <TabsTrigger value="gouvernance">👑 Gouvernance</TabsTrigger>
-          <TabsTrigger value="entrepot">📦 Entrepôt</TabsTrigger>
           <TabsTrigger value="competitif">⚔️ Guerre</TabsTrigger>
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
           <TabsTrigger value="batiments">🏗️ Bâtiments</TabsTrigger>
@@ -1014,8 +1039,8 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         <Card>
           <CardHeader>
             <CardTitle className="font-heading text-lg flex items-center gap-2">
-              📦 Approvisionnement d'urgence
-              <HelpTooltip text="Déposez ou vendez des ressources à l'entrepôt communautaire. Le maire peut créer des offres de rachat pour inciter les joueurs à approvisionner certains items." />
+              📦 Approvisionnement
+              <HelpTooltip text="Déposez ou vendez des ressources à l'entrepôt communautaire. Le maire peut créer des offres de rachat depuis l'onglet Gouvernance." />
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1049,7 +1074,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         </TabsContent>
 
         <TabsContent value="gouvernance" className="space-y-4 mt-4">
-          <MairieTab city={city} profile={profile} homeCity={homeCity} isMayor={isMayor} mayorActive={mayorActive} isAdmin={isAdmin} onRefresh={onRefresh} routes={routes} cities={allCitiesForMilitary} />
+          <MairieTab city={city} profile={profile} homeCity={homeCity} isMayor={isMayor} mayorActive={mayorActive} isAdmin={isAdmin} onRefresh={onRefresh} routes={routes} cities={allCitiesForMilitary} cityPlayers={cityPlayers} />
         </TabsContent>
 
         {/* ── BÂTIMENTS ── */}
@@ -1232,33 +1257,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   </TabsContent>
 )}
         {/* ── ENTREPÔT ── */}
-        <TabsContent value="entrepot" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-heading text-lg flex items-center gap-2">📦 Entrepôt communautaire <HelpTooltip text="L'entrepôt stocke les ressources pour les bâtiments. T1 pour construire, T2 pour l'entretien courant (scierie=planches, moulin=farine, bergerie=fil, labo=extrait, fonderie=quartz_poli), T3 pour la taverne (pain). Sans ressources, les bâtiments sont détruits la nuit." /></CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground font-body">
-                Pour déposer ou vendre des ressources à la ville, rendez-vous dans l'onglet <strong>🏛️ Ville</strong> → <strong>📦 Approvisionnement</strong>.
-              </p>
-              {/* Stocks actuels */}
-              {isHomeCity && (
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {Object.entries(city.warehouse || {}).filter(([, v]) => v > 0).map(([k, v]) => (
-                    <div key={k} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2 text-sm font-body">
-                      <span className="font-semibold flex-1">{k}</span>
-                      <span className="text-muted-foreground">×{v}</span>
-                    </div>
-                  ))}
-                  {Object.values(city.warehouse || {}).every(v => !v) && (
-                    <p className="text-muted-foreground text-sm col-span-3">Les coffres sont désespérément vides — les artisans attendent vos dons !</p>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          </TabsContent>
-
         {/* ── ITEMS COMPÉTITIFS ── */}
         <TabsContent value="competitif" className="space-y-4 mt-4">
           {/* Contrat Noble — bouclier défensif, visible résidents seulement */}
@@ -1319,6 +1317,61 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
             const stealUsed = !!(profile.competitive_cooldowns || {})[`steal_attempt_${getTodayDateStr()}`];
             return (
               <div className="space-y-3">
+                {/* ── Panel nomination rôles (maire uniquement) ── */}
+                {isMayor && residents.length > 0 && (() => {
+                  const ROLES = [
+                    { key: "percepteur", label: "Percepteur", icon: "💰", desc: "Accès impôts & taxes" },
+                    { key: "chef_guerre", label: "Chef de guerre", icon: "⚔️", desc: "Accès onglet Guerre" },
+                    { key: "acheteur", label: "Acheteur", icon: "🛒", desc: "Accès offres d'achat" },
+                  ];
+                  return (
+                    <Card className="border-amber-200 bg-amber-50/50">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="font-heading text-sm flex items-center gap-2">👑 Nommer des officiers <HelpTooltip text="Le maire peut déléguer trois rôles à ses résidents. Le Percepteur accède aux réglages d'impôts et taxes. Le Chef de guerre gère l'armée et les campagnes. L'Acheteur configure les offres de rachat de l'entrepôt. Les rôles s'affichent en badge dans la liste des habitants." /></CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {ROLES.map(({ key, label, icon, desc }) => {
+                          const currentId   = cityRoles[`${key}_id`];
+                          const currentName = cityRoles[`${key}_name`];
+                          return (
+                            <div key={key} className="flex items-center gap-2 flex-wrap">
+                              <span className="text-base w-6 text-center">{icon}</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-heading font-semibold">{label}</div>
+                                <div className="text-xs font-body text-muted-foreground">{desc}</div>
+                              </div>
+                              {currentId ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-body font-semibold text-amber-800">{currentName}</span>
+                                  <button
+                                    onClick={() => handleSetRole(key, null)}
+                                    className="text-xs text-red-500 hover:text-red-700 font-body underline underline-offset-2">
+                                    Retirer
+                                  </button>
+                                </div>
+                              ) : (
+                                <select
+                                  className="text-xs font-body border border-amber-300 rounded px-2 py-1 bg-white"
+                                  defaultValue=""
+                                  onChange={e => {
+                                    const p = residents.find(r => r.id === e.target.value);
+                                    if (p) handleSetRole(key, p);
+                                    e.target.value = "";
+                                  }}>
+                                  <option value="">— Nommer —</option>
+                                  {residents.filter(r => r.id !== profile.id).map(r => (
+                                    <option key={r.id} value={r.id}>{r.character_name}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+
                 {residents.length > 0 && (
                   <Card>
                     <CardHeader className="pb-2">
@@ -1335,9 +1388,13 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                           }`}>
                             <span className="text-lg">{p.is_traveling ? "🐴" : "👤"}</span>
                             <div className="flex-1">
-                              <div className="font-semibold flex items-center gap-2">
+                              <div className="font-semibold flex items-center gap-2 flex-wrap">
                                 {p.character_name}
                                 {online && <Badge variant="outline" className="text-green-700 border-green-300 text-xs">🟢 En ligne</Badge>}
+                                {city?.mayor_id === p.id && <Badge className="bg-amber-500 text-white text-xs font-heading">👑 Maire</Badge>}
+                                {cityRoles?.percepteur_id === p.id && <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">💰 Percepteur</Badge>}
+                                {cityRoles?.chef_guerre_id === p.id && <Badge variant="outline" className="text-red-700 border-red-300 text-xs">⚔️ Chef de guerre</Badge>}
+                                {cityRoles?.acheteur_id === p.id && <Badge variant="outline" className="text-purple-700 border-purple-300 text-xs">🛒 Acheteur</Badge>}
                               </div>
                               <div className="text-muted-foreground text-xs flex items-center gap-2">
                                 <span>{p.profession} {p.is_traveling ? "· En voyage" : ""}</span>

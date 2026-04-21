@@ -63,7 +63,7 @@ export default function MarketPage() {
           status: "active",
           type: "travel",
         });
-        const travelObjs = allTravelMkt.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
+        const travelObjs = allTravelMkt.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr)).slice(-6);
         for (const obj of travelObjs) {
           const newQty = (obj.current_quantity || 0) + 1;
           const completed = newQty >= (obj.target_quantity || 1);

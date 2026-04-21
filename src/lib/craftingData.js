@@ -47,7 +47,7 @@ export const PROFESSION_PRODUCTION = {
     {
       id: "harvest_laine",
       name: "Tondre la laine",
-      icon: "🐑",
+      icon: "🧶",
       outputKey: "laine_brute",
       quantity: 1,
       cooldown: 80,
@@ -58,7 +58,7 @@ export const PROFESSION_PRODUCTION = {
     {
       id: "harvest_pierre",
       name: "Extraire de la pierre",
-      icon: "🪨",
+      icon: "🧱",
       outputKey: "pierre",
       quantity: 1,
       cooldown: 80,
@@ -114,43 +114,43 @@ export const ITEMS = {
     name: "Bois brut", icon: "🪵", category: "bois", tier: 1,
     trigger: "consumed", effect: "cooldown_bonus", value: 0.10, duration_h: 1,
     biome_profession: "Bûcheron", biome_key: "foret",
-    use: "Consommé : −10% cooldown 1h. Si buff biome Forêt actif : +1 récolte T1 bonus à la prochaine production.",
+    use: "Consommé : −10% cooldown 1h. Si buff biome Forêt actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
   minerai_fer: {
     name: "Minerai de fer", icon: "🪨", category: "fer", tier: 1,
     trigger: "consumed", effect: "energy_max_bonus", value: 2, duration_h: 1,
     biome_profession: "Mineur", biome_key: "mine",
-    use: "Consommé : +2 énergie max 1h. Si buff biome Mine actif : +1 récolte T1 bonus à la prochaine production.",
+    use: "Consommé : +2 énergie max 1h. Si buff biome Mine actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
   ble: {
     name: "Blé", icon: "🌾", category: "nourriture", tier: 1,
     trigger: "consumed", effect: "hunger_restore", value: 1,
     biome_profession: "Fermier", biome_key: "champs",
-    use: "Consommé : +1 faim. Si buff biome Champs actif : +1 récolte T1 bonus à la prochaine production.",
+    use: "Consommé : +1 faim. Si buff biome Champs actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
   laine_brute: {
-    name: "Laine brute", icon: "🐑", category: "tissu", tier: 1,
+    name: "Laine brute", icon: "🧶", category: "tissu", tier: 1,
     trigger: "consumed", effect: "defense_bonus", value: 2, duration_h: 6,
     biome_profession: "Tisserand", biome_key: "atelier",
-    use: "Consommé : +2 défense vol 6h. Si buff biome Atelier actif : +1 récolte T1 bonus à la prochaine production.",
+    use: "Consommé : +2 défense vol 6h. Si buff biome Atelier actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
   herbes: {
     name: "Herbes", icon: "🌿", category: "potions", tier: 1,
     trigger: "consumed", effect: "fatigue_restore", value: 1,
     biome_profession: "Alchimiste", biome_key: "foret",
-    use: "Consommé : +1 énergie. Si buff biome Forêt actif : +1 récolte T1 bonus à la prochaine production.",
+    use: "Consommé : +1 énergie. Si buff biome Forêt actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
   quartz_brut: {
     name: "Quartz brut", icon: "🔮", category: "or", tier: 1,
     trigger: "passive", effect: "market_tax_discount", value: 0.01,
     biome_profession: "Orfèvre", biome_key: "forge",
-    use: "Passif inventaire : −1% taxe marché acheteur. Consommé avec buff biome Forge actif : +1 récolte T1 bonus.",
+    use: "Passif inventaire : −1% taxe marché acheteur. Consommé avec buff biome Forge actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
   pierre: {
-    name: "Pierre", icon: "🪨", category: "pierre", tier: 1,
+    name: "Pierre", icon: "🧱", category: "pierre", tier: 1,
     trigger: "consumed", effect: "attack_bonus", value: 1, duration_h: 1,
     biome_profession: "Forgeron", biome_key: "forge",
-    use: "Consommé : +1 attaque vol 1h. Si buff biome Forge actif : +1 récolte T1 bonus à la prochaine production.",
+    use: "Consommé : +1 attaque vol 1h. Si buff biome Forge actif : +1 récolte T1 bonus pendant 5 minutes.",
   },
 
   // ════════════════════════════════
@@ -173,7 +173,7 @@ export const ITEMS = {
     use: "Passif inventaire : +40 capacité inventaire (non cumulable avec Tissu — seul le meilleur bonus s'applique)",
   },
   charbon: {
-    name: "Charbon", icon: "⬛", category: "fer", tier: 2,
+    name: "Charbon", icon: "⚫", category: "fer", tier: 2,
     trigger: "consumed", effect: "double_prod_bonus", value: 0.10, duration_h: 1, xp_reward: 50,
     use: "Consommé : +10% chance double production 1h (cumulable) · +50 XP",
   },
@@ -192,7 +192,7 @@ export const ITEMS = {
     name: "Encre", icon: "🖋️", category: "parchemins", tier: 2,
     trigger: "durability", effect: "travel_and_gamble", value: 0.20, gamble_max: 60, xp_reward: 50,
     durability: 4, craft_tier_bonus: 2, craft_bonus_output_tier: 1, cooldown_reduction: 0.10,
-    use: "Consommé : −20% prochain voyage + gamble 0–60💰 · +50 XP. Équipée : −10% cooldown. Craft T2 → génère une ressource T1 aléatoire en bonus. Durabilité 4.",
+    use: "Consommé : −20% prochain voyage + gain 0–60💰 aléatoire · +50 XP. Équipée (durabilité 4) : −10% cooldown · Craft T2 → bonus ressource T1.",
   },
   farine: {
     name: "Farine", icon: "🧺", category: "nourriture", tier: 2,
@@ -207,15 +207,15 @@ export const ITEMS = {
   meuble: {
     name: "Meuble", icon: "🪑", category: "bois", tier: 3, expires_days: 15,
     trigger: "consumed", effect: "housing_maintenance", value: 0.50, duration_days: 10,
-    use: "Consommé : −50% entretien logement pendant 10 jours",
+    use: "Consommé : −50% coût d'entretien de logement pendant 10 jours (effet actif tant que la date n'est pas expirée).",
   },
   lingots_fer: {
-    name: "Lingots de fer", icon: "⬜", category: "fer", tier: 3,
+    name: "Lingots de fer", icon: "🔩", category: "fer", tier: 3,
     trigger: "passive", effect: "energy_max_bonus", value: 10,
     use: "Passif inventaire : +10 énergie max",
   },
   tissu: {
-    name: "Tissu", icon: "🧶", category: "tissu", tier: 3,
+    name: "Tissu", icon: "🪡", category: "tissu", tier: 3,
     trigger: "passive", effect: "inventory_bonus", value: 60,
     use: "Passif inventaire : +60 capacité inventaire (non cumulable avec Fil — seul le meilleur bonus s'applique)",
   },
@@ -223,14 +223,14 @@ export const ITEMS = {
     name: "Épée courte", icon: "🗡️", category: "armes", tier: 3,
     trigger: "durability", effect: "attack_bonus", value: 2, durability: 4, steal_pct: 0.10,
     craft_tier_bonus: 3, craft_bonus_output_tier: 2, cooldown_reduction: 0.20,
-    use: "+2 attaque vol. Vol réussi : vole 10% or. −20% cooldown. Craft T3 → génère une ressource T2 aléatoire en bonus. Durabilité 4.",
+    use: "Équipée passivement : +2 attaque vol · Vol réussi vole 10% or · −20% cooldown production · Craft T3 → bonus ressource T2. Durabilité 4.",
   },
   potion_soin: {
     name: "Potion de soin", icon: "🧪", category: "potions", tier: 3,
     trigger: "consumed", effect: "fatigue_and_regen", value: 10, duration_h: 2,
     regen_interval_min: 5, regen_value: 1, xp_reward: 50,
     defense_bonus: 2, defense_bonus_h: 6,
-    use: "Consommé : +10 énergie + regen +1/5min 2h + +2 défense vol 6h · +50 XP",
+    use: "Consommé : +10 énergie · regen +1⚡/5min pendant 2h · +2 défense vol 6h · +50 XP.",
   },
   lingots_or: {
     name: "Lingot d'or", icon: "🪙", category: "or", tier: 3,
@@ -246,7 +246,7 @@ export const ITEMS = {
     name: "Pain", icon: "🍞", category: "nourriture", tier: 3,
     trigger: "consumed", effect: "hunger_and_regen", value: 10, duration_h: 2,
     regen_interval_min: 5, regen_value: 1, xp_reward: 50,
-    use: "Consommé : +10 faim (MAX) + regen +1/5min 2h · +50 XP",
+    use: "Consommé : +10 faim (remonte au max) · regen +1🍞/5min pendant 2h · +50 XP.",
   },
   contrat_artisan: {
     name: "Contrat artisan", icon: "📋", category: "parchemins", tier: 3,
@@ -261,35 +261,35 @@ export const ITEMS = {
   armure: {
     name: "Armure", icon: "🥋", category: "armures", tier: 4,
     trigger: "durability", effect: "combat_defense", value: 3, durability: 3, steal_cap_pct: 0.05,
-    use: "+3 défense vol. Vol subi plafonné à 5% or. Durabilité 3",
+    use: "Équipée passivement : +3 défense vol · Vol subi plafonné à 5% or. Durabilité 3.",
   },
   outils: {
     name: "Outils", icon: "🔧", category: "outils", tier: 4,
     trigger: "durability", effect: "cooldown_reduction", value: 0.30, durability: 4,
     craft_tier_bonus: 4, craft_bonus_output_tier: 3, cooldown_reduction: 0.30,
-    use: "−30% cooldown production. Craft T4 → génère une ressource T3 aléatoire en bonus. Durabilité 4.",
+    use: "Équipée passivement : −30% cooldown production · Craft T4 → bonus ressource T3. Durabilité 4.",
   },
   ragout: {
     name: "Ragoût", icon: "🍲", category: "nourriture", tier: 4,
     trigger: "consumed", effect: "hunger_and_regen", value: 10, duration_h: 2,
     regen_interval_min: 5, regen_value: 1, xp_reward: 100,
-    use: "Consommé : +10 faim + regen +1/5min 2h · +100 XP · 🍞 +50 pts nourriture armée",
+    use: "Consommé : +10 faim · regen +1🍞/5min pendant 2h · +100 XP · +50 pts nourriture armée.",
   },
   besace: {
     name: "Besace", icon: "🎒", category: "armures", tier: 4,
     trigger: "durability", effect: "combat_defense", value: 2, durability: 3, inventory_bonus: 50,
-    use: "+2 défense vol + passif +50 inventaire. Durabilité 3 + nécessaire pour crafter du T5",
+    use: "Équipée passivement : +2 défense vol · +50 capacité inventaire · Nécessaire pour craft T5. Durabilité 3.",
   },
   epee_longue: {
     name: "Épée longue", icon: "⚔️", category: "armes", tier: 4,
     trigger: "durability", effect: "combat_attack", value: 4, durability: 3, steal_pct: 0.20,
-    use: "+4 attaque vol. Vol réussi : vole 20% or. Durabilité 3 + nécessaire pour crafter du T5",
+    use: "Équipée passivement : +4 attaque vol · Vol réussi vole 20% or · Nécessaire pour craft T5. Durabilité 3.",
   },
   potion_endur: {
     name: "Potion d'endurance", icon: "💪", category: "potions", tier: 4,
     trigger: "consumed", effect: "fatigue_and_regen", value: 20, duration_h: 2,
     regen_interval_min: 5, regen_value: 1, xp_reward: 100,
-    use: "Consommé : +20 énergie + regen +1/5min 2h · +100 XP · ⚡ +50 pts énergie armée",
+    use: "Consommé : +20 énergie · regen +1⚡/5min pendant 2h · +100 XP · +50 pts énergie armée.",
   },
   lingot_raffine: {
     name: "Lingot raffiné", icon: "🏅", category: "or", tier: 4,
@@ -304,17 +304,17 @@ export const ITEMS = {
   camouflage: {
     name: "Camouflage", icon: "👻", category: "parchemins", tier: 1.5,
     trigger: "consumed", effect: "stealth_next_theft", value: 1,
-    use: "Utilisé automatiquement lors de votre prochain vol réussi — masque votre identité à la taverne",
+    use: "Passif inventaire : masque automatiquement votre identité lors de votre prochain vol réussi (victime voit 'un inconnu').",
   },
   tracts_greve: {
     name: "Tracts de Grève", icon: "⚡", category: "parchemins", tier: 1.5,
     trigger: "consumed", effect: "city_cooldown_malus", value: 0.20, duration_h: 24,
-    use: "Activez en page Production pour imposer +20% de cooldowns à toute la ville pendant 24h",
+    use: "Actif : imposez +20% de cooldown de production à tous les joueurs d'une ville pendant 24h. Activez depuis la page Production.",
   },
   bourse_protection: {
     name: "Bourse de protection", icon: "👜", category: "parchemins", tier: 1.5,
-    trigger: "durability", effect: "theft_cap", value: 100, durability: 3,
-    use: "Équipée passivement : plafonne le vol subi à 100 or par attaque. Durabilité 3",
+    trigger: "durability", effect: "theft_cap", value: 10, durability: 3,
+    use: "Équipée passivement : plafonne le vol subi à 10 or par attaque. Durabilité 3",
   },
 
   // ════════════════════════════════
@@ -369,18 +369,18 @@ export const ITEMS = {
   lingot_royal: {
     name: "Lingot royal", icon: "👑", category: "or", tier: 5,
     trigger: "sellable", effect: "sellable", value: 156,
-    use: "Vendre à la mairie (156 or). Compte pour le prestige et les paliers de ville",
+    use: "Vendu à la mairie pour 156💰 · Comptabilisé pour le prestige et les paliers de développement de la ville.",
   },
   autorisation_marche: {
     name: "Autorisation de marché", icon: "📜", category: "parchemins", tier: 1,
     trigger: "consumed", effect: "market_permit", value: 1,
     biome_profession: "Marchand", biome_key: "guilde",
-    use: "Nécessaire pour poster une annonce au marché. Consommé depuis inventaire avec buff biome Guilde actif : +1 production bonus.",
+    use: "Nécessaire pour poster une annonce au marché · Consommé avec buff biome Guilde actif : +1 production bonus.",
   },
   sceau_royal: {
     name: "Sceau royal", icon: "🏵️", category: "parchemins", tier: 0,
     trigger: "passive", effect: "tax_absorb", value: 110,
-    use: "Apparaît sur des marchés aléatoires quand l'or moyen dépasse 500💰. Coûte 100💰 (or détruit du jeu). Crédite 110💰 de couverture qui absorbent automatiquement vos taxes marché acheteur et impôts journaliers (NON affecté par les taxes). 1 achat par joueur par jour. Réservé aux joueurs ayant ≥ 300💰.",
+    use: "Coûte 100💰 · Crédite 110💰 de couverture fiscale (absorbe impôts et taxes marché). Non taxable. 1 achat/joueur/jour · Réservé aux joueurs ≥ 300💰 · Disponible sur certains marchés quand l'or moyen dépasse 500💰.",
   },
 };
 
@@ -422,7 +422,7 @@ export const ITEM_EFFECTS = Object.fromEntries(
 // Items qui restaurent directement de l'énergie (fatigue_restore)
 export const FOOD_ITEMS_WITH_FATIGUE = Object.entries(ITEMS)
   .filter(([, v]) => v.effect === "fatigue_restore" || v.effect === "fatigue_and_defense" || v.effect === "fatigue_and_regen")
-  .map(([key, v]) => ({ key, name: v.name, icon: v.icon, fatigue_restore: v.value }));
+  .map(([key, v]) => ({ key, name: v.name, icon: v.icon, fatigue_restore: v.value, xp_reward: v.xp_reward || 0 }));
 
 // ── EQUIPMENT_KEYS & EQUIPMENT_DURABILITY — dérivés automatiques depuis ITEMS ──
 // Ne pas modifier directement : ajoutez durability: N dans l'objet ITEMS.

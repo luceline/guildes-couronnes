@@ -68,6 +68,29 @@ export const HOUSING = {
 export const MAX_HUNGER = 10;
 export const HUNGER_WARNING_THRESHOLD = 3; // En dessous : pénalité fatigue
 // Regen faim : UNIQUEMENT via consommables ou bâtiments (Fontaine/Hospice/Cathédrale)
+
+// ─────────────────────────────────────────────
+// APPÉTIT & FORME — barres de fond journalières (sur 10)
+// Appétit (satiety) : basse → +10% cooldown par point manquant
+// Forme (vitality)  : basse → -10% capacité inventaire par point manquant
+// Perte : -2 par jour répartis aléatoirement entre les deux
+// ─────────────────────────────────────────────
+export const MAX_SATIETY = 10;
+export const MAX_VITALITY = 10;
+// Items qui remontent l'appétit (satiety)
+export const SATIETY_ITEMS = {
+  ble:    { satiety_restore: 1, label: "Blé",    icon: "🌾" },
+  farine: { satiety_restore: 2, label: "Farine", icon: "🧺" },
+  pain:   { satiety_restore: 4, label: "Pain",   icon: "🍞" },
+  ragout: { satiety_restore: 8, label: "Ragoût", icon: "🍲" },
+};
+// Items qui remontent la forme (vitality)
+export const VITALITY_ITEMS = {
+  herbes:         { vitality_restore: 2, label: "Herbes",            icon: "🌿" },
+  extrait_herbes: { vitality_restore: 5, label: "Extrait d'herbes",  icon: "🧪" },
+  potion_soin:    { vitality_restore: 8, label: "Potion de soin",    icon: "🧪" },
+  potion_endur:   { vitality_restore: 4, label: "Potion d'endurance", icon: "💪" },
+};
 export const FATIGUE_REGEN_INTERVAL_MS = 7200000; // valeur par défaut (maison) — voir getFatigueRegenInterval
 
 // Regen énergie liée au logement : tente = 1h, cabane = 50min, maison = 40min, manoir = 30min
@@ -281,13 +304,17 @@ export function getMaxFatigue(profile, cityFatigueBonus = 0) {
   return Math.max(5, base + getPassiveEnergyMaxBonus(profile) + epidemieMalus);
 }
 
-// Get effective max weight (with convoi bonus if active)
+// Get effective max weight (with convoi bonus + vitality malus)
 export function getEffectiveMaxWeight(profile) {
   const base = getMaxWeight(profile);
+  let weight = base;
   if (profile.convoi_expires_at && new Date(profile.convoi_expires_at) > new Date()) {
-    return base * 2;
+    weight = base * 2;
   }
-  return base;
+  // Malus forme : −10% capacité par point manquant de vitality
+  const vitality = profile.vitality ?? MAX_VITALITY;
+  const vitalityMalus = 1 - (MAX_VITALITY - Math.min(MAX_VITALITY, vitality)) * 0.10;
+  return Math.max(10, Math.floor(weight * vitalityMalus));
 }
 
 // Check if adding qty units would exceed capacity
@@ -382,7 +409,7 @@ export const BUILDING_TYPES = {
     effect: "−1 faim par action pour le Fermier. Bonus blé : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
     functionType: "production_bonus", functionValue: 50, targetProfession: "Fermier" },
   bergerie: {
-    name: "Bergerie", icon: "🐑",
+    name: "Bergerie", icon: "🧶",
     category: "production",
     popBonus: 0,
     stackable: true, unique: false,
@@ -995,7 +1022,7 @@ export const WAREHOUSE_BUYBACK_PRICES = {
   pierre_brute: { min: 1, max: 3,  label: "Pierre brute", icon: "🗿" },
   minerai_fer:  { min: 2, max: 5,  label: "Minerai de fer", icon: "🪨" },
   ble:          { min: 1, max: 3,  label: "Blé",           icon: "🌾" },
-  laine_brute:  { min: 1, max: 4,  label: "Laine brute",  icon: "🐑" },
+  laine_brute:  { min: 1, max: 4,  label: "Laine brute",  icon: "🧶" },
   herbes:       { min: 1, max: 4,  label: "Herbes",        icon: "🌿" },
   quartz_brut:  { min: 2, max: 6,  label: "Quartz brut",  icon: "🔮" },
   lingots_or:   { min: 5, max: 15, label: "Lingot d'or",  icon: "🏅" },

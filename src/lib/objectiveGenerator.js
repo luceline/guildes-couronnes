@@ -1,8 +1,14 @@
 import { ITEMS } from "./craftingData.js";
 
-// ── Récompenses de quêtes — modifier ici pour rééquilibrer ──
-export const BASE_QUEST_REWARD = 5;  // quêtes standard
-export const BIG_QUEST_REWARD  = 30; // quêtes de profession
+// ── Récompenses de quêtes — montant fixe par type ──
+export const QUEST_REWARDS = {
+  deposit:    20,
+  sell:        5,
+  produce:     5,
+  travel:      5,
+  profession:  5,
+  contribute: 20,
+};
 
 // ── T2_DEPOSIT_ITEMS — dérivé automatique depuis ITEMS ──
 export const T2_DEPOSIT_ITEMS = Object.entries(ITEMS)
@@ -15,7 +21,7 @@ export const PROFESSION_T2 = {
   "Mineur":    { key: "pierre_brute",name: "Pierre brute",icon: "🗿" },
   "Fermier":   { key: "farine",      name: "Farine",      icon: "🧺" },
   "Tisserand": { key: "fil",         name: "Fil",         icon: "🧵" },
-  "Forgeron":  { key: "charbon",     name: "Charbon",     icon: "⬛" },
+  "Forgeron":  { key: "charbon",     name: "Charbon",     icon: "⚫" },
   "Alchimiste":{ key: "extrait",     name: "Extrait",     icon: "🫗" },
   "Orfèvre":   { key: "quartz_poli", name: "Quartz poli", icon: "💠" },
   "Marchand":  { key: "encre",       name: "Encre",       icon: "🖋️" },
@@ -23,7 +29,7 @@ export const PROFESSION_T2 = {
 
 // ── QUEST_TEMPLATES — source de vérité des quêtes ──
 // Pour modifier une quête : toucher uniquement ce bloc.
-// reward: "base" = baseReward, "big" = bigReward
+// reward: voir QUEST_REWARDS en haut du fichier
 export const QUEST_TEMPLATES = {
 
   deposit: {
@@ -117,12 +123,11 @@ function pickRandom(arr) {
 /**
  * Génère 6 quêtes quotidiennes pour un joueur.
  * Pour modifier les quêtes : toucher QUEST_TEMPLATES ou PROFESSION_QUESTS ci-dessus.
- * Pour modifier les récompenses : changer baseReward/bigReward ou reward: dans QUEST_TEMPLATES.
+ * Pour modifier les récompenses : changer QUEST_REWARDS en haut du fichier.
  */
 export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
   const multiplier = Math.max(0.5, Math.min(3.0, ecoSettings.objective_reward_multiplier ?? 1.0));
-  const baseReward = Math.round(BASE_QUEST_REWARD * multiplier);
-  const bigReward  = Math.round(BIG_QUEST_REWARD * multiplier);
+  const reward = (type) => Math.round((QUEST_REWARDS[type] ?? 5) * multiplier);
   const todayStr   = new Date().toISOString().split("T")[0];
 
   // T2 selon la profession active du joueur
@@ -134,14 +139,13 @@ export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
   const profQuest  = pickRandom(profQuests);
   const profType   = profQuest.item === "any_t2" ? "sell" : "produce";
 
-  const reward = (type) => type === "big" ? bigReward : baseReward;
   const base = (type, overrides) => ({
     player_email:     player.user_email,
     city_id:          cityId,
     current_quantity: 0,
     status:           "active",
     quest_date: todayStr,
-    reward_gold:      reward(QUEST_TEMPLATES[type]?.reward),
+    reward_gold:      reward(type),
     ...overrides,
   });
 
@@ -177,7 +181,7 @@ export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
     base("profession", {
       type:             profType,
       title:            profQuest.title,
-      description:      profQuest.desc + ` Récompense bonus : ${bigReward}💰.`,
+      description:      profQuest.desc + ` Récompense : ${reward("profession")}💰.`,
       target_item:      profQuest.item,
       target_quantity:  profQuest.qty,
     }),

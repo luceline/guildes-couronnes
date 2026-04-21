@@ -3,6 +3,7 @@ import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settin
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
+import { updateLastActive } from "@/lib/inactivityCheck";
 import { ADMIN_EMAILS } from "@/lib/gameData";
 import Tutorial from "@/components/Tutorial";
 import { useTheme } from "@/lib/useTheme.jsx";
@@ -33,6 +34,23 @@ export default function GameLayout() {
         setNavItems([...BASE_NAV, { path: "/admin", icon: Settings, label: "Admin" }]);
       }
     }).catch(() => {});
+  }, []);
+
+  // ── Mise à jour last_active_at toutes les 2 minutes (toutes pages) ──
+  useEffect(() => {
+    const pingActive = async () => {
+      try {
+        const user = await base44.auth.me();
+        if (!user?.email) return;
+        const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
+        if (profiles.length > 0) {
+          await updateLastActive(profiles[0].id);
+        }
+      } catch(e) { /* silencieux */ }
+    };
+    pingActive(); // immédiatement au montage
+    const interval = setInterval(pingActive, 2 * 60 * 1000); // toutes les 2 minutes
+    return () => clearInterval(interval);
   }, []);
 
   return (

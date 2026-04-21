@@ -36,6 +36,7 @@ const COLLECTION_MAP = {
   Territory:        'territories',
   ItemDef:          'item_defs',
   BankDeposit:      'bank_deposits',
+  WarehouseLog: 'warehouselog',
 };
 
 // Collections qui stockent tout dans un champ JSON data

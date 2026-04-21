@@ -11,13 +11,19 @@ import HelpTooltip from "./HelpTooltip";
 import ElectionPanel from "./ElectionPanel";
 import MairieShop from "./MairieShop";
 import MaireOffresPanel from "./MaireOffresPanel";
+import MaireDashboard from "./MaireDashboard";
 import ProfessionChangePanel from "./ProfessionChangePanel";
 import DecreePanel from "./DecreePanel";
 import CityArmyPanel from "./CityArmyPanel";
 import ArmySupplyPanel from "./ArmySupplyPanel";
 import MilitaryCampaignPanel from "./MilitaryCampaignPanel";
 
-export default function MairieTab({ city, profile, homeCity, isMayor, mayorActive, isAdmin, onRefresh, routes = [], cities = [] }) {
+export default function MairieTab({ city, profile, homeCity, isMayor, mayorActive, isAdmin, onRefresh, routes = [], cities = [], cityPlayers = [] }) {
+  // ── Rôles nommés par le maire ──
+  const cityRoles = city?.city_roles || {};
+  const isPercepteur = !isMayor && cityRoles.percepteur_id === profile?.id;
+  const isChefGuerre  = !isMayor && cityRoles.chef_guerre_id === profile?.id;
+  const isAcheteur    = !isMayor && cityRoles.acheteur_id === profile?.id;
   const [taxInput, setTaxInput] = useState(null);
   const [taxRateInput, setTaxRateInput] = useState(null);
   const [lingotPriceInput, setLingotPriceInput] = useState(null);
@@ -87,10 +93,12 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mairie">
-        <TabsList className="font-heading">
+        <TabsList className="font-heading flex-wrap h-auto gap-1">
           <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
-          <TabsTrigger value="armee">⚔️ Armée</TabsTrigger>
-          <TabsTrigger value="guerre">🗺️ Guerre</TabsTrigger>
+          {(isMayor || isChefGuerre) && <TabsTrigger value="armee">⚔️ Armée</TabsTrigger>}
+          {(isMayor || isChefGuerre) && <TabsTrigger value="guerre">🗺️ Guerre</TabsTrigger>}
+          {(isMayor || isAcheteur) && <TabsTrigger value="offres">🛒 Offres d'achat</TabsTrigger>}
+          {isMayor && <TabsTrigger value="dashboard">📊 Tableau de bord</TabsTrigger>}
         </TabsList>
 
         {/* ── MAIRIE ── */}
@@ -357,6 +365,18 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
             onRefresh={onRefresh}
           />
         </TabsContent>
+
+        {(isMayor || isAcheteur) && (
+          <TabsContent value="offres" className="mt-4">
+            <MaireOffresPanel city={city} onRefresh={onRefresh} />
+          </TabsContent>
+        )}
+
+        {isMayor && (
+          <TabsContent value="dashboard" className="mt-4">
+            <MaireDashboard city={city} profile={profile} players={cityPlayers} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

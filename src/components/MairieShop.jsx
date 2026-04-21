@@ -14,10 +14,10 @@ function getPriceMultiplier(orMoyen) {
 // Liste des T1 en dur avec leurs prix max conseillés — source de vérité indépendante de la DB
 const T1_ITEMS_MAIRIE = [
   { key: "bois_brut",    name: "Bois brut",      icon: "🪵", category: "bois",       basePrice: 6 },
-  { key: "pierre",       name: "Pierre",          icon: "🪨", category: "pierre",     basePrice: 6 },
+  { key: "pierre",       name: "Pierre",          icon: "🧱", category: "pierre",     basePrice: 6 },
   { key: "minerai_fer",  name: "Minerai de fer",  icon: "⚙️",  category: "fer",        basePrice: 6 },
   { key: "ble",          name: "Blé",             icon: "🌾", category: "nourriture", basePrice: 3 },
-  { key: "laine_brute",  name: "Laine brute",     icon: "🐑", category: "tissu",      basePrice: 6 },
+  { key: "laine_brute",  name: "Laine brute",     icon: "🧶", category: "tissu",      basePrice: 6 },
   { key: "herbes",       name: "Herbes",          icon: "🌿", category: "potions",    basePrice: 3 },
   { key: "quartz_brut",  name: "Quartz brut",     icon: "🔮", category: "bijoux",     basePrice: 6 },
   { key: "autorisation_marche", name: "Autorisation de marché", icon: "📜", category: "parchemins", basePrice: 5 },

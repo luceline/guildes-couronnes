@@ -97,7 +97,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
   {
     id: "craft_lingots_fer",
     name: "Lingots de fer",
-    icon: "⬜",
+    icon: "🔩",
     profession: "Mineur",
     tier: 3,
     inputs: [
@@ -288,7 +288,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
   {
     id: "craft_charbon",
     name: "Charbon",
-    icon: "⬛",
+    icon: "⚫",
     profession: "Forgeron",
     tier: 2,
     inputs: [

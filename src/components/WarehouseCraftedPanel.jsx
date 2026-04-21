@@ -5,7 +5,7 @@ const T2_ITEMS = [
   { key: "planches",    name: "Planches",     icon: "🪵", tier: 2, usedBy: "Construction" },
   { key: "pierre_brute",name: "Pierre brute", icon: "🗿", tier: 2, usedBy: "Construction" },
   { key: "fil",         name: "Fil",          icon: "🧵", tier: 2, usedBy: "Bergerie" },
-  { key: "charbon",     name: "Charbon",      icon: "⬛", tier: 2, usedBy: "Mine / Forge" },
+  { key: "charbon",     name: "Charbon",      icon: "⚫", tier: 2, usedBy: "Mine / Forge" },
   { key: "extrait",     name: "Extrait",      icon: "🫗", tier: 2, usedBy: "Laboratoire" },
   { key: "quartz_poli", name: "Quartz poli",  icon: "💠", tier: 2, usedBy: "Fonderie" },
   { key: "encre",       name: "Encre",        icon: "🖋️", tier: 2, usedBy: "Scriptorium" },
@@ -14,7 +14,7 @@ const T2_ITEMS = [
 
 const T3_ITEMS = [
   { key: "meuble",         name: "Meuble",          icon: "🪑", tier: 3, usedBy: "Logement" },
-  { key: "lingots_fer",    name: "Lingots de fer",  icon: "⬜", tier: 3, usedBy: "Production" },
+  { key: "lingots_fer",    name: "Lingots de fer",  icon: "🔩", tier: 3, usedBy: "Production" },
   { key: "tissu",          name: "Tissu",           icon: "🧶", tier: 3, usedBy: "Bâtiments" },
   { key: "epee_courte",    name: "Épée courte",     icon: "🗡️", tier: 3, usedBy: "Caserne" },
   { key: "potion_soin",    name: "Potion de soin",  icon: "🧪", tier: 3, usedBy: "Hospice" },

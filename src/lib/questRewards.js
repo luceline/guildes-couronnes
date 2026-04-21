@@ -41,6 +41,21 @@ export function isTodayQuest(obj) {
  * @returns {{ completed: boolean, reward: number }}
  */
 export async function checkAndAwardObjective({ obj, addedQty, profile, city = null }) {
+  // ── Sécurité : vérifications avant toute écriture ──
+  if (!obj?.id) return { completed: false, reward: 0 };
+  // La quête doit appartenir au joueur connecté
+  if (obj.player_email !== profile.user_email) {
+    console.warn('checkAndAwardObjective: quête non autorisée', obj.id);
+    return { completed: false, reward: 0 };
+  }
+  // La quête doit être d'aujourd'hui
+  if (!isTodayQuest(obj)) {
+    console.warn('checkAndAwardObjective: quête périmée', obj.id);
+    return { completed: false, reward: 0 };
+  }
+  // La quête ne doit pas être déjà complétée
+  if (obj.status === 'completed') return { completed: true, reward: 0 };
+
   const newQty = (obj.current_quantity || 0) + addedQty;
   const completed = newQty >= (obj.target_quantity || 1);
 

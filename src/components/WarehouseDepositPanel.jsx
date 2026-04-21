@@ -3,7 +3,7 @@ const WAREHOUSE_T1 = [
   { key: "pierre",      name: "Pierre",          icon: "🪨" },
   { key: "minerai_fer", name: "Minerai de fer",  icon: "⚙️" },
   { key: "ble",         name: "Blé",             icon: "🌾" },
-  { key: "laine_brute", name: "Laine brute",     icon: "🐑" },
+  { key: "laine_brute", name: "Laine brute",     icon: "🧶" },
   { key: "herbes",      name: "Herbes",          icon: "🌿" },
   { key: "quartz_brut", name: "Quartz brut",     icon: "🔮" },
 ];

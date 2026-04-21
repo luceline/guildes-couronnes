@@ -79,7 +79,7 @@ export default function LandingPage() {
       {/* SCROLL STRIP */}
       <div style={{ background: "#c9a44a", padding: "0.45rem 0", overflow: "hidden", whiteSpace: "nowrap" }}>
         <span style={{ display: "inline-block", animation: "scrollLeft 32s linear infinite", fontFamily: "sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: 2, color: "#0e0b05" }}>
-          &nbsp;&nbsp;&nbsp;⚒ BÂTISSEZ VOTRE CITÉ &nbsp;·&nbsp; 💰 COMMERCEZ SUR LES MARCHÉS &nbsp;·&nbsp; 🏰 BRIGUÉ LA MAIRIE &nbsp;·&nbsp; 🌿 EXPLOREZ LES TERRES SAUVAGES &nbsp;·&nbsp; 🗡 SABOTEZ VOS RIVAUX &nbsp;·&nbsp; ⚔️ DÉCLAREZ LA GUERRE &nbsp;·&nbsp; 🐴 LANCEZ VOS ARMÉES &nbsp;·&nbsp; ⚓ ROUTES MARITIMES &nbsp;·&nbsp; 🎯 ACCOMPLISSEZ VOS QUÊTES &nbsp;·&nbsp; 📈 DU NOVICE AU LÉGENDAIRE &nbsp;·&nbsp; 🏛 ÉRIGEZ UN PALAIS &nbsp;&nbsp;&nbsp;⚒ BÂTISSEZ VOTRE CITÉ &nbsp;·&nbsp; 💰 COMMERCEZ SUR LES MARCHÉS &nbsp;·&nbsp; 🏰 BRIGUEZ LA MAIRIE &nbsp;·&nbsp; 🌿 EXPLOREZ LES TERRES SAUVAGES &nbsp;·&nbsp; 🗡 SABOTEZ VOS RIVAUX &nbsp;·&nbsp; ⚔️ DÉCLAREZ LA GUERRE &nbsp;·&nbsp; 🐴 LANCEZ VOS ARMÉES &nbsp;·&nbsp; ⚓ ROUTES MARITIMES &nbsp;·&nbsp; 🎯 ACCOMPLISSEZ VOS QUÊTES &nbsp;·&nbsp; 📈 DU NOVICE AU LÉGENDAIRE &nbsp;·&nbsp; 🏛 ÉRIGEZ UN PALAIS &nbsp;&nbsp;&nbsp;
+          &nbsp;&nbsp;&nbsp;⚒ BÂTISSEZ VOTRE CITÉ &nbsp;·&nbsp; 💰 COMMERCEZ SUR LES MARCHÉS &nbsp;·&nbsp; 🏰 BRIGUEZ LA MAIRIE &nbsp;·&nbsp; 🌿 EXPLOREZ LES TERRES SAUVAGES &nbsp;·&nbsp; 🗡 SABOTEZ VOS RIVAUX &nbsp;·&nbsp; ⚔️ DÉCLAREZ LA GUERRE &nbsp;·&nbsp; 🐴 LANCEZ VOS ARMÉES &nbsp;·&nbsp; 🎯 ACCOMPLISSEZ VOS QUÊTES &nbsp;·&nbsp; 👑 NOMMEZ VOS OFFICIERS &nbsp;·&nbsp; 📊 TABLEAU DE BORD MAIRE &nbsp;·&nbsp; 📈 DU NOVICE AU LÉGENDAIRE &nbsp;·&nbsp; 🏛 ÉRIGEZ UN PALAIS &nbsp;&nbsp;&nbsp;⚒ BÂTISSEZ VOTRE CITÉ &nbsp;·&nbsp; 💰 COMMERCEZ SUR LES MARCHÉS &nbsp;·&nbsp; 🏰 BRIGUEZ LA MAIRIE &nbsp;·&nbsp; 🌿 EXPLOREZ LES TERRES SAUVAGES &nbsp;·&nbsp; 🗡 SABOTEZ VOS RIVAUX &nbsp;·&nbsp; ⚔️ DÉCLAREZ LA GUERRE &nbsp;·&nbsp; 🐴 LANCEZ VOS ARMÉES &nbsp;·&nbsp; 🎯 ACCOMPLISSEZ VOS QUÊTES &nbsp;·&nbsp; 👑 NOMMEZ VOS OFFICIERS &nbsp;·&nbsp; 📊 TABLEAU DE BORD MAIRE &nbsp;·&nbsp; 📈 DU NOVICE AU LÉGENDAIRE &nbsp;·&nbsp; 🏛 ÉRIGEZ UN PALAIS &nbsp;&nbsp;&nbsp;
         </span>
       </div>
 
@@ -89,11 +89,11 @@ export default function LandingPage() {
         <h2 style={{ fontSize: "1.8rem", fontWeight: 400, textAlign: "center", color: "#f5e6c0", marginBottom: "2rem", letterSpacing: 1 }}>Tout un monde à bâtir et à défendre</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2, background: "#3d2a0a44", border: "1px solid #3d2a0a" }}>
           {[
-            { icon: "🏗️", name: "Construire & Entretenir", desc: "Scieries, mines, forges, cathédrales, palais… Chaque bâtiment réclame son tribut en matériaux chaque nuit. Négligez l'entrepôt, et vos bâtiments s'effondrent à l'aurore." },
-            { icon: "⚖️", name: "Marchés & Taxes", desc: "Vendez et achetez librement. Les taxes s'accumulent en silence tout au long du jour et sont prélevées par chaque mairie à l'aurore — ville par ville, sans exception." },
-            { icon: "🌿", name: "Terres sauvages & Ressources rares", desc: "Affrontez les créatures de six contrées. Chaque victoire rapporte de l'or et parfois un trésor rare. Combattez dans votre biome de métier pour recevoir une bénédiction d'une heure." },
-            { icon: "📈", name: "Titres & Renommée personnelle", desc: "Montez du rang de novice jusqu'à celui de légende. Chaque titre gagné vous rend plus rapide et plus chanceux. Ces bienfaits se cumulent avec ceux de votre cité et des biomes." },
-            { icon: "👑", name: "Gouvernance & Élections", desc: "Briguer la mairie coûte vingt pièces d'or. Le maire règne dix jours, fixe les taxes et impôts, et peut déclarer la guerre. Trop d'impôts, et les habitants fuient vers d'autres cités." },
+            { icon: "🏗️", name: "Construire & Entretenir", desc: "Scieries, mines, forges, cathédrales, palais… Chaque bâtiment réclame son tribut en matériaux chaque nuit. Chaque résident consomme aussi une ressource brute par jour. Négligez l'entrepôt, et vos bâtiments s'effondrent à l'aurore." },
+            { icon: "⚖️", name: "Marchés & Taxes", desc: "Vendez et achetez librement. Les taxes s'accumulent en silence tout au long du jour et sont prélevées par chaque mairie à l'aurore, ville par ville, sans exception." },
+            { icon: "🌿", name: "Terres sauvages & Bénédictions", desc: "Affrontez les créatures de six contrées. Chaque victoire rapporte de l'or et parfois un trésor rare. Combattez dans votre biome de métier pour recevoir une bénédiction d'une heure sur votre production." },
+            { icon: "📈", name: "Titres & Renommée personnelle", desc: "Montez du rang de novice jusqu'à celui de légende. Chaque titre gagné vous rend plus rapide et plus chanceux à la production. Ces bienfaits se cumulent avec ceux de votre cité et des biomes." },
+            { icon: "👑", name: "Gouvernance & Officiers", desc: "Le maire règne dix jours et peut nommer trois officiers parmi ses résidents : Percepteur, Chef de guerre, Acheteur. Chacun accède aux fonctions qui lui sont confiées. Un tableau de bord complet lui donne une vue sur toute la vie économique de la cité." },
             { icon: "⚔️", name: "Guerres & Pillages", desc: "Recrutez des guerriers, formez une armée, marchez sur les villes voisines. Brisez leur garnison, pillez leurs réserves, et volez leurs lingots royaux pour freiner leur ascension." },
           ].map(f => (
             <div key={f.name} style={{ background: "#120e06", padding: "1.4rem 1.2rem", borderBottom: "1px solid #3d2a0a22" }}>
@@ -114,10 +114,10 @@ export default function LandingPage() {
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 2, background: "#3d2a0a44", border: "1px solid #3d2a0a", maxWidth: 1000, margin: "0 auto" }}>
           {[
-            { step: "01", icon: "⚡", title: "Produire & transformer", desc: "Récoltez vos matières premières, transformez-les. Gardez planches, fil et pierre brute en poche pour leurs bienfaits passifs. Vos outils ont trois usages — sans eux, tout prend deux fois plus de temps." },
-            { step: "02", icon: "🌿", title: "Terres sauvages & Titres", desc: "Parcourez les six contrées pour récolter des trésors rares. Consommez-les pour gagner en renommée. Chaque titre supplémentaire vous accélère et dédouble parfois votre récolte." },
-            { step: "03", icon: "🏗️", title: "Alimenter l'entrepôt communautaire", desc: "Déposez vos matériaux transformés à l'entrepôt. L'entretien des bâtiments et des soldats les consomme chaque nuit. L'entrepôt vide, c'est les fonderies qui s'éteignent et les garnisons qui fondent." },
-            { step: "04", icon: "⚔️", title: "Armée & Conquête", desc: "Levez vos soldats dans l'onglet Gouvernance. Le maire sonne le tocsin. Les résidents contribuent leurs unités. Le combat se règle à l'arrivée. Pillez lingots et réserves pour freiner l'ascension adverse." },
+            { step: "01", icon: "⚡", title: "Produire & transformer", desc: "Récoltez vos matières premières, transformez-les. Gardez planches, fil et pierre brute en poche pour leurs bienfaits passifs. Vos outils ont trois usages, sans eux tout prend deux fois plus de temps." },
+            { step: "02", icon: "🌿", title: "Terres sauvages & Titres", desc: "Parcourez les six contrées pour récolter des trésors rares. Consommez-les pour gagner en renommée. Chaque titre supplémentaire vous accélère et dédouble parfois votre récolte. Consommez un T1 pendant la bénédiction pour cinq minutes de bonus récolte en plus." },
+            { step: "03", icon: "🏗️", title: "Alimenter l'entrepôt communautaire", desc: "Déposez vos matériaux transformés à l'entrepôt. L'entretien des bâtiments, des soldats et la consommation des résidents le vident chaque nuit. Le maire voit les jours d'autonomie restants en temps réel dans son tableau de bord." },
+            { step: "04", icon: "👑", title: "Gouverner & Déléguer", desc: "Si vous êtes maire, nommez vos officiers depuis l'onglet Habitants. Suivez la trésorerie et les stocks critiques dans votre tableau de bord. Un Percepteur peut gérer les taxes à votre place, un Chef de guerre les campagnes militaires." },
           ].map(f => (
             <div key={f.step} style={{ background: "#120e06", padding: "1.4rem 1.2rem", display: "flex", gap: "1rem", alignItems: "flex-start" }}>
               <span style={{ fontFamily: "sans-serif", fontSize: 10, fontWeight: 700, color: "#c9a44a44", letterSpacing: 2, marginTop: 3, flexShrink: 0 }}>{f.step}</span>
@@ -129,7 +129,7 @@ export default function LandingPage() {
           ))}
         </div>
         <p style={{ textAlign: "center", fontSize: 13, color: "#7a6648", fontStyle: "italic", marginTop: "2rem", fontFamily: "sans-serif", letterSpacing: 1, maxWidth: 700, marginLeft: "auto", marginRight: "auto" }}>
-          Trois gloires à conquérir : la cité (Hameau → Empire), la renommée personnelle (Novice → Légendaire), la puissance militaire (garnison, victoires, lingots pillés).
+          Trois gloires à conquérir : la cité (Hameau → Empire), la renommée personnelle (Novice → Légendaire), la puissance militaire (garnison, victoires, lingots pillés). Et un tableau de bord pour tout voir d'un coup d'oeil.
         </p>
       </div>
 

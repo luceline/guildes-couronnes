@@ -205,52 +205,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     setSellOpen(false);
     setSellForm({ item_index: "", quantity: 1, price: 1, itemKey: "" });
 
-    // ── Valider les quêtes "sell" au moment de la mise en vente ──
+    // ── Valider les quêtes "sell" via checkAndAwardObjective ──
     try {
       const itemTier = ITEMS[item.item_key]?.tier || 0;
       if (itemTier >= 2) {
-        const todayStr = new Date().toISOString().split("T")[0];
         const allSell = await base44.entities.PlayerObjective.filter({
           player_email: profile.user_email,
           status: "active",
           type: "sell",
         });
-        const sellObjs = allSell.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
+        const sellObjs = filterTodayActiveObjectives(allSell, "sell");
         for (const obj of sellObjs) {
           const tierMatch = obj.target_item === "any_t2" || obj.target_item === "any_t3" || obj.target_item === "any" || obj.target_item === item.item_key || obj.target_item === item.item_category;
           if (!tierMatch) continue;
-          const newQty = (obj.current_quantity || 0) + sellForm.quantity;
-          const done = newQty >= (obj.target_quantity || 1);
-          await base44.entities.PlayerObjective.update(obj.id, {
-            current_quantity: newQty,
-            status: done ? "completed" : "active",
-          });
-          const mktReward = obj.reward_gold || 5;
-          if (done && mktReward > 0) {
-            const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-            const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-            const currentDebtByCity = freshP ? (freshP.debt_by_city || {}) : (profile.debt_by_city || {});
-            const { repaid: qRepaid, debtByCity: qDebtByCity, goldAfterDebt: qGoldNet, cityPayments: qCityPayments } = computeDebtRepayment(currentDebtByCity, mktReward);
-            await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + qGoldNet, debt_by_city: qDebtByCity });
-            // Verser les remboursements de quête aux trésoreries
-            for (const [cid, amount] of Object.entries(qCityPayments)) {
-              if (amount <= 0) continue;
-              const creditorCity = await base44.entities.City.get(cid).catch(() => null);
-              if (creditorCity) {
-                await base44.entities.City.update(cid, {
-                  gold_treasury: (creditorCity.gold_treasury || 0) + amount,
-                  treasury_cumulative: (creditorCity.treasury_cumulative || 0) + amount,
-                }).catch(() => {});
-              }
-            }
-            await base44.entities.GoldTransaction.create({
-              player_email: profile.user_email, player_name: profile.character_name || "",
-              city_id: city?.id || "", city_name: city?.name || "",
-              amount: mktReward, type: "objectif",
-              description: `Objectif vente accompli : ${obj.title}`,
-            }).catch(() => {});
-            toast.success(`🎉 Quête accomplie ! +${mktReward} 💰${qRepaid > 0 ? ` (−${qRepaid} remboursement dette)` : ""} !`);
-          }
+          await checkAndAwardObjective({ obj, addedQty: sellForm.quantity, profile, city });
         }
       }
     } catch(e) { console.warn("sellObjective:", e); }

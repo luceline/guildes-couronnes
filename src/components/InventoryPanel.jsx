@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ITEM_CATEGORIES,
   EQUIPMENT_MAX_DURABILITY,
-  MAX_HUNGER, HUNGER_FOOD_ITEMS,
+  MAX_HUNGER, HUNGER_FOOD_ITEMS, MAX_SATIETY, MAX_VITALITY, SATIETY_ITEMS, VITALITY_ITEMS,
 } from "../lib/gameData";
 import {
   ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY,
@@ -65,23 +65,65 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
     finally  { setActivating(null); }
   };
 
-  // ── Manger (faim) ──
+  // ── Manger (faim + appétit) ──
   const handleEatForHunger = async (itemKey) => {
-    const foodDef  = HUNGER_FOOD_ITEMS[itemKey];
-    if (!foodDef) return;
+    const foodDef = HUNGER_FOOD_ITEMS[itemKey];
+    const satietyDef = SATIETY_ITEMS[itemKey];
+    const vitalityDef = VITALITY_ITEMS[itemKey];
+    if (!foodDef && !satietyDef && !vitalityDef) return;
     const maxHunger = MAX_HUNGER + (profile.hunger_max_bonus || 0);
-    if (currentHunger >= maxHunger) { toast("🍽️ Vous n'avez pas faim !"); return; }
+    if (currentHunger >= maxHunger && (profile.satiety ?? MAX_SATIETY) >= MAX_SATIETY && (profile.vitality ?? MAX_VITALITY) >= MAX_VITALITY) {
+      toast("🍽️ Vous n'avez besoin de rien !");
+      return;
+    }
     setConsumingFood(itemKey + "_hunger");
     try {
       const newInv = inventory
         .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - 1 } : i)
         .filter(i => i.quantity > 0);
-      const newHunger = Math.min(maxHunger, currentHunger + foodDef.hunger_restore);
-      await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv, hunger: newHunger });
-      toast.success(`🍽️ +${foodDef.hunger_restore} faim ! (${newHunger}/${maxHunger})`);
+      const updates = { inventory: newInv };
+      let toastMsg = [];
+
+      if (foodDef) {
+        const newHunger = Math.min(maxHunger, currentHunger + foodDef.hunger_restore);
+        updates.hunger = newHunger;
+        toastMsg.push(`+${foodDef.hunger_restore} faim`);
+      }
+      if (satietyDef) {
+        const newSatiety = Math.min(MAX_SATIETY, (profile.satiety ?? MAX_SATIETY) + satietyDef.satiety_restore);
+        updates.satiety = newSatiety;
+        toastMsg.push(`+${satietyDef.satiety_restore} appétit`);
+      }
+      if (vitalityDef) {
+        const newVitality = Math.min(MAX_VITALITY, (profile.vitality ?? MAX_VITALITY) + vitalityDef.vitality_restore);
+        updates.vitality = newVitality;
+        toastMsg.push(`+${vitalityDef.vitality_restore} forme`);
+      }
+
+      await base44.entities.PlayerProfile.update(profile.id, updates);
+      toast.success(`🍽️ ${toastMsg.join(" · ")} !`);
       onRefresh?.();
     } catch { toast.error("Erreur"); }
-    finally  { setConsumingFood(null); }
+    finally { setConsumingFood(null); }
+  };
+
+  // ── Consommer herbes/extraits pour la forme ──
+  const handleConsumeVitality = async (itemKey) => {
+    const vitalityDef = VITALITY_ITEMS[itemKey];
+    if (!vitalityDef) return;
+    const currentVitality = profile.vitality ?? MAX_VITALITY;
+    if (currentVitality >= MAX_VITALITY) { toast("✨ Vous êtes en pleine forme !"); return; }
+    setConsumingFood(itemKey + "_vitality");
+    try {
+      const newInv = inventory
+        .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      const newVitality = Math.min(MAX_VITALITY, currentVitality + vitalityDef.vitality_restore);
+      await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv, vitality: newVitality });
+      toast.success(`✨ +${vitalityDef.vitality_restore} forme ! (${newVitality}/${MAX_VITALITY})`);
+      onRefresh?.();
+    } catch { toast.error("Erreur"); }
+    finally { setConsumingFood(null); }
   };
 
   // ── Meuble ──
@@ -306,8 +348,7 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
                     <span className="text-2xl">{data?.icon || cat?.icon || "📦"}</span>
                     <div className="flex-1">
                       <div className="font-semibold">{item.item_name}</div>
-                      <div className="text-xs text-muted-foreground">{effect?.description || data?.use || "Vendable sur le marché"}</div>
-                      {hungerDef && <div className="text-xs text-orange-600 mt-0.5">🍽️ +{hungerDef.hunger_restore} faim si mangé</div>}
+                      <div className="text-xs text-muted-foreground">{data?.use || "Vendable sur le marché"}</div>
                       {item.durability !== undefined && (() => {
                         const maxDur = EQUIPMENT_DURABILITY?.[item.item_key] ?? EQUIPMENT_MAX_DURABILITY;
                         return <div className="text-xs text-slate-500 mt-0.5">🛡️ Durabilité : {item.durability}/{maxDur}</div>;

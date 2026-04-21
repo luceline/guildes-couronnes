@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import HelpTooltip from "./HelpTooltip";
 
 const TYPE_META = {
   deposit: { icon: "📦", label: "Dépôt",     color: "bg-blue-50 border-blue-200" },
@@ -101,6 +102,7 @@ export default function DailyQuestsWidget({ profile, city }) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="font-heading text-lg flex items-center gap-2">
             🎯 Quêtes du jour
+            <HelpTooltip text="Six quêtes se renouvellent chaque matin à 6h. Fabriquer, vendre, voyager, approvisionner l'entrepôt de votre ville ou d'une ville étrangère. La récompense en or est versée dès la validation et apparaît dans votre journal de bord." side="bottom" />
             {allDone && <Badge className="bg-amber-500 text-white font-heading text-xs">✨ Tout accompli !</Badge>}
           </CardTitle>
           <div className="flex items-center gap-3">

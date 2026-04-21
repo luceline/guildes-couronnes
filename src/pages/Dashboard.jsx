@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +19,10 @@ const TRANSACTION_LABELS = {
   remboursement:   { icon: "💳", label: "Remboursement" },
   depot:           { icon: "🏦", label: "Dépôt bancaire" },
   retrait_depot:   { icon: "💰", label: "Retrait dépôt" },
-  vol_recu:        { icon: "🦹", label: "Vol reçu" },
+  vol_recu:        { icon: "🦹", label: "Vol réussi (reçu)" },
   vol_subi:        { icon: "😤", label: "Vol subi" },
+  vol_echoue:      { icon: "❌", label: "Tentative de vol échouée" },
+  vol_repousse:    { icon: "🛡️", label: "Vol repoussé" },
   cout_production: { icon: "⚒️", label: "Coût production" },
   logement:        { icon: "🏠", label: "Logement" },
   maire:           { icon: "👑", label: "Investiture maire" },
@@ -43,19 +45,37 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
   const [quests, setQuests] = useState([]);
   const [marketListings, setMarketListings] = useState([]);
 
+  const loadTransactions = useCallback(async () => {
+    if (!profile) return;
+    try {
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const txs = await base44.entities.GoldTransaction.filter(
+        { player_email: profile.user_email },
+        "-id", 100
+      );
+      const sorted = txs
+        .filter(t => new Date(t.created || t.created_date || 0) >= new Date(since24h))
+        .sort((a, b) => new Date(b.created || b.created_date || 0) - new Date(a.created || a.created_date || 0));
+      setTransactions(sorted);
+    } catch (e) {
+      console.warn("GoldTransaction load:", e);
+    }
+  }, [profile?.id, profile?.user_email]);
+
+  // Recharger au focus (retour sur le dashboard) + polling 60s
+  useEffect(() => {
+    loadTransactions();
+    const interval = setInterval(loadTransactions, 60 * 1000);
+    const onFocus = () => loadTransactions();
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [loadTransactions]);
+
   useEffect(() => {
     async function load() {
       if (!profile) return;
       try {
-        const txs = await base44.entities.GoldTransaction.filter(
-          { player_email: profile.user_email },
-          "-created_date", 50
-        );
-        const since = Date.now() - 24 * 3600 * 1000;
-        const recent = txs.filter(t =>
-          t.created_date && new Date(t.created_date).getTime() >= since
-        );
-        setTransactions(recent);
+        await loadTransactions();
       } catch (e) {
         console.warn("GoldTransaction load:", e);
       }
@@ -249,16 +269,34 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
           )}
 
           {/* Résumé vols */}
-          {transactions.filter(t => ['vol_recu','vol_subi','vol_echoue'].includes(t.type)).length > 0 && (
+          {transactions.filter(t => ['vol_recu','vol_subi','vol_echoue','vol_repousse'].includes(t.type)).length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">
               <p className="text-xs font-heading font-semibold text-red-800 mb-1">⚔️ Activité de vol (24h)</p>
-              {transactions.filter(t => ['vol_recu','vol_subi','vol_echoue'].includes(t.type)).map((tx, i) => {
+              {transactions.filter(t => ['vol_recu','vol_subi','vol_echoue','vol_repousse'].includes(t.type)).map((tx, i) => {
                 const meta = TRANSACTION_LABELS[tx.type] || { icon: "⚔️", label: tx.type };
+                const bgClass = tx.type === "vol_subi" ? "text-red-700" :
+                                tx.type === "vol_recu" ? "text-green-700" :
+                                tx.type === "vol_repousse" ? "text-blue-700" :
+                                "text-muted-foreground";
+                const txDate = new Date(tx.created || tx.created_date || 0);
+                const now2 = new Date();
+                const isYest = txDate.getDate() !== now2.getDate();
+                const t2 = (tx.created || tx.created_date)
+                  ? (isYest ? "Hier " : "") + txDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+                  : "";
                 return (
-                  <div key={i} className="flex items-center gap-2 text-xs font-body">
-                    <span>{meta.icon}</span>
-                    <span className="flex-1">{tx.description}</span>
-                    {tx.amount !== 0 && <span className={tx.amount > 0 ? "text-green-600 font-semibold" : "text-red-600 font-semibold"}>{tx.amount > 0 ? "+" : ""}{tx.amount} 💰</span>}
+                  <div key={i} className="flex items-center gap-2 text-xs font-body py-0.5">
+                    <span className="shrink-0">{meta.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <span className={`font-semibold ${bgClass}`}>{meta.label}</span>
+                      <span className="text-muted-foreground ml-1.5 truncate">{tx.description}</span>
+                    </div>
+                    {tx.amount !== 0 && (
+                      <span className={`font-heading font-bold shrink-0 ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
+                        {tx.amount > 0 ? "+" : ""}{tx.amount} 💰
+                      </span>
+                    )}
+                    {t2 && <span className="text-muted-foreground shrink-0">{t2}</span>}
                   </div>
                 );
               })}
@@ -273,11 +311,14 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
             </p>
           ) : (
             <div className="space-y-1.5">
-              {transactions.map((tx, idx) => {
+              {transactions.filter(tx => !['vol_recu','vol_subi','vol_echoue','vol_repousse'].includes(tx.type)).map((tx, idx) => {
                 const meta = TRANSACTION_LABELS[tx.type] || { icon: "💱", label: tx.type };
                 const isPositive = tx.amount > 0;
-                const time = tx.created_date
-                  ? new Date(tx.created_date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+                const txDate = new Date(tx.created || tx.created_date || 0);
+                const now = new Date();
+                const isYesterday = txDate.getDate() !== now.getDate();
+                const time = (tx.created || tx.created_date)
+                  ? (isYesterday ? "Hier " : "") + txDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
                   : "";
                 return (
                   <div key={idx} className="flex items-center gap-3 bg-muted/30 rounded-lg px-3 py-2 text-sm font-body">
@@ -302,4 +343,10 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
     </div>
   );
 }
+
+
+
+
+
+
 

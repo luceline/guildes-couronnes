@@ -17,15 +17,35 @@ const WAREHOUSE_LABELS = {
   or:          "Or",
 };
 import { base44 } from "@/api/base44Client";
+import { checkAndAwardObjective } from "@/lib/questRewards";
 import { QUEST_TEMPLATES } from "../lib/objectiveGenerator";
 import { toast } from "sonner";
+
+// ── Log entrepôt ──────────────────────────────────────────────
+async function logWarehouse(profile, city, action, itemKey, itemName, quantity, source = "player") {
+  try {
+    await base44.entities.WarehouseLog.create({
+      city_id:     city?.id   || "",
+      city_name:   city?.name || "",
+      player_email: profile.user_email || "",
+      player_name:  profile.character_name || "",
+      action,       // "deposit" ou "withdraw"
+      item_key:    itemKey,
+      item_name:   itemName,
+      quantity,
+      source,
+    });
+  } catch(e) { console.warn("WarehouseLog:", e); }
+}
+
+
 
 const T1_ITEMS = [
   { key: "bois_brut",   name: "Bois brut",      icon: "🪵" },
   { key: "pierre",      name: "Pierre",         icon: "🪨" },
   { key: "minerai_fer", name: "Minerai de fer", icon: "⚙️" },
   { key: "ble",         name: "Blé",            icon: "🌾" },
-  { key: "laine_brute", name: "Laine brute",    icon: "🐑" },
+  { key: "laine_brute", name: "Laine brute",    icon: "🧶" },
   { key: "herbes",      name: "Herbes",         icon: "🌿" },
   { key: "quartz_brut", name: "Quartz brut",    icon: "🔮" },
 ];
@@ -129,24 +149,11 @@ export default function WarehouseUnified({
         await logGold(profile.user_email, profile.character_name, city.id, city.name,
           actualGold, "rachat_entrepot", `Vente entrepôt T1 : ${actualQty}× ${itemKey}`);
         toast.success(`🤝 Marché conclu ! ${actualQty}× ${itemKey} livrés à la ville contre ${actualGold}💰.`);
+        await logWarehouse(profile, city, "deposit", itemKey, WAREHOUSE_LABELS[itemKey] || itemKey, actualQty, "player");
 
         if (isHomeCity) for (const obj of depositObjectives) {
           if (obj.target_item === itemKey) {
-            const newQty = (obj.current_quantity || 0) + actualQty;
-            const completed = newQty >= obj.target_quantity;
-            await base44.entities.PlayerObjective.update(obj.id, {
-              current_quantity: newQty,
-              status: completed ? "completed" : "active",
-            });
-            if (completed) {
-              const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-              if (reward > 0) {
-                const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-              }
-              toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-            }
+            await checkAndAwardObjective({ obj, addedQty: actualQty, profile, city });
           }
         }
 
@@ -161,21 +168,7 @@ export default function WarehouseUnified({
           const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
-              const newQty = (obj.current_quantity || 0) + actualQty;
-              const completed = newQty >= obj.target_quantity;
-              await base44.entities.PlayerObjective.update(obj.id, {
-                current_quantity: newQty,
-                status: completed ? "completed" : "active",
-              });
-              if (completed) {
-                const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-                if (reward > 0) {
-                  const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                  const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                  await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-                }
-                toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-              }
+              await checkAndAwardObjective({ obj, addedQty: actualQty, profile, city });
             }
           }
         } catch(e) { console.warn("contributeObjective:", e); }
@@ -208,6 +201,7 @@ export default function WarehouseUnified({
             cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + qty,
           })
         ]);
+        await logWarehouse(profile, city, "deposit", itemKey, WAREHOUSE_LABELS[itemKey] || itemKey, isGold ? 0 : qty, "player");
         toast.success(isGold
           ? `💰 ${qty} or versé à la trésorerie de la ville — la ville vous remercie !`
           : `📦 ${qty}× ${WAREHOUSE_LABELS[itemKey]} versé(e)s à l'entrepôt communautaire — la ville vous remercie !`
@@ -215,21 +209,7 @@ export default function WarehouseUnified({
 
         if (isHomeCity) for (const obj of depositObjectives) {
           if (obj.target_item === itemKey) {
-            const newQty = (obj.current_quantity || 0) + qty;
-            const completed = newQty >= obj.target_quantity;
-            await base44.entities.PlayerObjective.update(obj.id, {
-              current_quantity: newQty,
-              status: completed ? "completed" : "active",
-            });
-            if (completed) {
-              const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-              if (reward > 0) {
-                const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-              }
-              toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-            }
+            await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
           }
         }
 
@@ -244,21 +224,7 @@ export default function WarehouseUnified({
           const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
-              const newQty = (obj.current_quantity || 0) + qty;
-              const completed = newQty >= obj.target_quantity;
-              await base44.entities.PlayerObjective.update(obj.id, {
-                current_quantity: newQty,
-                status: completed ? "completed" : "active",
-              });
-              if (completed) {
-                const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-                if (reward > 0) {
-                  const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                  const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                  await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-                }
-                toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-              }
+              await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
             }
           }
         } catch(e) { console.warn("contributeObjective:", e); }
@@ -319,24 +285,11 @@ export default function WarehouseUnified({
         await logGold(profile.user_email, profile.character_name, city.id, city.name,
           actualGold, "rachat_t2t3", `Vente entrepôt T2/T3 : ${actualQty}× ${itemKey}`);
         toast.success(`🤝 Marché conclu ! ${actualQty}× ${itemKey} livrés à la ville contre ${actualGold}💰.`);
+        await logWarehouse(profile, city, "deposit", itemKey, GAME_ITEMS[itemKey]?.name || itemKey, actualQty, "player");
 
         if (isHomeCity) for (const obj of depositObjectives) {
           if (obj.target_item === itemKey) {
-            const newQty = (obj.current_quantity || 0) + actualQty;
-            const completed = newQty >= obj.target_quantity;
-            await base44.entities.PlayerObjective.update(obj.id, {
-              current_quantity: newQty,
-              status: completed ? "completed" : "active",
-            });
-            if (completed) {
-              const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-              if (reward > 0) {
-                const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-              }
-              toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-            }
+            await checkAndAwardObjective({ obj, addedQty: actualQty, profile, city });
           }
         }
 
@@ -351,21 +304,7 @@ export default function WarehouseUnified({
           const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
-              const newQty = (obj.current_quantity || 0) + actualQty;
-              const completed = newQty >= obj.target_quantity;
-              await base44.entities.PlayerObjective.update(obj.id, {
-                current_quantity: newQty,
-                status: completed ? "completed" : "active",
-              });
-              if (completed) {
-                const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-                if (reward > 0) {
-                  const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                  const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                  await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-                }
-                toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-              }
+              await checkAndAwardObjective({ obj, addedQty: actualQty, profile, city });
             }
           }
         } catch(e) { console.warn("contributeObjective:", e); }
@@ -393,24 +332,11 @@ export default function WarehouseUnified({
           }),
         ]);
         toast.success(`📦 ${qty}× ${itemKey} versé(e)s à l'entrepôt — les bâtiments de la ville vous en seront reconnaissants !`);
+        await logWarehouse(profile, city, "deposit", itemKey, GAME_ITEMS[itemKey]?.name || itemKey, qty, "player");
 
         if (isHomeCity) for (const obj of depositObjectives) {
           if (obj.target_item === itemKey) {
-            const newQty = (obj.current_quantity || 0) + qty;
-            const completed = newQty >= obj.target_quantity;
-            await base44.entities.PlayerObjective.update(obj.id, {
-              current_quantity: newQty,
-              status: completed ? "completed" : "active",
-            });
-            if (completed) {
-              const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-              if (reward > 0) {
-                const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-              }
-              toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-            }
+            await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
           }
         }
 
@@ -425,21 +351,7 @@ export default function WarehouseUnified({
           const contributeObjs = allContrib.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
           if (!isHomeCity) for (const obj of contributeObjs) {
             if (obj.target_item === itemKey) {
-              const newQty = (obj.current_quantity || 0) + qty;
-              const completed = newQty >= obj.target_quantity;
-              await base44.entities.PlayerObjective.update(obj.id, {
-                current_quantity: newQty,
-                status: completed ? "completed" : "active",
-              });
-              if (completed) {
-                const reward = obj.reward_gold || QUEST_TEMPLATES[obj.type]?.defaultReward || 7; // fallback si reward_gold absent en base
-                if (reward > 0) {
-                  const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-                  const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-                  await base44.entities.PlayerProfile.update(profile.id, { gold: currentGold + reward });
-                }
-                toast.success(`🎉 Quête accomplie : ${obj.title}${reward > 0 ? ` +${reward} 💰` : ""} !`);
-              }
+              await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
             }
           }
         } catch(e) { console.warn("contributeObjective:", e); }

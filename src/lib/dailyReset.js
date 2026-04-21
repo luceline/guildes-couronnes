@@ -119,6 +119,8 @@ async function runDailyReset(resetDate) {
   await spawnSceauxRoyaux(players, updatedCities, resetDate);
   await applyMilitaryMaintenance(updatedCities);
   await applyPopulationConsumption(updatedCities, players);
+  await rotateInterTerritoryGateways(updatedCities);
+  await applySatietyVitalityDecay(players);
   await expireMarketListings(resetDate);
 }
 
@@ -556,6 +558,11 @@ async function resetCity(city, resetDate, players = []) {
           // Déduire les ressources consommées
           for (const [res, qty] of Object.entries(maint)) {
             warehouse[res] = (warehouse[res] || 0) - qty;
+            if (qty > 0) base44.entities.WarehouseLog.create({
+              city_id: city.id, city_name: city.name,
+              player_email: "", player_name: bType?.name || building.building_type,
+              action: "withdraw", item_key: res, item_name: res, quantity: qty, source: "maintenance",
+            }).catch(() => {});
           }
           surviving.push(building);
         } else {
@@ -955,26 +962,34 @@ async function collectDailyTax(players, cities, resetDate) {
           } catch (e) { /* silencieux */ }
         }
 
-        // Verser ce qui a été payé à la ville
+        // Verser ce qui a été payé à la ville (avec redirection si Élixir de discorde)
         if (actualTax > 0) {
           try {
             const taxCity = await base44.entities.City.get(cid).catch(() => null);
             if (taxCity) {
-              await base44.entities.City.update(cid, {
-                gold_treasury:       (taxCity.gold_treasury || 0) + actualTax,
-                treasury_cumulative: (taxCity.treasury_cumulative || 0) + actualTax,
-                daily_tax_collected: (taxCity.daily_tax_collected || 0) + actualTax,
+              // Vérifier redirection taxes marché
+              const mktRedirectActive = taxCity.taxes_redirected_until &&
+                taxCity.taxes_redirected_until >= resetDate &&
+                taxCity.taxes_redirected_to;
+              const mktTargetId = mktRedirectActive ? taxCity.taxes_redirected_to : cid;
+              const mktTargetCity = mktRedirectActive
+                ? (cities.find(c => c.id === mktTargetId) || await base44.entities.City.get(mktTargetId).catch(() => taxCity))
+                : taxCity;
+              await base44.entities.City.update(mktTargetId, {
+                gold_treasury:       (mktTargetCity.gold_treasury || 0) + actualTax,
+                treasury_cumulative: (mktTargetCity.treasury_cumulative || 0) + actualTax,
+                daily_tax_collected: (mktTargetCity.daily_tax_collected || 0) + actualTax,
               });
+              await base44.entities.GoldTransaction.create({
+                player_email: player.user_email, player_name: player.character_name || "",
+                city_id: mktTargetId, city_name: mktTargetCity?.name || "",
+                amount: -actualTax, type: "taxe_marche",
+                description: mktRedirectActive
+                  ? `Taxe marché détournée → ${mktTargetCity?.name || mktTargetId} (Élixir de discorde)`
+                  : `Taxe marché journalière → ${taxCity.name || "ville"}`,
+              }).catch(() => {});
             }
           } catch (e) { console.warn("DailyReset: pending_market_tax city update failed", e); }
-          try {
-            await base44.entities.GoldTransaction.create({
-              player_email: player.user_email, player_name: player.character_name || "",
-              city_id: cid, city_name: "",
-              amount: -actualTax, type: "taxe_marche",
-              description: `Taxe marché journalière → ville`,
-            });
-          } catch (e) { /* silencieux */ }
         }
       }
       // Déduire du profil, vider pending_market_tax, enregistrer les dettes
@@ -1017,8 +1032,18 @@ async function collectDailyTax(players, cities, resetDate) {
 
       const taxToTreasury = Math.max(0, dailyTax - sceauUsed); // seul l'or va en trésorerie
 
-      const freshCity = await base44.entities.City.get(homeCity.id).catch(() => homeCity);
-      await base44.entities.City.update(homeCity.id, {
+      // ── Élixir de discorde : redirection des taxes vers une autre ville ──
+      const redirectActive = homeCity.taxes_redirected_until &&
+        homeCity.taxes_redirected_until >= resetDate &&
+        homeCity.taxes_redirected_to;
+      const taxTargetId = redirectActive ? homeCity.taxes_redirected_to : homeCity.id;
+      const taxTargetCity = redirectActive
+        ? (cities.find(c => c.id === taxTargetId) || await base44.entities.City.get(taxTargetId).catch(() => null))
+        : null;
+      const taxTargetName = taxTargetCity?.name || homeCity.name;
+
+      const freshCity = await base44.entities.City.get(taxTargetId).catch(() => taxTargetCity || homeCity);
+      await base44.entities.City.update(taxTargetId, {
         gold_treasury:       (freshCity.gold_treasury || 0) + taxToTreasury,
         treasury_cumulative: (freshCity.treasury_cumulative || 0) + taxToTreasury,
       });
@@ -1026,9 +1051,11 @@ async function collectDailyTax(players, cities, resetDate) {
       try {
         await base44.entities.GoldTransaction.create({
           player_email: player.user_email, player_name: player.character_name || "",
-          city_id: homeCity.id, city_name: homeCity.name || "",
+          city_id: taxTargetId, city_name: taxTargetName,
           amount: -dailyTax, type: "impot",
-          description: `Impôt journalier → ${homeCity.name}`,
+          description: redirectActive
+            ? `Impôt journalier détourné → ${taxTargetName} (Élixir de discorde)`
+            : `Impôt journalier → ${homeCity.name}`,
         });
       } catch (e) { console.warn("logGold impot:", e); }
       if (effectiveHousingCost > 0) {
@@ -1316,6 +1343,104 @@ async function expireMarketListings(resetDate) {
 }
 
 
+
+
+async function applySatietyVitalityDecay(players) {
+  // Perte de 2 points par jour répartis aléatoirement entre appétit et forme
+  for (const player of players) {
+    const roll = Math.random();
+    let satietyLoss = 0;
+    let vitalityLoss = 0;
+    if (roll < 0.33) { satietyLoss = 2; vitalityLoss = 0; }
+    else if (roll < 0.66) { satietyLoss = 1; vitalityLoss = 1; }
+    else { satietyLoss = 0; vitalityLoss = 2; }
+
+    const newSatiety = Math.max(0, (player.satiety ?? 10) - satietyLoss);
+    const newVitality = Math.max(0, (player.vitality ?? 10) - vitalityLoss);
+
+    if (newSatiety !== (player.satiety ?? 10) || newVitality !== (player.vitality ?? 10)) {
+      await base44.entities.PlayerProfile.update(player.id, {
+        satiety: newSatiety,
+        vitality: newVitality,
+      }).catch(() => {});
+    }
+  }
+  console.log(`SatietyVitalityDecay: ${players.length} joueurs traités`);
+}
+
+async function rotateInterTerritoryGateways(cities) {
+  // Chaque jour, changer aléatoirement la ville de passage entre territoires
+  try {
+    const territories = await base44.entities.Territory.list().catch(() => []);
+    if (territories.length < 2) return;
+
+    const realCities = cities.filter(c => !c.is_bot_city);
+
+    // Supprimer les anciennes routes inter-territoire
+    const allRoutes = await base44.entities.TravelRoute.list().catch(() => []);
+    const interRoutes = allRoutes.filter(r => r.is_inter_territory);
+    for (const route of interRoutes) {
+      await base44.entities.TravelRoute.delete(route.id).catch(() => {});
+    }
+
+    // Pour chaque paire de territoires adjacents, créer une nouvelle route
+    for (let i = 0; i < territories.length - 1; i++) {
+      const t1 = territories[i];
+      const t2 = territories[i + 1];
+
+      const t1Cities = realCities.filter(c => c.territory_id === t1.id);
+      const t2Cities = realCities.filter(c => c.territory_id === t2.id);
+
+      if (t1Cities.length === 0 || t2Cities.length === 0) continue;
+
+      const gateway1 = t1Cities[Math.floor(Math.random() * t1Cities.length)];
+      const gateway2 = t2Cities[Math.floor(Math.random() * t2Cities.length)];
+
+      await Promise.all([
+        base44.entities.TravelRoute.create({
+          city_from_id: gateway1.id,
+          city_to_id: gateway2.id,
+          travel_time_minutes: 120,
+          road_type: "inter_territoire",
+          danger_level: "sûr",
+          is_inter_territory: true,
+          is_maritime: false,
+        }),
+        base44.entities.TravelRoute.create({
+          city_from_id: gateway2.id,
+          city_to_id: gateway1.id,
+          travel_time_minutes: 120,
+          road_type: "inter_territoire",
+          danger_level: "sûr",
+          is_inter_territory: true,
+          is_maritime: false,
+        }),
+      ]);
+
+      // Mettre à jour les gateway_city_id dans les territoires
+      await base44.entities.Territory.update(t1.id, { gateway_city_id: gateway1.id }).catch(() => {});
+      await base44.entities.Territory.update(t2.id, { gateway_city_id: gateway2.id }).catch(() => {});
+
+      // Annoncer dans les tavernes
+      for (const city of [...t1Cities, ...t2Cities]) {
+        try {
+          await base44.entities.TavernMessage.create({
+            city_id: city.id,
+            author_email: "system",
+            author_name: "Héraut royal",
+            profession: "",
+            message: `🛤️ La route inter-territoire change de tracé ! Aujourd'hui le passage entre les territoires relie ${gateway1.name} à ${gateway2.name}.`,
+          });
+        } catch (e) { /* silencieux */ }
+      }
+
+      console.log(`InterTerritory gateway: ${gateway1.name} (${t1.name}) ↔ ${gateway2.name} (${t2.name})`);
+    }
+  } catch (e) {
+    console.error("rotateInterTerritoryGateways error:", e);
+  }
+}
+
 async function applyPopulationConsumption(cities, players) {
   // Chaque résident actif coûte 1 ressource T1 aléatoire/jour à l'entrepôt communautaire
   const T1_KEYS = ["bois_brut", "pierre_brute", "minerai_fer", "ble", "laine_brute", "herbes", "quartz_brut"];
@@ -1329,21 +1454,33 @@ async function applyPopulationConsumption(cities, players) {
     let changed = false;
 
     for (const resident of residents) {
-      // Choisir une ressource T1 aléatoire à consommer
-      const needed = T1_KEYS[Math.floor(Math.random() * T1_KEYS.length)];
-      if ((warehouse[needed] || 0) >= 1) {
+      // Tirer uniquement parmi les T1 présentes en stock
+      const available = T1_KEYS.filter(k => (warehouse[k] || 0) > 0);
+      if (available.length > 0) {
+        // Stock disponible → consommer 1 unité d'une T1 présente au hasard
+        const needed = available[Math.floor(Math.random() * available.length)];
         warehouse[needed] = (warehouse[needed] || 0) - 1;
         changed = true;
+        base44.entities.WarehouseLog.create({
+          city_id: city.id, city_name: city.name,
+          player_email: resident.user_email || "", player_name: resident.character_name || "",
+          action: "withdraw", item_key: needed, item_name: needed, quantity: 1, source: "population",
+        }).catch(() => {});
       } else {
-        // T1 manquante → perd 20% d'une T1 aléatoire existante
-        const available = T1_KEYS.filter(k => (warehouse[k] || 0) > 0);
-        if (available.length > 0) {
-          const fallback = available[Math.floor(Math.random() * available.length)];
+        // Entrepôt complètement vide → pénalité 20% sur la T1 la plus abondante
+        const nonEmpty = T1_KEYS.filter(k => (warehouse[k] || 0) > 0);
+        if (nonEmpty.length > 0) {
+          const fallback = nonEmpty[Math.floor(Math.random() * nonEmpty.length)];
           const loss = Math.floor((warehouse[fallback] || 0) * 0.20);
           if (loss > 0) {
             warehouse[fallback] = Math.max(0, (warehouse[fallback] || 0) - loss);
             changed = true;
-            console.log(`PopulationConsumption [${city.name}] : ${resident.character_name || resident.user_email} — manque ${needed}, perd ${loss}× ${fallback}`);
+            console.log(`PopulationConsumption [${city.name}] : ${resident.character_name || resident.user_email} — entrepôt vide, perd ${loss}× ${fallback}`);
+            base44.entities.WarehouseLog.create({
+              city_id: city.id, city_name: city.name,
+              player_email: resident.user_email || "", player_name: resident.character_name || "",
+              action: "withdraw", item_key: fallback, item_name: fallback, quantity: loss, source: "population_penalty",
+            }).catch(() => {});
           }
         }
       }

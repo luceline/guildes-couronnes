@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import BiomeHub from "../components/BiomeHub";
 import { toast } from "sonner";
+import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import {
   ROAD_TYPES, ROAD_COLORS,
   getDailyRouteCost, computeTravelCost, computeWallToll, getRouteType,
@@ -70,38 +71,17 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
   const validateTravelQuests = async () => {
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
       const allTravelObjs = await base44.entities.PlayerObjective.filter({
         player_email: profile.user_email,
         status: "active",
         type: "travel",
       });
-      const travelObjectives = allTravelObjs.filter(o => (o.created_date || o.quest_date || "").startsWith(todayStr));
+      const travelObjectives = filterTodayActiveObjectives(allTravelObjs, "travel");
       for (const obj of travelObjectives) {
-        const newQty = (obj.current_quantity || 0) + 1;
-        const done = newQty >= (obj.target_quantity || 1);
-        await base44.entities.PlayerObjective.update(obj.id, {
-          current_quantity: newQty,
-          status: done ? "completed" : "active",
-        });
-        if (done) {
-          const freshP = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-          const currentGold = freshP ? (freshP.gold || 0) : (profile.gold || 0);
-          await base44.entities.PlayerProfile.update(profile.id, {
-            gold: currentGold + (obj.reward_gold || 7),
-          });
-          await base44.entities.GoldTransaction.create({
-            player_email: profile.user_email, player_name: profile.character_name || "",
-            city_id: "", city_name: "",
-            amount: obj.reward_gold || 7, type: "objectif",
-            description: `Objectif voyage accompli : ${obj.title || "Voyage"}`,
-          }).catch(() => {});
-          toast.success(`🎉 Objectif accompli : "${obj.title}" ! +${obj.reward_gold} 💰 !`);
-        }
+        await checkAndAwardObjective({ obj, addedQty: 1, profile, city: null });
       }
     } catch(e) { console.error("Erreur validation objectifs voyage:", e); }
   };
-
   const completeTravel = async () => {
     if (!profile) return;
     if (completingRef.current) return; // évite les appels parallèles du timer
@@ -525,6 +505,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
                 const rtDef = ROAD_TYPES[roadType] || ROAD_TYPES.royale;
                 const isMaritime = roadType === "maritime";
 
+                const isInterTerritory = route.is_inter_territory || route.road_type === "inter_territoire";
                 const travelCost = computeTravelCost(roadType, route.id, departCity, profile);
                 const toll = computeWallToll(destCity, profile);
                 const totalCost = travelCost + toll;
@@ -539,10 +520,15 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
                 const hasDiscount = !isMaritime && travelCost < baseCost && baseCost > 0;
 
                 return (
-                  <Card key={route.id} className="hover:border-primary/50 transition-colors">
+                  <Card key={route.id} className={`hover:border-primary/50 transition-colors ${isInterTerritory ? "border-2 border-amber-400/60 bg-amber-50/5" : ""}`}>
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-start justify-between">
                         <div>
+                          {isInterTerritory && (
+                            <span style={{ fontSize: "10px", background: "#92400e", color: "#fde68a", padding: "2px 8px", borderRadius: "999px", fontWeight: "bold", letterSpacing: 1, marginBottom: "4px", display: "inline-block" }}>
+                              🌍 ROUTE INTER-TERRITOIRE
+                            </span>
+                          )}
                           <h4 className="font-heading font-semibold text-lg">{destCity?.name || "???"}</h4>
                           <p className="text-xs text-muted-foreground font-body">
                             👑 {destCity?.mayor_name} — 👥 {destCity?.population || 0}/{destCity?.max_population || 5}
