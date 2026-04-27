@@ -54,7 +54,7 @@ export default function GoldTransactionHistory({ playerEmail }) {
       try {
         const txns = await base44.entities.GoldTransaction.filter(
           { player_email: playerEmail },
-          "-created_date",
+          "-created",
           100
         );
         setTransactions(txns);
@@ -116,9 +116,9 @@ export default function GoldTransactionHistory({ playerEmail }) {
                   {tx.city_name && (
                     <div className="text-xs text-muted-foreground">{tx.city_name}</div>
                   )}
-                  {tx.created_date && (
+                  {(tx.created || tx.created_date) && (
                     <div className="text-xs text-muted-foreground">
-                      {new Date(tx.created_date).toLocaleDateString("fr-FR", {
+                      {new Date(tx.created || tx.created_date).toLocaleDateString("fr-FR", {
                         month: "short",
                         day: "numeric",
                         hour: "2-digit",

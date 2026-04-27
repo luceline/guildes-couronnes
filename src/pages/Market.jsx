@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { computeDebtRepayment, getTotalDebt } from "../lib/debtRepayment";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import ItemTooltip from "../components/ItemTooltip";
 import MarketInsights from "../components/MarketInsights";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback } from "react";
+import { logGold } from '@/lib/goldLog';
 
 
 
@@ -54,15 +56,6 @@ function getPriceHint(itemKey, price, multiplier = 1.0, dynamicPrices = {}) {
 }
 
 
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
 
 export default function Market({ profile, city, homeCity, onRefresh }) {
   const [listings, setListings] = useState([]);       // annonces de la ville actuelle, pas les miennes
@@ -471,7 +464,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} />
+      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
 
       {/* ── Caravane royale ── */}
       {(() => {
@@ -496,7 +489,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="font-heading text-2xl font-bold">🏪 Marché de {city.name}</h2>
+          <h2 className="font-heading text-2xl font-bold heading-medieval">🏪 Marché de {city.name}</h2>
           <p className="text-muted-foreground text-sm font-body">
             💰 Taxe aujourd'hui : {taxRate}%
             {city.tax_rate_next !== undefined && city.tax_rate_next !== null && (

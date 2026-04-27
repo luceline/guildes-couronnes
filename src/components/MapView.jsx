@@ -254,7 +254,13 @@ export default function MapView({ profile }) {
             const to   = positions[route.city_to_id];
             if (!from || !to) return null;
             const dc      = DANGER_COLORS[route.danger_level] || DANGER_COLORS["sûr"];
-            const path    = curvedPath(from.x, from.y, to.x, to.y, 0.12 * (i % 2 === 0 ? 1 : -1));
+            // Courbure déterministe par route (basée sur l'ID), pour éviter les chevauchements
+            // quand plusieurs routes partent d'une même ville. Hash simple sur l'ID.
+            let h = 0;
+            for (let k = 0; k < route.id.length; k++) h = (h * 31 + route.id.charCodeAt(k)) | 0;
+            const sign = (h & 1) ? 1 : -1;
+            const mag  = 0.18 + ((Math.abs(h) % 100) / 100) * 0.20; // 0.18..0.38
+            const path = curvedPath(from.x, from.y, to.x, to.y, mag * sign);
             const nTrav   = travelersOnRoute(route);
             const isSelRoute = selected &&
               (route.city_from_id === selected || route.city_to_id === selected);

@@ -1,42 +1,28 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { usePlayerData } from "../lib/usePlayerData";
 import DailyQuestsWidget from "../components/DailyQuestsWidget";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 
 export default function QuestesPage() {
-  const [profile, setProfile] = useState(null);
-  const [city, setCity] = useState(null);
+  const { profile, city, loading } = usePlayerData();
   const [contracts, setContracts] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function load() {
-      const user = await base44.auth.me();
-      if (!user?.email) { setLoading(false); return; }
-      const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
-      if (!profiles.length) { setLoading(false); return; }
-      const p = profiles[0];
-      setProfile(p);
-      if (p.city_id) {
-        const cities = await base44.entities.City.list();
-        setCity(cities.find(c => c.id === p.city_id) || null);
-      }
-      // Contrats actifs (avec parchemin_type)
-      const objs = await base44.entities.PlayerObjective.filter({ player_email: p.user_email });
-      setContracts(objs.filter(o => o.parchemin_type && o.status === "active"));
-      setLoading(false);
-    }
-    load();
-  }, []);
+    if (!profile?.user_email) return;
+    base44.entities.PlayerObjective.filter({ player_email: profile.user_email })
+      .then(objs => setContracts(objs.filter(o => o.parchemin_type && o.status === "active")))
+      .catch(() => {});
+  }, [profile?.user_email]);
 
   if (loading) return <p className="text-center text-muted-foreground font-body py-12">Chargement...</p>;
   if (!profile) return null;
 
   return (
     <div className="space-y-6 pb-20 md:pb-0 max-w-2xl mx-auto">
-      <h2 className="font-heading text-2xl font-semibold">🎯 Quêtes</h2>
+      <h2 className="font-heading text-2xl font-semibold heading-medieval">🎯 Quêtes</h2>
 
       <DailyQuestsWidget profile={profile} city={city} />
 

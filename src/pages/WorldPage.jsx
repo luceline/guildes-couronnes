@@ -1,21 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
-import { base44 } from "@/api/base44Client";
+import { usePlayerData } from "../lib/usePlayerData";
 import WorldMap from "./WorldMap";
 
 export default function WorldPage() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const loadData = useCallback(async () => {
-    const user = await base44.auth.me();
-    const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
-    if (profiles.length > 0) {
-      setProfile(profiles[0]);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { loadData(); }, [loadData]);
+  const { profile, loading } = usePlayerData();
 
   if (loading) {
     return (

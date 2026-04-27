@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   ITEM_CATEGORIES,
   EQUIPMENT_MAX_DURABILITY,
-  MAX_HUNGER, HUNGER_FOOD_ITEMS, MAX_SATIETY, MAX_VITALITY, SATIETY_ITEMS, VITALITY_ITEMS,
+  MAX_HUNGER, getMaxHunger, getCityHungerBonus, getFestinHungerDrain, HUNGER_FOOD_ITEMS,
 } from "../lib/gameData";
 import {
   ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY,
@@ -31,9 +31,11 @@ const CONTRAT_DEFS = {
 // Prix de revente lingot royal (fallback si pas de city)
 const LINGOT_ROYAL_PRICE_DEFAULT = 156;
 
-export default function InventoryPanel({ profile, city, onRefresh }) {
+export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
+  const cityHungerBonus = getCityHungerBonus(homeCity?.buildings || []);
   const [activating, setActivating]       = useState(null);
   const [consumingFood, setConsumingFood] = useState(null);
+  const [confirmConsume, setConfirmConsume] = useState(null); // { type, key, def }
 
   if (!profile) return null;
 
@@ -65,15 +67,13 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
     finally  { setActivating(null); }
   };
 
-  // ── Manger (faim + appétit) ──
+  // ── Manger (faim) ──
   const handleEatForHunger = async (itemKey) => {
     const foodDef = HUNGER_FOOD_ITEMS[itemKey];
-    const satietyDef = SATIETY_ITEMS[itemKey];
-    const vitalityDef = VITALITY_ITEMS[itemKey];
-    if (!foodDef && !satietyDef && !vitalityDef) return;
-    const maxHunger = MAX_HUNGER + (profile.hunger_max_bonus || 0);
-    if (currentHunger >= maxHunger && (profile.satiety ?? MAX_SATIETY) >= MAX_SATIETY && (profile.vitality ?? MAX_VITALITY) >= MAX_VITALITY) {
-      toast("🍽️ Vous n'avez besoin de rien !");
+    if (!foodDef) return;
+    const maxHunger = getMaxHunger(profile, cityHungerBonus);
+    if (currentHunger >= maxHunger) {
+      toast("🍽️ Vous n'avez pas faim !");
       return;
     }
     setConsumingFood(itemKey + "_hunger");
@@ -81,46 +81,17 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
       const newInv = inventory
         .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - 1 } : i)
         .filter(i => i.quantity > 0);
-      const updates = { inventory: newInv };
-      let toastMsg = [];
-
-      if (foodDef) {
-        const newHunger = Math.min(maxHunger, currentHunger + foodDef.hunger_restore);
-        updates.hunger = newHunger;
-        toastMsg.push(`+${foodDef.hunger_restore} faim`);
+      const newHunger = Math.min(maxHunger, currentHunger + foodDef.hunger_restore);
+      const upd = { inventory: newInv, hunger: newHunger };
+      const msgs = [`+${foodDef.hunger_restore} faim`];
+      // Festin empoisonné actif → drain énergie
+      const festinDrain = getFestinHungerDrain(city);
+      if (festinDrain > 0) {
+        upd.fatigue = Math.max(0, (profile.fatigue ?? 20) - festinDrain);
+        msgs.push(`☠️ −${festinDrain}⚡ (festin empoisonné)`);
       }
-      if (satietyDef) {
-        const newSatiety = Math.min(MAX_SATIETY, (profile.satiety ?? MAX_SATIETY) + satietyDef.satiety_restore);
-        updates.satiety = newSatiety;
-        toastMsg.push(`+${satietyDef.satiety_restore} appétit`);
-      }
-      if (vitalityDef) {
-        const newVitality = Math.min(MAX_VITALITY, (profile.vitality ?? MAX_VITALITY) + vitalityDef.vitality_restore);
-        updates.vitality = newVitality;
-        toastMsg.push(`+${vitalityDef.vitality_restore} forme`);
-      }
-
-      await base44.entities.PlayerProfile.update(profile.id, updates);
-      toast.success(`🍽️ ${toastMsg.join(" · ")} !`);
-      onRefresh?.();
-    } catch { toast.error("Erreur"); }
-    finally { setConsumingFood(null); }
-  };
-
-  // ── Consommer herbes/extraits pour la forme ──
-  const handleConsumeVitality = async (itemKey) => {
-    const vitalityDef = VITALITY_ITEMS[itemKey];
-    if (!vitalityDef) return;
-    const currentVitality = profile.vitality ?? MAX_VITALITY;
-    if (currentVitality >= MAX_VITALITY) { toast("✨ Vous êtes en pleine forme !"); return; }
-    setConsumingFood(itemKey + "_vitality");
-    try {
-      const newInv = inventory
-        .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
-      const newVitality = Math.min(MAX_VITALITY, currentVitality + vitalityDef.vitality_restore);
-      await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv, vitality: newVitality });
-      toast.success(`✨ +${vitalityDef.vitality_restore} forme ! (${newVitality}/${MAX_VITALITY})`);
+      await base44.entities.PlayerProfile.update(profile.id, upd);
+      toast.success(`🍽️ ${msgs.join(' · ')} !`);
       onRefresh?.();
     } catch { toast.error("Erreur"); }
     finally { setConsumingFood(null); }
@@ -145,6 +116,10 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
   // ── Effets temporaires consommables ──
   const handleConsumeTempEffect = async (itemDef) => {
     if (itemDef.trigger === "passive") return;
+    if (itemDef.trigger === "equipped") {
+      toast("Cet objet s'équipe depuis l'onglet Profil → Équipement de combat.");
+      return;
+    }
     const item = inventory.find(i => i.item_key === itemDef.key);
     if (!item || item.quantity <= 0) return;
     setActivating(itemDef.key);
@@ -161,11 +136,8 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
       } else if (itemDef.effect === "energy_max_bonus") {
         updates.energy_max_bonus_expires_at = expiresAt;
         updates.energy_max_bonus_value      = itemDef.value || 10;
-      } else if (itemDef.effect === "attack_bonus") {
-        updates.attack_bonus_expires_at = expiresAt;
-      } else if (itemDef.effect === "defense_bonus") {
-        updates.defense_bonus_expires_at = expiresAt;
-        updates.defense_bonus_value = itemDef.value || 2;
+      } else if (itemDef.effect === "biome_buff_only") {
+        // pierre, laine_brute : aucun effet hors buff biome (géré plus bas)
       } else if (itemDef.effect === "double_prod_bonus") {
         const currentBonus = profile.double_prod_bonus || 0;
         updates.double_prod_bonus = Math.min(0.80, currentBonus + (itemDef.value || 0.10));
@@ -173,27 +145,38 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
       } else if (itemDef.effect === "travel_and_gamble") {
         updates.travel_discount = itemDef.value || 0.20;
-        // gamble or — géré côté Production.jsx avec toast, ici on applique juste le travel
-        const gambleMax = itemDef.gamble_max || 60;
-        const gambleGold = Math.floor(Math.random() * (gambleMax + 1));
-        if (gambleGold > 0) updates.gold = (profile.gold || 0) + gambleGold;
+        // Le gamble or et le toast sont gérés exclusivement dans Production.jsx
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+        // Encre : flag pour bonus T1 au prochain craft T2
+        if (itemDef.next_t2_gives_t1) {
+          updates.pending_t2_to_t1_bonus = true;
+        }
 
       } else if (itemDef.effect === "hunger_restore") {
-        const maxH = MAX_HUNGER + (profile.hunger_max_bonus || 0);
+        const maxH = getMaxHunger(profile, cityHungerBonus);
         updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+        // Festin empoisonné actif → drain énergie
+        const festinDrain = getFestinHungerDrain(city);
+        if (festinDrain > 0) {
+          updates.fatigue = Math.max(0, (profile.fatigue ?? 20) - festinDrain);
+        }
       } else if (itemDef.effect === "fatigue_restore") {
         const maxFatigue = (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0);
         updates.fatigue = Math.min(maxFatigue, (profile.fatigue ?? 20) + (itemDef.value || 5));
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
       } else if (itemDef.effect === "hunger_and_regen") {
-        const maxH = MAX_HUNGER + (profile.hunger_max_bonus || 0);
+        const maxH = getMaxHunger(profile, cityHungerBonus);
         updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));
         updates.hunger_regen_bonus_expires_at = expiresAt;
         updates.hunger_regen_interval_min     = itemDef.regen_interval_min || 10;
         updates.hunger_regen_value            = itemDef.regen_value || 1;
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+        // Festin empoisonné actif → drain énergie
+        const festinDrain = getFestinHungerDrain(city);
+        if (festinDrain > 0) {
+          updates.fatigue = Math.max(0, (profile.fatigue ?? 20) - festinDrain);
+        }
       } else if (itemDef.effect === "fatigue_and_regen") {
         updates.fatigue = Math.min(
           (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0),
@@ -203,9 +186,9 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
         updates.energy_regen_interval_min     = itemDef.regen_interval_min || 5;
         updates.energy_regen_value            = itemDef.regen_value || 1;
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
-        if (itemDef.defense_bonus) {
-          updates.defense_bonus_expires_at = new Date(Date.now() + (itemDef.defense_bonus_h || 6) * 3600000).toISOString();
-          updates.defense_bonus_value = itemDef.defense_bonus;
+        // Restauration PV (potion soin/endurance)
+        if (itemDef.hp_restore) {
+          updates.hp = Math.min(10, (profile.hp ?? 10) + itemDef.hp_restore);
         }
       } else if (itemDef.effect === "housing_maintenance") {
         const expires15 = new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0];
@@ -215,11 +198,6 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
         updates.active_parchemin_type = itemDef.parchemin_type;
       }
 
-      // Quartz poli passif consommé : +def temporaire
-      if (itemDef.effect === "market_tax_discount" && itemDef.defense_bonus) {
-        updates.defense_bonus_expires_at = new Date(Date.now() + (itemDef.defense_bonus_h || 6) * 3600000).toISOString();
-        updates.defense_bonus_value = itemDef.defense_bonus;
-      }
       // Biome harvest bonus T1
       if (itemDef.biome_profession && itemDef.biome_key) {
         const biomeActive = profile.biome_cooldown_bonus_expires_at &&
@@ -335,6 +313,8 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
                 const effect   = item.item_key ? ITEM_EFFECTS[item.item_key] : null;
                 const hungerDef = item.item_key ? HUNGER_FOOD_ITEMS[item.item_key] : null;
                 const tempDef  = TEMP_EFFECT_ITEMS?.find(t => t.key === item.item_key);
+                const maxHungerVal = getMaxHunger(profile, cityHungerBonus);
+                const canEat = hungerDef && currentHunger < maxHungerVal;
                 const isMeuble = item.item_key === "meuble" || item.item_name === "Meuble";
                 const meubleActive = isMeuble && profile.meuble_expires_at >= new Date().toISOString().split("T")[0];
                 const isLingotRoyal = item.item_key === "lingot_royal";
@@ -363,8 +343,8 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
                       <Badge variant="secondary">×{item.quantity}</Badge>
 
                       {/* Manger */}
-                      {hungerDef && currentHunger < MAX_HUNGER && (
-                        <button onClick={() => handleEatForHunger(item.item_key)}
+                      {canEat && (
+                        <button onClick={() => setConfirmConsume({ type: "eatForHunger", key: item.item_key, def: { name: item.item_name, icon: ITEMS[item.item_key]?.icon } })}
                           disabled={consumingFood === item.item_key + "_hunger"}
                           className="text-xs bg-orange-100 hover:bg-orange-200 border border-orange-300 text-orange-800 px-2 py-0.5 rounded font-body transition-colors">
                           Manger
@@ -373,7 +353,7 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
 
                       {/* Meuble */}
                       {isMeuble && !meubleActive && (
-                        <button onClick={handleActivateMeuble}
+                        <button onClick={() => setConfirmConsume({ type: "meuble", key: item.item_key, def: { name: "Meuble", icon: "🪑" } })}
                           className="text-xs bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 px-2 py-0.5 rounded font-body transition-colors">
                           🪑 Installer
                         </button>
@@ -381,7 +361,7 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
 
                       {/* Effets temporaires */}
                       {tempDef && !isMeuble && (
-                        <button onClick={() => handleConsumeTempEffect(tempDef)}
+                        <button onClick={() => setConfirmConsume({ type: "temp", key: item.item_key, def: tempDef })}
                           disabled={activating === item.item_key}
                           className="text-xs bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 text-indigo-900 px-2 py-0.5 rounded font-body transition-colors">
                           {activating === item.item_key ? "..." : `✨ ${tempDef.label}`}
@@ -390,7 +370,7 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
 
                       {/* Contrats */}
                       {isContrat && (
-                        <button onClick={() => handleActivateContrat(item.item_key)}
+                        <button onClick={() => setConfirmConsume({ type: "contrat", key: item.item_key, def: { name: ITEMS[item.item_key]?.name || item.item_key, icon: ITEMS[item.item_key]?.icon || "📜" } })}
                           disabled={activating === item.item_key}
                           className="text-xs bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 px-2 py-0.5 rounded font-body transition-colors">
                           {activating === item.item_key ? "..." : "📜 Activer"}
@@ -444,6 +424,45 @@ export default function InventoryPanel({ profile, city, onRefresh }) {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Modal de confirmation avant consommation/activation d'objet ── */}
+      {confirmConsume && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border-2 border-primary/30 rounded-lg shadow-2xl max-w-sm w-full p-4 space-y-3">
+            <h3 className="font-heading text-lg flex items-center gap-2">
+              <span className="text-2xl">{confirmConsume.def?.icon || "❓"}</span>
+              <span>Confirmer ?</span>
+            </h3>
+            <p className="text-sm font-body">
+              {confirmConsume.type === "eatForHunger" && <>Voulez-vous manger <strong>{confirmConsume.def.name}</strong> pour récupérer de la faim ?</>}
+              {confirmConsume.type === "meuble" && <>Voulez-vous installer le <strong>Meuble</strong> dans votre logement ? <br /><span className="text-xs text-muted-foreground">Réduit les frais de logement de 50% pendant 10 jours.</span></>}
+              {confirmConsume.type === "temp" && <>Voulez-vous activer <strong>{confirmConsume.def.label || confirmConsume.def.name}</strong> ?</>}
+              {confirmConsume.type === "contrat" && <>Voulez-vous activer <strong>{confirmConsume.def.name}</strong> ?<br /><span className="text-xs text-muted-foreground">Cette action est irréversible.</span></>}
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setConfirmConsume(null)}
+                className="text-sm font-heading px-3 py-1.5 rounded border border-border hover:bg-muted transition-colors"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  const c = confirmConsume;
+                  setConfirmConsume(null);
+                  if (c.type === "eatForHunger") await handleEatForHunger(c.key);
+                  else if (c.type === "meuble") await handleActivateMeuble();
+                  else if (c.type === "temp") await handleConsumeTempEffect(c.def);
+                  else if (c.type === "contrat") await handleActivateContrat(c.key);
+                }}
+                className="text-sm font-heading px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,8 @@ import {
   resolveCampaign, totalUnits,
   WAR_DECLARATION_COST,
 } from "../lib/militaryData";
+import MilitaryHelpModal from "./MilitaryHelpModal";
+import HelpTooltip from "./HelpTooltip";
 
 const STATUS_LABELS = {
   contributing: { label: "Levée en cours", icon: "⚒️", color: "bg-yellow-50 border-yellow-300" },
@@ -28,6 +30,7 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
   const [contributing, setContributing] = useState(null);
   const [contributeUnits, setContributeUnits] = useState({});
   const [now, setNow] = useState(Date.now());
+  const [helpOpen, setHelpOpen] = useState(false);
   const resolving = useRef(new Set());
 
   // Tick toutes les 5s pour les timers
@@ -429,6 +432,16 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
   return (
     <div className="space-y-4">
 
+      {/* ── Header avec bouton Aide ── */}
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-lg font-bold">⚔️ Campagnes militaires</h2>
+        <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setHelpOpen(true)}>
+          📖 Comprendre les combats
+        </Button>
+      </div>
+
+      {helpOpen && <MilitaryHelpModal onClose={() => setHelpOpen(false)} />}
+
       {/* ── Campagnes actives ── */}
       {activeCampaigns.length > 0 && (
         <div className="space-y-3">
@@ -578,8 +591,22 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
                       <div className="flex items-center justify-between flex-wrap gap-2">
                         <div>
                           <div className="font-heading font-semibold text-sm">🏰 {targetCity.name}</div>
-                          <div className="text-xs text-muted-foreground font-body">
-                            ⏱️ {route?.travel_time_minutes}min · 🛡️ DEF : {targetDef} · ⚔️ Mon ATK : {myAtk}
+                          <div className="text-xs text-muted-foreground font-body flex items-center gap-1.5 flex-wrap">
+                            <span>⏱️ {route?.travel_time_minutes}min</span>
+                            <span className="flex items-center gap-0.5">
+                              🛡️ DEF : <strong>{targetDef}</strong>
+                              <HelpTooltip
+                                side="bottom"
+                                text={`🛡️ Défense de ${targetCity.name} = ${targetDef}\n\nCalculée à partir des unités défensives, des Remparts (+20 chacun), du Palais (+15) et du palier de la ville (bonus %).\n\nSi votre armée embarque une Catapulte : DEF × 0.70.\nSi vous avez un Cavalier : la def des Archers ennemis ×1.5.\n\nCliquez sur "📖 Comprendre les combats" pour le détail complet.`}
+                              />
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              ⚔️ Mon ATK : <strong>{myAtk}</strong>
+                              <HelpTooltip
+                                side="bottom"
+                                text={`⚔️ Attaque de votre armée = ${myAtk}\n\nCalculée à partir de la somme (atk × quantité) de chaque unité × bonus de palier de ville${isMayor ? " + 10% (vous êtes maire)" : ""}.\n\nRatio ATK/DEF = ${(myAtk / Math.max(1, targetDef)).toFixed(2)}\n${myAtk / Math.max(1, targetDef) >= 1.5 ? "✅ Issue probable : victoire nette ou écrasante." : myAtk / Math.max(1, targetDef) >= 1 ? "🟡 Issue probable : victoire courte ou défaite." : "⚠️ Issue probable : défaite probable, fortes pertes."}\n\nCliquez sur "📖 Comprendre les combats" pour le détail.`}
+                              />
+                            </span>
                           </div>
                         </div>
                         <Badge variant={favorable ? "default" : "destructive"} className="text-xs font-body">

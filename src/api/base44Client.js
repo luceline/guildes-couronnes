@@ -36,7 +36,8 @@ const COLLECTION_MAP = {
   Territory:        'territories',
   ItemDef:          'item_defs',
   BankDeposit:      'bank_deposits',
-  WarehouseLog: 'warehouselog',
+  WarehouseLog:     'WarehouseLog',
+  CombatChallenge:  'combat_challenges',
 };
 
 // Collections qui stockent tout dans un champ JSON data
@@ -74,8 +75,10 @@ class EntityProxy {
   constructor(col) { this.col = col; }
 
   async _fetch(filter, sort, limit) {
-    // Remplacer created_date par created (nom PocketBase)
-    if (sort) sort = sort.replace('created_date', 'id').replace('updated_date', 'updated').replace('-created', '-id').replace('+created', '+id');
+    // Alias legacy : created_date → created (nom système PocketBase)
+    if (sort) {
+      sort = sort.replace(/\bcreated_date\b/g, 'created').replace(/\bupdated_date\b/g, 'updated');
+    }
     // Fetch direct pour éviter skipTotal incompatible avec PocketBase v0.23
     const params = new URLSearchParams({ page: '1', perPage: String(Math.min(limit, 500)) });
     if (sort) params.set('sort', sort);
@@ -114,6 +117,8 @@ class EntityProxy {
 
   async create(data) {
     try {
+      // Injecter created_at automatiquement pour le tri chronologique
+      if (this.col === 'gold_transactions') data = { ...data, created_at: new Date().toISOString() };
       const record = await pb.collection(this.col).create(prepareData(data, this.col));
       console.log('[create] OK:', this.col, record.id);
       return normalizeRecord(record, this.col);

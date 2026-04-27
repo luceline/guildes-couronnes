@@ -1,13 +1,67 @@
 import { useState, useEffect } from "react";
-import { PROFESSIONS, HOUSING, getInventoryWeight, getMaxWeight, getMaxFatigue, MAX_HUNGER, MAX_SATIETY, MAX_VITALITY, getFatigueRegenInterval, getVendeurRank, getContributeurRank, getPvpRank, getPassiveCooldownBonus, getPassiveEnergyMaxBonus, getPassiveInventoryBonus, getAttackScore, getDefenseScore } from "../lib/gameData";
-import { computeFatigueWithDailyReset, ITEMS } from "../lib/craftingData";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { PROFESSIONS, HOUSING, getInventoryWeight, getMaxWeight, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, getCityFatigueBonus, getFestinHungerDrain, getRegenInterval, getVendeurRank, getContributeurRank, getPvpRank, getPassiveEnergyMaxBonus, getPassiveInventoryBonus, getBestPassiveCooldownSource, HUNGER_FOOD_ITEMS } from "../lib/gameData";
+import { computeFatigueWithDailyReset, ITEMS, FOOD_ITEMS_WITH_FATIGUE } from "../lib/craftingData";
 import HelpTooltip from "./HelpTooltip";
 import { getTotalDebt } from "../lib/debtRepayment";
 import PlayerLevelBadge from "./PlayerLevelBadge";
-import { getPlayerLevelInfo, getPlayerLevelBonuses } from "../lib/playerLevelSystem";
+import { getPlayerLevelInfo } from "../lib/playerLevelSystem";
+import { base44 } from "@/api/base44Client";
+import { toast } from "sonner";
 
-export default function PlayerStatusBar({ profile, homeCity }) {
+// ── Helper : formate une durée en mm ou h:mm
+function formatDuration(ms) {
+  if (ms <= 0) return "bientôt";
+  const minLeft = Math.ceil(ms / 60000);
+  const h = Math.floor(minLeft / 60);
+  const m = minLeft % 60;
+  return h > 0 ? `${h}h${m > 0 ? String(m).padStart(2, "0") + "m" : ""}` : `${minLeft}min`;
+}
+
+// ── Couleur unifiée pour les jauges selon le %
+function gaugeColor(pct) {
+  if (pct >= 60) return "bg-green-500";
+  if (pct >= 30) return "bg-amber-400";
+  return "bg-red-500";
+}
+
+// ── Composant : grande jauge claire avec countdown et boutons d'action ──
+function BigGauge({ icon, label, value, max, regenLabel, dangerText, tooltip, actions }) {
+  const pct = Math.max(0, Math.min(100, (value / max) * 100));
+  const color = gaugeColor(pct);
+  return (
+    <div className="flex-1 min-w-[160px] bg-card border border-border rounded-lg px-3 py-2.5 flex flex-col">
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-xl">{icon}</span>
+        <span className="text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+        {tooltip && <HelpTooltip text={tooltip} side="bottom" />}
+        <span className="ml-auto font-mono text-sm font-semibold tabular-nums">{value}/{max}</span>
+      </div>
+      <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full transition-all duration-500 ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="flex items-center justify-between mt-1 text-[11px] font-body min-h-[14px]">
+        {dangerText
+          ? <span className="text-red-600 font-semibold">{dangerText}</span>
+          : regenLabel
+            ? <span className="text-muted-foreground">{regenLabel}</span>
+            : <span />}
+      </div>
+      {/* Boutons d'action sous la jauge (consommation rapide) */}
+      {actions && actions.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1.5 pt-1.5 border-t border-border/50">
+          {actions}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) {
   const [now, setNow] = useState(Date.now());
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [confirmConsume, setConfirmConsume] = useState(null); // { type: "hunger"|"fatigue", key, def }
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
@@ -18,503 +72,579 @@ export default function PlayerStatusBar({ profile, homeCity }) {
   const prof = PROFESSIONS[profile.profession];
   const housing = HOUSING[profile.housing_level || "tente"];
   const homeCityBuildings = homeCity?.buildings || [];
-  const cathedraleFatigueBonus = homeCityBuildings.some(b => b.building_type === "cathedrale") ? 10 : 0;
-  const grandePlaceBonus      = homeCityBuildings.some(b => b.building_type === "grande_place") ? 20 : 0;
-  const bibliothequeBonus     = homeCityBuildings.some(b => b.building_type === "bibliotheque") ? 30 : 0;
-  const maxFatigue = getMaxFatigue(profile, cathedraleFatigueBonus);
-  const { fatigue } = computeFatigueWithDailyReset(profile, maxFatigue);
-  const fatiguePct = Math.max(0, Math.min(100, (fatigue / maxFatigue) * 100));
-  const fatigueColor = fatiguePct > 60 ? "bg-green-500" : fatiguePct > 30 ? "bg-yellow-500" : "bg-red-500";
+  const cityFatigueBonus = getCityFatigueBonus(homeCityBuildings);
+  const cityHungerBonus = getCityHungerBonus(homeCityBuildings);
+  const grandePlaceBonus = homeCityBuildings.some(b => b.building_type === "grande_place") ? 20 : 0;
+  const bibliothequeBonus = homeCityBuildings.some(b => b.building_type === "bibliotheque") ? 30 : 0;
 
+  const maxFatigue = getMaxFatigue(profile, cityFatigueBonus);
+  const { fatigue } = computeFatigueWithDailyReset(profile, maxFatigue);
+  const maxHungerVal = getMaxHunger(profile, cityHungerBonus);
+  const hunger = profile.hunger ?? MAX_HUNGER;
   const currentWeight = getInventoryWeight(profile);
   const maxWeight = getMaxWeight(profile) + grandePlaceBonus + bibliothequeBonus;
-  const weightPct = Math.min(100, (currentWeight / maxWeight) * 100);
-  const weightFull = currentWeight >= maxWeight;
-  const weightColor = weightFull ? "bg-red-500" : weightPct >= 80 ? "bg-orange-400" : "bg-blue-400";
+
+  // Countdown faim
+  let hungerRegenLabel = null;
+  if (hunger < maxHungerVal) {
+    const lastRegen = profile.hunger_regen_at ? new Date(profile.hunger_regen_at).getTime() : Date.now();
+    const msLeft = lastRegen + 3600000 - now;
+    hungerRegenLabel = `+1🍞 dans ${formatDuration(msLeft)}`;
+  }
+
+  // Countdown énergie
+  let fatigueRegenLabel = null;
+  if (fatigue < maxFatigue) {
+    const regenInterval = getRegenInterval(profile.housing_level || "tente", homeCityBuildings);
+    const lastRegen = profile.fatigue_regen_at ? new Date(profile.fatigue_regen_at).getTime() : Date.now();
+    const msLeft = lastRegen + regenInterval - now;
+    fatigueRegenLabel = `+1⚡ dans ${formatDuration(msLeft)}`;
+  }
+
+  // Or pending tax
+  const pendingTax = profile.pending_market_tax || {};
+  const totalPendingTax = Object.values(pendingTax).reduce((s, v) => s + v, 0);
+  const debt = getTotalDebt(profile.debt_by_city);
+
+  // ── Liste des buffs et passifs (rendue dans la zone détails) ──
+  const buffs = [];
+  const levelInfo = getPlayerLevelInfo(profile.player_xp_total || 0);
+  const inv = profile.inventory || [];
+
+  // Rang
+  {
+    const xpNeeded = levelInfo.isMaxLevel ? 0 : Math.max(0, (levelInfo.levelDuration ?? 0) - (levelInfo.currentLevelXP ?? 0));
+    const hasBonus = (levelInfo.bonuses?.cooldownBonus || 0) > 0;
+    buffs.push({
+      icon: "⭐", label: `Rang ${levelInfo.level}`,
+      detail: hasBonus ? `−${levelInfo.bonuses.cooldownBonus}% CD · +${levelInfo.bonuses.doubleProductionBonus}% dbl` : "pas de bonus",
+      tooltip: hasBonus
+        ? `Rang ${levelInfo.level} : −${levelInfo.bonuses.cooldownBonus}% cooldown · +${levelInfo.bonuses.doubleProductionBonus}% double prod.\n\n${levelInfo.isMaxLevel ? "Rang maximum atteint !" : `Encore ${xpNeeded} XP pour le rang ${levelInfo.level + 1}.`}`
+        : `Rang 1 : pas encore de bonus.\nEncore ${xpNeeded} XP pour le rang 2.\n\nGagnez de l'XP en consommant potions, charbon, extrait, encre, parchemin et ressources rares.`,
+      color: hasBonus ? "text-purple-700 bg-purple-50 border-purple-200" : "text-muted-foreground bg-muted/40 border-border",
+    });
+  }
+
+  // Buff biome
+  if (profile.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.biome_cooldown_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "🌿", label: "Biome", detail: `−10% CD · 10% dbl prod (${t})`,
+      tooltip: `Bénédiction biome active encore ${t}. −10% cooldown + 10% chance double production.`,
+      color: "text-green-700 bg-green-50 border-green-200",
+    });
+  }
+  if (profile.biome_harvest_bonus_expires_at && new Date(profile.biome_harvest_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.biome_harvest_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "🌾", label: "+1 récolte T1", detail: `(${t})`,
+      tooltip: `La prochaine production T1 donne +1 ressource bonus. Expire dans ${t}.`,
+      color: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    });
+  }
+  if (profile.cooldown_bonus_expires_at && new Date(profile.cooldown_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.cooldown_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "🪵", label: `−${Math.round((profile.cooldown_bonus_value || 0.1) * 100)}% CD`, detail: `(${t})`,
+      tooltip: `Bois brut consommé : −${Math.round((profile.cooldown_bonus_value || 0.1) * 100)}% sur toutes les productions. Expire dans ${t}.`,
+      color: "text-amber-700 bg-amber-50 border-amber-200",
+    });
+  }
+  if (profile.double_prod_bonus > 0 && profile.double_prod_bonus_expires_at && new Date(profile.double_prod_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.double_prod_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "⚫", label: `+${Math.round((profile.double_prod_bonus || 0) * 100)}% dbl prod`, detail: `(${t})`,
+      tooltip: `Charbon consommé : +${Math.round((profile.double_prod_bonus || 0) * 100)}% chance de doubler la récolte. Expire dans ${t}.`,
+      color: "text-gray-700 bg-gray-100 border-gray-300",
+    });
+  }
+  if (profile.energy_max_bonus_expires_at && new Date(profile.energy_max_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.energy_max_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "🪨", label: `+${profile.energy_max_bonus_value || 2} énergie max`, detail: `(${t})`,
+      tooltip: `Minerai consommé : énergie max +${profile.energy_max_bonus_value || 2} pendant ${t}.`,
+      color: "text-blue-700 bg-blue-50 border-blue-200",
+    });
+  }
+  if (profile.travel_discount > 0) {
+    buffs.push({
+      icon: "🗺️", label: `−${Math.round((profile.travel_discount || 0) * 100)}% voyage`, detail: "",
+      tooltip: `Réduction voyage : −${Math.round((profile.travel_discount || 0) * 100)}% sur le prochain voyage. Consommée à l'arrivée.`,
+      color: "text-indigo-700 bg-indigo-50 border-indigo-200",
+    });
+  }
+  if (profile.energy_regen_bonus_expires_at && new Date(profile.energy_regen_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.energy_regen_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "🧪", label: `+${profile.energy_regen_value || 1}⚡/${profile.energy_regen_interval_min || 5}min`, detail: `(${t})`,
+      tooltip: `Régénération d'énergie active pendant ${t}.`,
+      color: "text-teal-700 bg-teal-50 border-teal-200",
+    });
+  }
+  if (profile.hunger_regen_bonus_expires_at && new Date(profile.hunger_regen_bonus_expires_at) > new Date(now)) {
+    const t = formatDuration(new Date(profile.hunger_regen_bonus_expires_at).getTime() - now);
+    buffs.push({
+      icon: "🍞", label: `+${profile.hunger_regen_value || 1}🍞/${profile.hunger_regen_interval_min || 10}min`, detail: `(${t})`,
+      tooltip: `Régénération de faim active pendant ${t}.`,
+      color: "text-orange-700 bg-orange-50 border-orange-200",
+    });
+  }
+
+  // Passifs inventaire
+  const cdSource = getBestPassiveCooldownSource(profile);
+  if (cdSource) {
+    buffs.push({
+      icon: cdSource.icon,
+      label: `−${Math.round(cdSource.value * 100)}% CD`,
+      detail: "passif",
+      tooltip: `${cdSource.name} en inventaire : −${Math.round(cdSource.value * 100)}% cooldown de production.`,
+      color: "text-amber-700 bg-amber-50 border-amber-200",
+    });
+  }
+  const passiveEnergyBonus = getPassiveEnergyMaxBonus(profile);
+  if (passiveEnergyBonus > 0) {
+    const src = inv.some(i => i.item_key === "lingots_fer" && (i.quantity || 0) > 0) ? "Lingots de fer" : "Pierre brute";
+    buffs.push({ icon: "🗿", label: `+${passiveEnergyBonus} énergie max`, detail: "passif", tooltip: `${src} en inventaire : +${passiveEnergyBonus} énergie maximum.`, color: "text-blue-700 bg-blue-50 border-blue-200" });
+  }
+  const passiveInvBonus = getPassiveInventoryBonus(profile);
+  if (passiveInvBonus > 0) {
+    const src = inv.some(i => i.item_key === "tissu" && (i.quantity || 0) > 0) ? "Tissu" : "Fil";
+    buffs.push({ icon: "🧶", label: `+${passiveInvBonus} inventaire`, detail: "passif", tooltip: `${src} en inventaire : +${passiveInvBonus} capacité.`, color: "text-purple-700 bg-purple-50 border-purple-200" });
+  }
+  const TAX_ITEMS = [
+    { key: "lingot_raffine", label: "Lingot raffiné", value: 0.04 },
+    { key: "lingot_or", label: "Lingot d'or", value: 0.03 },
+    { key: "quartz_poli", label: "Quartz poli", value: 0.02 },
+    { key: "quartz_brut", label: "Quartz brut", value: 0.01 },
+  ];
+  const bestTax = TAX_ITEMS.find(t => inv.some(i => i.item_key === t.key && (i.quantity || 0) > 0));
+  if (bestTax) {
+    buffs.push({ icon: "🔮", label: `−${Math.round(bestTax.value * 100)}% taxe`, detail: "passif", tooltip: `${bestTax.label} en inventaire : −${Math.round(bestTax.value * 100)}% taxe marché.`, color: "text-yellow-700 bg-yellow-50 border-yellow-200" });
+  }
+  const bourseInInv = inv.find(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
+  if (bourseInInv) {
+    const qty = bourseInInv.quantity || 1;
+    buffs.push({
+      icon: "👜",
+      label: "Bourse active",
+      detail: qty > 1 ? `×${qty}` : "passif",
+      tooltip: `Bourse de protection : plafonne le vol subi à 10💰. 10% de chance de casse à chaque attaque subie.`,
+      color: "text-yellow-700 bg-yellow-50 border-yellow-200",
+    });
+  }
+
+  // Sceau royal (couverture fiscale active)
+  if ((profile.sceau_balance || 0) > 0) {
+    buffs.push({
+      icon: "🏵️",
+      label: `Sceau royal`,
+      detail: `${profile.sceau_balance}💰 restants`,
+      tooltip: `Sceau royal actif : couverture fiscale automatique, ${profile.sceau_balance}💰 restants.`,
+      color: "text-amber-700 bg-amber-50 border-amber-300",
+    });
+  }
+
+  // Meuble installé (entretien logement réduit)
+  if (profile.meuble_expires_at && profile.meuble_expires_at >= new Date().toISOString().split("T")[0]) {
+    const daysLeft = Math.ceil((new Date(profile.meuble_expires_at).getTime() - now) / 86400000);
+    buffs.push({
+      icon: "🪑",
+      label: `−${Math.round((profile.meuble_discount || 0.5) * 100)}% loyer`,
+      detail: `${daysLeft}j`,
+      tooltip: `Meuble installé : −${Math.round((profile.meuble_discount || 0.5) * 100)}% sur l'entretien du logement, expire dans ${daysLeft} jour(s).`,
+      color: "text-orange-700 bg-orange-50 border-orange-200",
+    });
+  }
+
+  // Contrat artisan actif (parchemin)
+  if (profile.active_parchemin_type) {
+    buffs.push({
+      icon: "📋",
+      label: `Contrat actif`,
+      detail: profile.active_parchemin_type,
+      tooltip: `Contrat artisan actif : type "${profile.active_parchemin_type}". Termine la quête associée pour le bonus.`,
+      color: "text-indigo-700 bg-indigo-50 border-indigo-200",
+    });
+  }
+
+  // Bonus encre en attente (prochain craft T2 donne T1)
+  if (profile.pending_t2_to_t1_bonus) {
+    buffs.push({
+      icon: "🖋️",
+      label: `Bonus encre`,
+      detail: `prochain T2 → +1 T1`,
+      tooltip: `Encre consommée : votre prochain craft T2 donnera 1 ressource T1 bonus.`,
+      color: "text-blue-700 bg-blue-50 border-blue-200",
+    });
+  }
+
+  // Rangs prestige
+  const vRank = getVendeurRank(profile.cumul_ventes_or || 0);
+  const cRank = getContributeurRank(profile.cumul_contributions_warehouse || 0);
+  const pRank = getPvpRank(profile.cumul_t5_envoyes || 0);
+  const vCumul = profile.cumul_ventes_or || 0;
+  const cCumul = profile.cumul_contributions_warehouse || 0;
+  const pCumul = profile.cumul_t5_envoyes || 0;
+
+  // Légende globale (un seul tooltip)
+  const legendText =
+    "Statut du joueur — légende\n\n" +
+    "🍞 Faim · ⚡ Énergie · 📦 Inventaire — chaque action en consomme aléatoirement.\n" +
+    "Vert ≥ 60% · Orange 30–60% · Rouge < 30%\n\n" +
+    "✨ Effets actifs — tous les bonus en cours (buffs temporaires + passifs d'inventaire).\n" +
+    "Cliquez sur un badge pour voir le détail et le temps restant.\n\n" +
+    "💰 Or — taxes en attente apparaissent en rouge à côté.\n" +
+    "🏠 Logement — détermine la régénération d'énergie.\n" +
+    "🔧 Outils — sans charge, cooldown × 2.\n\n" +
+    "Cliquez sur 'Rangs' pour voir votre niveau et vos rangs cumulés.";
+
+  // ─── Handler : manger pour la faim ───
+  const handleEatForHunger = async (itemKey) => {
+    if (!onRefresh) return;
+    const hungerDef = HUNGER_FOOD_ITEMS[itemKey];
+    if (!hungerDef) return;
+    if (hunger >= maxHungerVal) { toast("🍽️ Vous n'avez pas faim !"); return; }
+
+    const invItem = inv.find(i => i.item_key === itemKey || i.item_name === hungerDef.label);
+    if (!invItem || invItem.quantity <= 0) { toast.error("Vous n'avez plus cet aliment !"); return; }
+
+    setBusy(true);
+    try {
+      const newInventory = inv
+        .map(i => (i.item_key === itemKey || i.item_name === hungerDef.label) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      const newHunger = Math.min(maxHungerVal, hunger + hungerDef.hunger_restore);
+      const upd = { inventory: newInventory, hunger: newHunger };
+      const msgs = [`+${hungerDef.hunger_restore}🍽️`];
+
+      // Festin empoisonné drain
+      const festinDrain = getFestinHungerDrain(city);
+      if (festinDrain > 0) {
+        upd.fatigue = Math.max(0, fatigue - festinDrain);
+        msgs.push(`☠️ −${festinDrain}⚡ (festin empoisonné)`);
+      }
+      // Bonus énergie de certains aliments
+      const fatBonus = ITEMS[itemKey]?.fatigue_restore || 0;
+      if (fatBonus > 0) {
+        upd.fatigue = Math.min(maxFatigue, (upd.fatigue ?? fatigue) + fatBonus);
+        msgs.push(`+${fatBonus}⚡`);
+      }
+      // XP reward
+      const itemDef = ITEMS[itemKey];
+      if (itemDef?.xp_reward) {
+        const fresh = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
+        const currentXp = fresh?.player_xp_total ?? profile.player_xp_total ?? 0;
+        upd.player_xp_total = currentXp + itemDef.xp_reward;
+        msgs.push(`+${itemDef.xp_reward} XP`);
+      }
+      await base44.entities.PlayerProfile.update(profile.id, upd);
+      toast.success(`${hungerDef.icon} ${msgs.join(' · ')} !`);
+      onRefresh();
+    } catch (e) {
+      toast.error("Erreur lors de la consommation.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ─── Handler : consommer pour l'énergie ───
+  const handleConsumeFood = async (foodKey) => {
+    if (!onRefresh) return;
+    const food = FOOD_ITEMS_WITH_FATIGUE.find(f => f.key === foodKey);
+    if (!food) return;
+    if (fatigue >= maxFatigue) { toast("⚡ Vous êtes au max d'énergie !"); return; }
+
+    const invItem = inv.find(i => i.item_key === foodKey || i.item_name === food.name);
+    if (!invItem || invItem.quantity <= 0) { toast.error("Vous n'avez plus cet item !"); return; }
+
+    setBusy(true);
+    try {
+      const newInventory = inv
+        .map(i => (i.item_key === foodKey || i.item_name === food.name) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      const newFatigue = Math.min(maxFatigue, fatigue + food.fatigue_restore);
+      const upd = { inventory: newInventory, fatigue: newFatigue };
+      const msgs = [`+${food.fatigue_restore}⚡`];
+
+      // XP reward
+      const itemDef = ITEMS[foodKey];
+      if (itemDef?.xp_reward) {
+        const fresh = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
+        const currentXp = fresh?.player_xp_total ?? profile.player_xp_total ?? 0;
+        upd.player_xp_total = currentXp + itemDef.xp_reward;
+        msgs.push(`+${itemDef.xp_reward} XP`);
+      }
+      await base44.entities.PlayerProfile.update(profile.id, upd);
+      toast.success(`${food.icon} ${msgs.join(' · ')} !`);
+      onRefresh();
+    } catch (e) {
+      toast.error("Erreur lors de la consommation.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ─── Construction des boutons d'action sous chaque jauge ───
+  // Boutons "Manger" (faim) — uniquement si onRefresh fourni et qu'il y a quelque chose à manger
+  const hungerActions = [];
+  if (onRefresh && hunger < maxHungerVal) {
+    for (const [key, def] of Object.entries(HUNGER_FOOD_ITEMS)) {
+      const invEntry = inv.find(i => i.item_key === key || i.item_name === def.label);
+      const qty = invEntry?.quantity || 0;
+      if (qty <= 0) continue;
+      hungerActions.push(
+        <button
+          key={key}
+          onClick={() => setConfirmConsume({ type: "hunger", key, def: { name: def.label, icon: def.icon, restore: def.hunger_restore, restoreLabel: "🍽️ faim" } })}
+          disabled={busy}
+          className="flex items-center gap-1 text-[11px] bg-orange-100 hover:bg-orange-200 border border-orange-300 text-orange-800 px-1.5 py-0.5 rounded font-body transition-colors disabled:opacity-50"
+          title={`${def.label} : +${def.hunger_restore}🍽️ (${qty} en stock)`}
+        >
+          <span>{def.icon}</span>
+          <span className="font-semibold">+{def.hunger_restore}</span>
+          <span className="opacity-70">×{qty}</span>
+        </button>
+      );
+    }
+  }
+
+  // Boutons "Consommer" (énergie)
+  const fatigueActions = [];
+  if (onRefresh && fatigue < maxFatigue) {
+    for (const food of FOOD_ITEMS_WITH_FATIGUE) {
+      // Skip les items qui sont aussi nourriture-faim (pour éviter doublon avec hungerActions)
+      if (ITEMS[food.key]?.hunger_restore) continue;
+      const invEntry = inv.find(i => i.item_key === food.key || i.item_name === food.name);
+      const qty = invEntry?.quantity || 0;
+      if (qty <= 0) continue;
+      fatigueActions.push(
+        <button
+          key={food.key}
+          onClick={() => setConfirmConsume({ type: "fatigue", key: food.key, def: { name: food.name, icon: food.icon, restore: food.fatigue_restore, restoreLabel: "⚡ énergie" } })}
+          disabled={busy}
+          className="flex items-center gap-1 text-[11px] bg-green-100 hover:bg-green-200 border border-green-300 text-green-800 px-1.5 py-0.5 rounded font-body transition-colors disabled:opacity-50"
+          title={`${food.name} : +${food.fatigue_restore}⚡ (${qty} en stock)`}
+        >
+          <span>{food.icon}</span>
+          <span className="font-semibold">+{food.fatigue_restore}</span>
+          <span className="opacity-70">×{qty}</span>
+        </button>
+      );
+    }
+  }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-3 flex flex-wrap items-center gap-4 text-sm font-body">
-      {/* Nom + métier */}
-      <div className="flex items-center gap-2">
-        <span className="text-lg">{prof?.icon}</span>
-        <span className="font-semibold text-foreground">{profile.character_name}</span>
-      </div>
+    <div className="bg-card border border-border rounded-lg p-3 space-y-3 font-body">
+      {/* ── LIGNE 1 : Identité & ressources principales ── */}
+      <div className="flex items-center gap-3 flex-wrap text-sm">
+        {/* Métier + nom */}
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{prof?.icon}</span>
+          <span className="font-heading font-semibold text-foreground">{profile.character_name}</span>
+        </div>
 
-      {/* Or */}
-      <div className="flex items-center gap-1.5">
-        <span>💰</span>
-        <span className="font-semibold text-accent">{profile.gold || 0} or</span>
-        {(() => {
-          const pendingTax = profile.pending_market_tax || {};
-          const total = Object.values(pendingTax).reduce((s, v) => s + v, 0);
-          if (total <= 0) return null;
-          return (
-            <HelpTooltip
-              text={`Taxes de marché accumulées aujourd'hui, déduites de votre or au reset (6h). Si vous n'avez pas assez d'or, la différence sera mise en dette.\n\nDétail par ville :\n${Object.entries(pendingTax).filter(([,v]) => v > 0).map(([,v]) => `  · ${v}💰`).join("\n")}`}
-              side="bottom"
-            >
-              <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 cursor-help">
-                −{total}💰 taxes
-              </span>
-            </HelpTooltip>
-          );
-        })()}
-        {getTotalDebt(profile.debt_by_city) > 0 && (
+        {/* Or */}
+        <div className="flex items-center gap-1.5">
+          <span>💰</span>
+          <span className="font-semibold text-accent tabular-nums">{profile.gold || 0}</span>
+        </div>
+
+        {/* Pending tax */}
+        {totalPendingTax > 0 && (
+          <HelpTooltip
+            text={`Taxes de marché accumulées aujourd'hui, déduites de votre or au reset (6h). Si vous n'avez pas assez d'or, la différence sera mise en dette.\n\nDétail par ville :\n${Object.entries(pendingTax).filter(([, v]) => v > 0).map(([, v]) => `  · ${v}💰`).join("\n")}`}
+            side="bottom"
+          >
+            <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 cursor-help">
+              −{totalPendingTax}💰 taxes
+            </span>
+          </HelpTooltip>
+        )}
+
+        {/* Dette */}
+        {debt > 0 && (
           <span className="text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5">
-            ⚠️ Dette : {getTotalDebt(profile.debt_by_city)} 💰
+            ⚠️ Dette : {debt}💰
           </span>
         )}
-      </div>
 
-      {/* Logement */}
-      <div className="flex items-center gap-1.5">
-        <span>{housing.icon}</span>
-        <span className="text-muted-foreground">{housing.name}</span>
-      </div>
-
-      {/* Faim */}
-      {(() => {
-        const hunger = profile.hunger ?? MAX_HUNGER;
-        const maxH = 10 + (profile.hunger_max_bonus || 0);
-        const hungerColor = hunger <= 0 ? "text-red-600" : hunger <= 3 ? "text-orange-500" : "text-green-600";
-        const hungerPct = Math.max(0, Math.min(100, (hunger / maxH) * 100));
-        const hungerBarColor = hunger <= 0 ? "bg-red-500" : hunger <= 3 ? "bg-orange-400" : "bg-green-500";
-        // Countdown vers prochain +1 faim
-        let regenLabel = null;
-        if (hunger < maxH) {
-          const lastRegen = profile.hunger_regen_at
-            ? new Date(profile.hunger_regen_at).getTime()
-            : Date.now();
-          const nextRegen = lastRegen + 3600000;
-          const msLeft = nextRegen - now;
-          if (msLeft > 0) {
-            const minLeft = Math.ceil(msLeft / 60000);
-            const h = Math.floor(minLeft / 60);
-            const m = minLeft % 60;
-            regenLabel = h > 0
-              ? `+1🍞 ${h}h${m > 0 ? String(m).padStart(2,"0") + "m" : ""}`
-              : `+1🍞 ${minLeft}min`;
-          } else {
-            regenLabel = "+1🍞 bientôt";
-          }
-        }
-        return (
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <span title="Faim">🍞</span>
-            <HelpTooltip text="La faim se dépense à chaque action. En dessous de 3 : +1 énergie par action. À 0 : impossible de travailler. Se remonte avec blé, farine, pain ou ragoût." side="bottom" />
-            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-[50px]">
-              <div className={`h-full rounded-full transition-all duration-500 ${hungerBarColor}`}
-                style={{ width: `${hungerPct}%` }} />
-            </div>
-            <span className={`text-xs whitespace-nowrap ${hungerColor}`}>{hunger}/{maxH}</span>
-            {hunger <= 0 && <span className="text-xs font-semibold text-red-600">Affamé!</span>}
-            {regenLabel && hunger < maxH && <span className="text-xs text-muted-foreground whitespace-nowrap">{regenLabel}</span>}
-          </div>
-        );
-      })()}
-
-      {/* Appétit */}
-      {(() => {
-        const satiety = profile.satiety ?? MAX_SATIETY;
-        const satietyPct = Math.max(0, Math.min(100, (satiety / MAX_SATIETY) * 100));
-        const satietyColor = satiety <= 0 ? "bg-red-500" : satiety <= 3 ? "bg-orange-400" : "bg-amber-500";
-        const satietyTextColor = satiety <= 0 ? "text-red-600" : satiety <= 3 ? "text-orange-500" : "text-amber-600";
-        const malus = MAX_SATIETY - satiety;
-        return (
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <span title="Appétit">🍽️</span>
-            <HelpTooltip text="L'appétit représente votre état nutritionnel. Perte de 0-2 pts/jour. Chaque point manquant ajoute +10% cooldown de production. Se remonte avec blé, farine, pain, ragoût." side="bottom" />
-            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-[50px]">
-              <div className={`h-full rounded-full transition-all duration-500 ${satietyColor}`}
-                style={{ width: `${satietyPct}%` }} />
-            </div>
-            <span className={`text-xs whitespace-nowrap ${satietyTextColor}`}>{satiety}/{MAX_SATIETY}</span>
-            {malus > 0 && <span className="text-xs text-orange-500 font-semibold">+{malus * 10}% CD</span>}
-          </div>
-        );
-      })()}
-
-      {/* Forme */}
-      {(() => {
-        const vitality = profile.vitality ?? MAX_VITALITY;
-        const vitalityPct = Math.max(0, Math.min(100, (vitality / MAX_VITALITY) * 100));
-        const vitalityColor = vitality <= 0 ? "bg-red-500" : vitality <= 3 ? "bg-orange-400" : "bg-green-500";
-        const vitalityTextColor = vitality <= 0 ? "text-red-600" : vitality <= 3 ? "text-orange-500" : "text-green-600";
-        const malus = MAX_VITALITY - vitality;
-        return (
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <span title="Forme">✨</span>
-            <HelpTooltip text="La forme représente votre vitalité. Perte de 0-2 pts/jour. Chaque point manquant réduit la capacité inventaire de 10%. Se remonte avec herbes, extraits d'herbes et potions." side="bottom" />
-            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-[50px]">
-              <div className={`h-full rounded-full transition-all duration-500 ${vitalityColor}`}
-                style={{ width: `${vitalityPct}%` }} />
-            </div>
-            <span className={`text-xs whitespace-nowrap ${vitalityTextColor}`}>{vitality}/{MAX_VITALITY}</span>
-            {malus > 0 && <span className="text-xs text-green-600 font-semibold">-{malus * 10}% inv</span>}
-          </div>
-        );
-      })()}
-
-      {/* Énergie */}
-      {(() => {
-        const fatigueRegenLabel = (() => {
-          if (fatigue >= maxFatigue) return null;
-          const regenInterval = getFatigueRegenInterval(profile.housing_level || "tente");
-          const lastRegen = profile.fatigue_regen_at
-            ? new Date(profile.fatigue_regen_at).getTime()
-            : Date.now();
-          const nextRegen = lastRegen + regenInterval;
-          const msLeft = nextRegen - now;
-          if (msLeft > 0) {
-            const minLeft = Math.ceil(msLeft / 60000);
-            const h = Math.floor(minLeft / 60);
-            const m = minLeft % 60;
-            return h > 0
-              ? `+1⚡ ${h}h${m > 0 ? String(m).padStart(2,"0") + "m" : ""}`
-              : `+1⚡ ${minLeft}min`;
-          }
-          return "+1⚡ bientôt";
-        })();
-        return (
-          <div className="flex items-center gap-2 min-w-[120px]">
-            <span title="Énergie">⚡</span>
-            <HelpTooltip text="L'énergie se régénère selon votre logement : Tente +1/1h, Cabane +1/50min, Maison +1/40min, Manoir +1/30min. Se remonte aussi avec potions et taverne." side="bottom" />
-            <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-[60px]">
-              <div className={`h-full rounded-full transition-all duration-500 ${fatigueColor}`}
-                style={{ width: `${fatiguePct}%` }} />
-            </div>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">{fatigue}/{maxFatigue}</span>
-            {fatigueRegenLabel && <span className="text-xs text-muted-foreground whitespace-nowrap">{fatigueRegenLabel}</span>}
-          </div>
-        );
-      })()}
-
-      {/* Poids inventaire */}
-      <div className="flex items-center gap-2 min-w-[120px]">
-        <span title="Inventaire">📦</span>
-            <HelpTooltip text="Capacité inventaire. Augmente avec logement, Grande Place et Bibliothèque. La Forme basse réduit la capacité (-10% par point manquant)." side="bottom" />
-        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden min-w-[60px]">
-          <div className={`h-full rounded-full transition-all duration-500 ${weightColor}`}
-            style={{ width: `${weightPct}%` }} />
+        {/* Logement */}
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <span>{housing.icon}</span>
+          <span className="text-xs">{housing.name}</span>
         </div>
-        <span className={`text-xs whitespace-nowrap ${weightFull ? "text-red-500 font-bold" : "text-muted-foreground"}`}>
-          {currentWeight}/{maxWeight}
-        </span>
-        {weightFull && <span className="text-xs text-red-500 font-semibold">PLEIN</span>}
-      </div>
 
-      {/* Outils */}
-      <div className={`flex items-center gap-1.5 text-xs ${(profile.tool_charges || 0) === 0 ? "text-orange-500" : "text-muted-foreground"}`}>
-        <span title="Outils">🔧</span>
-        <HelpTooltip text="Charges d'outils restantes. Sans outils actifs : cooldown de production multiplié par deux. Craftez des Outils (T4 par le Forgeron) pour recharger. Chaque action de production consomme une charge." side="bottom" />
-        <span>{profile.tool_charges || 0}</span>
-        {(profile.tool_charges || 0) === 0 && <span className="font-semibold">×2 CD</span>}
-      </div>
-
-
-
-      {/* ── Buffs actifs ── */}
-      {/* Chaque badge est cliquable pour voir le détail */}
-      {(() => {
-        const levelInfo = getPlayerLevelInfo(profile.player_xp_total || 0);
-        const buffs = [];
-
-        // Rang joueur — affiché dès le rang 1 pour que le joueur sache où il en est
-        {
-          const xpNeeded = levelInfo.isMaxLevel ? 0 : Math.max(0, (levelInfo.levelDuration ?? 0) - (levelInfo.currentLevelXP ?? 0));
-          const hasBonus = (levelInfo.bonuses?.cooldownBonus || 0) > 0;
-          const xpSuffix = levelInfo.isMaxLevel ? "Rang maximum atteint !" : "Encore " + xpNeeded + " XP pour le rang " + (levelInfo.level + 1) + " (+1% a chaque rang).";
-          const tooltipText = hasBonus
-            ? "Rang " + levelInfo.level + " : -" + levelInfo.bonuses.cooldownBonus + "% cooldown de production · +" + levelInfo.bonuses.doubleProductionBonus + "% chance de doubler la recolte.\n\n" + xpSuffix
-            : "Rang 1 : pas encore de bonus.\n\nEncore " + xpNeeded + " XP pour le rang 2 qui debloque -1% cooldown et +1% double production.\n\nGagnez de l'XP en consommant des potions, charbon, extrait, encre, parchemin et ressources rares de biome.";
-          buffs.push({
-            icon: "⭐", label: "Rang " + levelInfo.level,
-            detail: hasBonus
-              ? "-" + levelInfo.bonuses.cooldownBonus + "% CD · " + levelInfo.bonuses.doubleProductionBonus + "% dbl prod"
-              : "aucun bonus encore",
-            tooltip: tooltipText,
-            color: hasBonus ? "text-purple-700 bg-purple-50 border-purple-200" : "text-muted-foreground bg-muted/40 border-border",
-          });
-        }
-
-        // Buff biome (1h après combat biome)
-        if (profile.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.biome_cooldown_bonus_expires_at).getTime() - now;
-          const minLeft = Math.ceil(msLeft / 60000);
-          const h = Math.floor(minLeft / 60); const m = minLeft % 60;
-          const t = h > 0 ? `${h}h${m > 0 ? String(m).padStart(2,"0")+"m" : ""}` : `${minLeft}min`;
-          buffs.push({
-            icon: "🌿", label: "Biome",
-            detail: `−10% CD · 10% dbl prod (${t})`,
-            tooltip: `Bénédiction biome active encore ${t}. −10% cooldown + 10% chance double production sur toutes les productions.`,
-            color: "text-green-700 bg-green-50 border-green-200",
-          });
-        }
-
-        // Bonus harvest biome (5min T1)
-        if (profile.biome_harvest_bonus_expires_at && new Date(profile.biome_harvest_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.biome_harvest_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          buffs.push({
-            icon: "🌾", label: "+1 récolte T1",
-            detail: `(${minLeft}min)`,
-            tooltip: `Bonus récolte biome : la prochaine production T1 donne +1 ressource bonus. Expire dans ${minLeft} min.`,
-            color: "text-emerald-700 bg-emerald-50 border-emerald-200",
-          });
-        }
-
-        // Cooldown bonus (bois brut T1)
-        if (profile.cooldown_bonus_expires_at && new Date(profile.cooldown_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.cooldown_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          buffs.push({
-            icon: "🪵", label: `−${Math.round((profile.cooldown_bonus_value||0.1)*100)}% CD`,
-            detail: `(${minLeft}min)`,
-            tooltip: `Bonus cooldown actif : −${Math.round((profile.cooldown_bonus_value||0.1)*100)}% sur toutes les productions. Expire dans ${minLeft} min.`,
-            color: "text-amber-700 bg-amber-50 border-amber-200",
-          });
-        }
-
-        // Double prod bonus (charbon)
-        if (profile.double_prod_bonus > 0 && profile.double_prod_bonus_expires_at && new Date(profile.double_prod_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.double_prod_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          buffs.push({
-            icon: "⚫", label: `+${Math.round((profile.double_prod_bonus||0)*100)}% dbl prod`,
-            detail: `(${minLeft}min)`,
-            tooltip: `Bonus double production du charbon : +${Math.round((profile.double_prod_bonus||0)*100)}% chance de doubler la récolte. Expire dans ${minLeft} min.`,
-            color: "text-gray-700 bg-gray-100 border-gray-300",
-          });
-        }
-
-        // Energy max bonus (minerai de fer)
-        if (profile.energy_max_bonus_expires_at && new Date(profile.energy_max_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.energy_max_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          buffs.push({
-            icon: "🪨", label: `+${profile.energy_max_bonus_value||2} énergie max`,
-            detail: `(${minLeft}min)`,
-            tooltip: `Minerai de fer consommé : énergie maximum augmentée de ${profile.energy_max_bonus_value||2} pendant ${minLeft} min.`,
-            color: "text-blue-700 bg-blue-50 border-blue-200",
-          });
-        }
-
-        // Attack bonus (pierre)
-        if (profile.attack_bonus_expires_at && new Date(profile.attack_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.attack_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          buffs.push({
-            icon: "⚔️", label: `+${profile.attack_bonus_value||1} attaque`,
-            detail: `(${minLeft}min)`,
-            tooltip: `Pierre consommée : +${profile.attack_bonus_value||1} en attaque vol pendant ${minLeft} min.`,
-            color: "text-red-700 bg-red-50 border-red-200",
-          });
-        }
-
-        // Defense bonus (laine brute / potion)
-        if (profile.defense_bonus_expires_at && new Date(profile.defense_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.defense_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          const h = Math.floor(minLeft / 60); const m = minLeft % 60;
-          const t = h > 0 ? `${h}h${m > 0 ? String(m).padStart(2,"0")+"m" : ""}` : `${minLeft}min`;
-          buffs.push({
-            icon: "🛡️", label: `+${profile.defense_bonus_value||2} défense`,
-            detail: `(${t})`,
-            tooltip: `Bonus défense actif : +${profile.defense_bonus_value||2} contre les vols pendant ${t}.`,
-            color: "text-sky-700 bg-sky-50 border-sky-200",
-          });
-        }
-
-        // Travel discount (encre/parchemin)
-        if (profile.travel_discount > 0) {
-          buffs.push({
-            icon: "🗺️", label: `−${Math.round((profile.travel_discount||0)*100)}% voyage`,
-            detail: "",
-            tooltip: `Réduction voyage active : −${Math.round((profile.travel_discount||0)*100)}% sur le prochain voyage. Consommé à l'arrivée.`,
-            color: "text-indigo-700 bg-indigo-50 border-indigo-200",
-          });
-        }
-
-        // Energy regen bonus (potion de soin)
-        if (profile.energy_regen_bonus_expires_at && new Date(profile.energy_regen_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.energy_regen_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          const h = Math.floor(minLeft / 60); const m = minLeft % 60;
-          const t = h > 0 ? `${h}h${m > 0 ? String(m).padStart(2,"0")+"m" : ""}` : `${minLeft}min`;
-          buffs.push({
-            icon: "🧪", label: `+${profile.energy_regen_value||1}⚡/${profile.energy_regen_interval_min||5}min`,
-            detail: `(${t})`,
-            tooltip: `Régénération d'énergie active : +${profile.energy_regen_value||1} énergie toutes les ${profile.energy_regen_interval_min||5} min pendant ${t}.`,
-            color: "text-teal-700 bg-teal-50 border-teal-200",
-          });
-        }
-
-        // Hunger regen bonus (pain/ragoût)
-        if (profile.hunger_regen_bonus_expires_at && new Date(profile.hunger_regen_bonus_expires_at) > new Date(now)) {
-          const msLeft = new Date(profile.hunger_regen_bonus_expires_at).getTime() - now;
-          const minLeft = Math.max(1, Math.ceil(msLeft / 60000));
-          const h = Math.floor(minLeft / 60); const m = minLeft % 60;
-          const t = h > 0 ? `${h}h${m > 0 ? String(m).padStart(2,"0")+"m" : ""}` : `${minLeft}min`;
-          buffs.push({
-            icon: "🍞", label: `+${profile.hunger_regen_value||1}🍞/${profile.hunger_regen_interval_min||10}min`,
-            detail: `(${t})`,
-            tooltip: `Régénération de faim active : +${profile.hunger_regen_value||1} faim toutes les ${profile.hunger_regen_interval_min||10} min pendant ${t}.`,
-            color: "text-orange-700 bg-orange-50 border-orange-200",
-          });
-        }
-
-        // ── Passifs inventaire ──
-        const inv = profile.inventory || [];
-
-        // Planches T2 : −20% cooldown
-        if (inv.some(i => i.item_key === "planches" && (i.quantity||0) > 0)) {
-          buffs.push({ icon: "🪵", label: "−20% CD", detail: "",
-            tooltip: "Planches en inventaire : −20% cooldown de production (passif permanent tant qu'en inventaire).",
-            color: "text-amber-700 bg-amber-50 border-amber-200" });
-        }
-
-        // Pierre brute T2 / Lingots de fer T3 : énergie max
-        const passiveEnergyBonus = getPassiveEnergyMaxBonus(profile);
-        if (passiveEnergyBonus > 0) {
-          const src = inv.some(i => i.item_key === "lingots_fer" && (i.quantity||0) > 0) ? "Lingots de fer" : "Pierre brute";
-          buffs.push({ icon: "🗿", label: `+${passiveEnergyBonus} énergie max`, detail: "",
-            tooltip: `${src} en inventaire : +${passiveEnergyBonus} énergie maximum (passif permanent).`,
-            color: "text-blue-700 bg-blue-50 border-blue-200" });
-        }
-
-        // Fil T2 / Tissu T3 : inventaire
-        const passiveInvBonus = getPassiveInventoryBonus(profile);
-        if (passiveInvBonus > 0) {
-          const src = inv.some(i => i.item_key === "tissu" && (i.quantity||0) > 0) ? "Tissu" : "Fil";
-          buffs.push({ icon: "🧶", label: `+${passiveInvBonus} inventaire`, detail: "",
-            tooltip: `${src} en inventaire : +${passiveInvBonus} capacité inventaire (passif permanent, non cumulable).`,
-            color: "text-purple-700 bg-purple-50 border-purple-200" });
-        }
-
-        // Quartz / Lingot : taxe marché
-        const TAX_ITEMS = [
-          { key: "lingot_raffine", label: "Lingot raffiné", value: 0.04 },
-          { key: "lingot_or",      label: "Lingot d'or",    value: 0.03 },
-          { key: "quartz_poli",    label: "Quartz poli",    value: 0.02 },
-          { key: "quartz_brut",    label: "Quartz brut",    value: 0.01 },
-        ];
-        const bestTax = TAX_ITEMS.find(t => inv.some(i => i.item_key === t.key && (i.quantity||0) > 0));
-        if (bestTax) {
-          buffs.push({ icon: "🔮", label: `−${Math.round(bestTax.value*100)}% taxe`, detail: "",
-            tooltip: `${bestTax.label} en inventaire : −${Math.round(bestTax.value*100)}% taxe marché acheteur (passif, seul le meilleur s'applique).`,
-            color: "text-yellow-700 bg-yellow-50 border-yellow-200" });
-        }
-
-        // Épée courte / longue : attaque passive
-        const passiveAttack = (() => {
-          let score = 0; let src = "";
-          for (const invItem of inv) {
-            const def = ITEMS[invItem.item_key];
-            if (!def) continue;
-            if (def.trigger === "durability" && (def.effect === "attack_bonus" || def.effect === "combat_attack")) {
-              const dur = invItem.durability ?? def.durability ?? 1;
-              if (dur > 0) { score += def.value || 0; src = def.name; }
-            }
-          }
-          return { score, src };
-        })();
-        if (passiveAttack.score > 0) {
-          buffs.push({ icon: "⚔️", label: `+${passiveAttack.score} attaque`, detail: "(équipé)",
-            tooltip: `${passiveAttack.src} équipée : +${passiveAttack.score} en attaque vol (passif tant que durabilité > 0).`,
-            color: "text-red-700 bg-red-50 border-red-200" });
-        }
-
-        // Armure / Besace : défense passive
-        const passiveDefense = (() => {
-          let score = 0; let src = ""; let invBonus = 0;
-          for (const invItem of inv) {
-            const def = ITEMS[invItem.item_key];
-            if (!def) continue;
-            if (def.trigger === "durability" && (def.effect === "combat_defense" || def.effect === "defense_bonus")) {
-              const dur = invItem.durability ?? def.durability ?? 1;
-              if (dur > 0) { score += def.value || 0; src = def.name; invBonus += def.inventory_bonus || 0; }
-            }
-          }
-          return { score, src, invBonus };
-        })();
-        if (passiveDefense.score > 0) {
-          const invBonusStr = passiveDefense.invBonus > 0 ? ` · +${passiveDefense.invBonus} inventaire` : "";
-          buffs.push({ icon: "🛡️", label: `+${passiveDefense.score} défense`, detail: "(équipé)",
-            tooltip: `${passiveDefense.src} équipée : +${passiveDefense.score} défense vol${invBonusStr} (passif tant que durabilité > 0).`,
-            color: "text-sky-700 bg-sky-50 border-sky-200" });
-        }
-
-        // Bourse de protection
-        if (inv.some(i => i.item_key === "bourse_protection" && (i.durability ?? 3) > 0)) {
-          const b = inv.find(i => i.item_key === "bourse_protection");
-          buffs.push({ icon: "👜", label: "Bourse active", detail: `(${b?.durability ?? 3} charges)`,
-            tooltip: `Bourse de protection : plafonne le vol subi à 10💰 maximum par attaque. Durabilité ${b?.durability ?? 3} charges restantes.`,
-            color: "text-yellow-700 bg-yellow-50 border-yellow-200" });
-        }
-
-        if (buffs.length === 0) return null;
-        return (
-          <div className="flex flex-wrap gap-1">
-            {buffs.map((b, i) => (
-              <HelpTooltip key={i} text={b.tooltip} side="bottom">
-                <div className={`flex items-center gap-1 text-xs font-semibold border rounded px-2 py-0.5 cursor-help ${b.color}`}>
-                  <span>{b.icon}</span>
-                  <span>{b.label}</span>
-                  {b.detail && <span className="font-normal opacity-75">{b.detail}</span>}
-                </div>
-              </HelpTooltip>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* Voyage */}
-      {profile.is_traveling && (
-        <div className="flex items-center gap-1.5 text-accent animate-pulse">
-          <span>🐴</span>
-          <span>En voyage...</span>
+        {/* Outils */}
+        <div className={`flex items-center gap-1 text-xs ${(profile.tool_charges || 0) === 0 ? "text-orange-500 font-semibold" : "text-muted-foreground"}`}>
+          <span>🔧</span>
+          <span className="tabular-nums">{profile.tool_charges || 0}</span>
+          {(profile.tool_charges || 0) === 0 && <span>×2 CD</span>}
         </div>
-      )}
 
-      {/* Niveau */}
-      <PlayerLevelBadge profile={profile} variant="compact" />
+        {/* Voyage */}
+        {profile.is_traveling && (
+          <div className="flex items-center gap-1.5 text-accent animate-pulse text-xs">
+            <span>🐴</span>
+            <span>En voyage…</span>
+          </div>
+        )}
 
-      {/* Prestige */}
-      {(() => {
-        const vRank = getVendeurRank(profile.cumul_ventes_or || 0);
-        const cRank = getContributeurRank(profile.cumul_contributions_warehouse || 0);
-        const pRank = getPvpRank(profile.cumul_t5_envoyes || 0);
-        const vCumul = profile.cumul_ventes_or || 0;
-        const cCumul = profile.cumul_contributions_warehouse || 0;
-        const pCumul = profile.cumul_t5_envoyes || 0;
-        return (
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
-            <span className="flex items-center gap-0.5 text-xs text-muted-foreground font-body">
-              {vRank.icon} {vRank.label}
+        {/* Légende globale + bouton "Rangs" à droite */}
+        <div className="ml-auto flex items-center gap-2">
+          <HelpTooltip text={legendText} side="bottom" />
+          <button
+            onClick={() => setDetailsOpen(o => !o)}
+            className="text-xs font-heading text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1 px-2 py-0.5 rounded hover:bg-muted"
+          >
+            <span>{detailsOpen ? "▾" : "▸"}</span>
+            <span>{detailsOpen ? "Masquer" : "Rangs"}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── LIGNE 2 : 3 jauges + Effets actifs ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+        <BigGauge
+          icon="🍞"
+          label="Faim"
+          value={hunger}
+          max={maxHungerVal}
+          regenLabel={hungerRegenLabel}
+          dangerText={hunger <= 0 ? "Affamé !" : null}
+          tooltip="Faim. Chaque action consomme 1 point aléatoire (faim ou énergie). Si une jauge est à 0, l'autre est utilisée. Régen +1/h jusqu'à 5. Restaurer : blé +1, farine +5, pain +5, ragoût +10."
+          actions={hungerActions}
+        />
+        <BigGauge
+          icon="⚡"
+          label="Énergie"
+          value={fatigue}
+          max={maxFatigue}
+          regenLabel={fatigueRegenLabel}
+          dangerText={fatigue <= 0 ? "Épuisé !" : null}
+          tooltip="Énergie. Chaque action consomme 1 point aléatoire. Régen automatique selon logement, plafonnée à 5. Restaurer : herbes +1, extrait +5, potion +10, taverne (+50%)."
+          actions={fatigueActions}
+        />
+        <BigGauge
+          icon="📦"
+          label="Inventaire"
+          value={currentWeight}
+          max={maxWeight}
+          regenLabel={null}
+          dangerText={currentWeight >= maxWeight ? "PLEIN !" : null}
+          tooltip="Capacité d'inventaire. Augmente avec logement, Grande Place et Bibliothèque. La Forme basse réduit la capacité (−10% par point manquant)."
+        />
+
+        {/* Colonne "Effets actifs" — toujours visible */}
+        <div className="bg-card border border-border rounded-lg px-3 py-2.5 min-h-[88px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-xl">✨</span>
+            <span className="text-xs font-heading font-semibold text-muted-foreground uppercase tracking-wide">Effets actifs</span>
+            <HelpTooltip
+              text={"Tous les bonus en cours sur votre personnage.\n\n• Buffs temporaires (avec compte à rebours)\n• Passifs d'inventaire (tant que l'item est en sac)\n• Équipements (tant que durabilité > 0)\n\nCliquez sur un badge pour voir le détail."}
+              side="bottom"
+            />
+            {buffs.length > 0 && (
+              <span className="ml-auto text-[10px] font-bold text-purple-700 bg-purple-100 border border-purple-200 rounded-full px-1.5">
+                {buffs.length}
+              </span>
+            )}
+          </div>
+          {buffs.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic font-body">Aucun effet en cours.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1 max-h-[80px] overflow-y-auto pr-1">
+              {buffs.map((b, i) => (
+                <Popover key={i}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className={`flex items-center gap-1 text-[11px] font-semibold border rounded px-1.5 py-0.5 cursor-help transition-opacity hover:opacity-80 ${b.color}`}
+                    >
+                      <span>{b.icon}</span>
+                      <span>{b.label}</span>
+                      {b.detail && <span className="font-normal opacity-75 text-[10px]">{b.detail}</span>}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent side="bottom" className="max-w-xs text-xs font-body leading-relaxed p-3 whitespace-pre-line">
+                    {b.tooltip}
+                  </PopoverContent>
+                </Popover>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── LIGNE 3 : Rangs et niveau (collapsible) ── */}
+      {detailsOpen && (
+        <div className="border-t border-border pt-2.5">
+          <div className="flex flex-wrap items-center gap-3">
+            <PlayerLevelBadge profile={profile} variant="compact" />
+
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              {vRank.icon} <strong className="text-foreground">{vRank.label}</strong>
               <HelpTooltip
-                text={`🛒 Rang vendeur\n\nVentes cumulées : ${vCumul}💰${vRank.next ? `\nProchain rang "${vRank.next}" : ${vRank.nextAt}💰 (+${vRank.nextAt - vCumul}💰)` : "\n🏆 Rang maximum atteint !"}\n\nClassement : Apprenti → Débutant → Intermédiaire → Confirmé → Expert`}
+                text={`🛒 Rang vendeur\n\nVentes cumulées : ${vCumul}💰${vRank.next ? `\nProchain rang "${vRank.next}" : ${vRank.nextAt}💰 (+${vRank.nextAt - vCumul}💰)` : "\n🏆 Rang maximum atteint !"}`}
                 side="bottom"
               />
             </span>
-            <span className="flex items-center gap-0.5 text-xs text-muted-foreground font-body">
-              {cRank.icon} {cRank.label}
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              {cRank.icon} <strong className="text-foreground">{cRank.label}</strong>
               <HelpTooltip
-                text={`📦 Rang contributeur entrepôt\n\nContributions cumulées : ${cCumul} ressources${cRank.next ? `\nProchain rang "${cRank.next}" : ${cRank.nextAt} (+${cRank.nextAt - cCumul})` : "\n👑 Rang maximum atteint !"}\n\nClassement : Radin → Donateur simple → Bon donateur → Super donateur → Donateur premium`}
+                text={`📦 Rang contributeur entrepôt\n\nContributions cumulées : ${cCumul} ressources${cRank.next ? `\nProchain rang "${cRank.next}" : ${cRank.nextAt} (+${cRank.nextAt - cCumul})` : "\n👑 Rang maximum atteint !"}`}
                 side="bottom"
               />
             </span>
             {pCumul > 0 && (
-              <span className="flex items-center gap-0.5 text-xs text-muted-foreground font-body">
-                {pRank.icon} {pRank.label}
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                {pRank.icon} <strong className="text-foreground">{pRank.label}</strong>
                 <HelpTooltip
-                  text={`⚔️ Rang militaire\n\nAttaques T5 lancées : ${pCumul}${pRank.next ? `\nProchain rang "${pRank.next}" : ${pRank.nextAt} attaques (+${pRank.nextAt - pCumul})` : "\n⚔️ Rang maximum atteint !"}\n\nClassement : Manant → Écuyer → Chevalier → Sire → Baron → Seigneur de Guerre`}
+                  text={`⚔️ Rang militaire\n\nAttaques T5 lancées : ${pCumul}${pRank.next ? `\nProchain rang "${pRank.next}" : ${pRank.nextAt} attaques (+${pRank.nextAt - pCumul})` : "\n⚔️ Rang maximum atteint !"}`}
                   side="bottom"
                 />
               </span>
             )}
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* ── Modal de confirmation ── */}
+      {confirmConsume && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !busy && setConfirmConsume(null)}>
+          <div className="bg-card border border-border rounded-lg p-4 max-w-sm w-full space-y-3" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">{confirmConsume.def.icon}</span>
+              <h3 className="font-heading font-semibold text-base">Confirmer ?</h3>
+            </div>
+            <p className="text-sm font-body">
+              Voulez-vous {confirmConsume.type === "hunger" ? "manger" : "consommer"} <strong>{confirmConsume.def.name}</strong> ?
+              <br />
+              <span className="text-xs text-muted-foreground">+{confirmConsume.def.restore} {confirmConsume.def.restoreLabel}</span>
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmConsume(null)}
+                disabled={busy}
+                className="text-xs font-heading px-3 py-1.5 rounded border border-border hover:bg-muted disabled:opacity-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={async () => {
+                  const c = confirmConsume;
+                  setConfirmConsume(null);
+                  if (c.type === "hunger") await handleEatForHunger(c.key);
+                  else if (c.type === "fatigue") await handleConsumeFood(c.key);
+                }}
+                disabled={busy}
+                className="text-xs font-heading px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

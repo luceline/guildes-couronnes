@@ -1,4 +1,5 @@
 // Game constants and helper data
+import { ITEMS as ITEMS_DEF } from "./craftingData.js";
 
 // ── Admin access list ──
 export const ADMIN_EMAILS = [
@@ -47,50 +48,209 @@ export const ITEM_CATEGORIES = {
 };
 
 export const HOUSING_MAINTENANCE = {
-  tente: 2, cabane: 3, maison: 12, manoir: 45,
+  tente: 0, cabane: 3, maison: 12, manoir: 45,
 };
 
 export const HOUSING = {
-  tente:  { name: "Tente",   cost: 0,    icon: "⛺", capacity: 30,  maxFatigue: 20 },
-  cabane: { name: "Cabane",  cost: 200,  icon: "🛖", capacity: 60,  maxFatigue: 45 },
-  maison: { name: "Maison",  cost: 800,  icon: "🏠", capacity: 90,  maxFatigue: 50 },
-  manoir: { name: "Manoir",  cost: 3000, icon: "🏰", capacity: 120, maxFatigue: 60 },
+  tente:  { name: "Tente",   cost: 0,    icon: "⛺", capacity: 30,  fatigueBonus: 2,  hungerBonus: 2  },
+  cabane: { name: "Cabane",  cost: 200,  icon: "🛖", capacity: 60,  fatigueBonus: 5,  hungerBonus: 5  },
+  maison: { name: "Maison",  cost: 800,  icon: "🏠", capacity: 90,  fatigueBonus: 8,  hungerBonus: 8  },
+  manoir: { name: "Manoir",  cost: 3000, icon: "🏰", capacity: 120, fatigueBonus: 10, hungerBonus: 10 },
 };
 
 // ─────────────────────────────────────────────
-// SYSTÈME DE FAIM
-// La faim va de 0 à MAX_HUNGER.
-// Chaque action (production, voyage, craft) consomme 1 point de faim.
-// Sous HUNGER_WARNING_THRESHOLD : coût fatigue +1 par action.
-// À 0 : impossible d'agir.
-// Se restaure uniquement en consommant des items alimentaires.
+// SYSTÈME DE COMBAT ZONÉ (refonte avril 2026)
+// 4 zones : tête / torse / bras / jambes
+// Chaque zone a 2 slots : atk (item Forgeron) + def (item Tisserand)
+// Items au grade 0 (effet 0) → améliorables jusqu'au grade 5 (+5)
+// PV : max 10. À 0 PV : KO 48h (pas de contribution unités armée).
+// Casse aléatoire au combat : 5% (g0) → 1% (g5).
 // ─────────────────────────────────────────────
-export const MAX_HUNGER = 10;
-export const HUNGER_WARNING_THRESHOLD = 3; // En dessous : pénalité fatigue
+
+export const COMBAT_ZONES = ["head", "torso", "arms", "legs"];
+export const COMBAT_ZONE_LABELS = {
+  head:  { label: "Tête",   icon: "🪖" },
+  torso: { label: "Torse",  icon: "🛡️" },
+  arms:  { label: "Bras",   icon: "🤜" },
+  legs:  { label: "Jambes", icon: "🦵" },
+};
+
+// 5 slots d'équipement de combat (Phase 3 — Option B) :
+//   - 1 arme universelle (épée) : utilisée pour toutes les zones d'attaque
+//   - 4 armures, une par zone défendue (heaume/cuirasse/brassard/jambière)
+// Note : avant la simplification, on avait 8 slots (4 zones × atk/def). Une migration
+// existante (migration_combat_simplify.mjs) a converti les anciennes "armes par zone"
+// en épées génériques.
+export const COMBAT_SLOTS = [
+  "weapon",
+  "head_def",
+  "torso_def",
+  "arms_def",
+  "legs_def",
+];
+
+// Mapping slot → { zone, type }
+// "weapon" n'a pas de zone (utilisable sur toutes), il est typé "atk".
+export const COMBAT_SLOT_INFO = {
+  weapon:    { zone: null,    type: "atk" },
+  head_def:  { zone: "head",  type: "def" },
+  torso_def: { zone: "torso", type: "def" },
+  arms_def:  { zone: "arms",  type: "def" },
+  legs_def:  { zone: "legs",  type: "def" },
+};
+
+export const COMBAT_MAX_GRADE = 5;
+export const COMBAT_BREAK_PCT_BY_GRADE = [0.05, 0.04, 0.03, 0.02, 0.015, 0.01]; // index = grade
+export const COMBAT_MAX_HP = 10;
+export const COMBAT_KO_DURATION_HOURS = 48;
+export const COMBAT_PARRY_TIMER_HOURS = 12;
+export const COMBAT_STEAL_MAX_GOLD = 100;
+export const BOURSE_PROTECTION_BREAK_PCT = 0.10;
+
+// Effet d'un item équipé selon son grade : grade 0 = +1, grade 5 = +6 (base_value + grade)
+// Note : si on veut grade 0 = +0 et grade 5 = +5, mettre `return grade`
+// Ici on retourne `1 + grade` car base_value = 1 pour les nouveaux items combat
+// (un item de base donne déjà un effet minimal de +1, l'amélioration ajoute par-dessus)
+// IMPORTANT : cette fonction est utilisée pour le score, voir aussi base_value dans l'item
+export function getCombatItemValue(grade) {
+  return 1 + (grade ?? 0);
+}
+
+// ─────────────────────────────────────────────
+// PHASE 2 — AMÉLIORATIONS (Bûcheron / Mineur)
+// ─────────────────────────────────────────────
+
+// Items concernés par l'atelier Bûcheron (Phase 3 — Option B : 1 seule arme)
+// Avant : ["casque_arme", "plastron_arme", "epee", "pic"]. Migration les fusionne en "epee".
+export const COMBAT_UPGRADE_ATK_ITEMS = ["epee"];
+// Items concernés par l'atelier Mineur (4 armures par zone)
+export const COMBAT_UPGRADE_DEF_ITEMS = ["heaume", "cuirasse", "brassard", "jambiere"];
+
+// Coûts d'amélioration par grade (g0→g1, g1→g2, ..., g4→g5)
+// Pour CHAQUE upgrade, le joueur paie : ressources fixes + or fixé par l'artisan.
+//   atk : ressource principale = bois_brut (T1) ou planches (T2)
+//   def : ressource principale = minerai_fer (T1) ou pierre_brute (T2)
+// + composant secondaire pour faire travailler les autres métiers.
+export const COMBAT_UPGRADE_COSTS = {
+  atk: [
+    // index = grade actuel (g0 → g1 = index 0)
+    { primary: { key: "bois_brut",   qty: 5  } },
+    { primary: { key: "bois_brut",   qty: 10 }, secondary: { key: "farine",          qty: 1 } },
+    { primary: { key: "planches",    qty: 5  }, secondary: { key: "quartz_poli",     qty: 1 } },
+    { primary: { key: "planches",    qty: 10 }, secondary: { key: "potion_soin",     qty: 1 } },
+    { primary: { key: "planches",    qty: 10 }, secondary: { key: "lingot_royal",    qty: 1 }, tertiary: { key: "contrat_artisan", qty: 1 } },
+  ],
+  def: [
+    { primary: { key: "minerai_fer", qty: 5  } },
+    { primary: { key: "minerai_fer", qty: 10 }, secondary: { key: "farine",          qty: 1 } },
+    { primary: { key: "pierre_brute",qty: 5  }, secondary: { key: "quartz_poli",     qty: 1 } },
+    { primary: { key: "pierre_brute",qty: 10 }, secondary: { key: "potion_soin",     qty: 1 } },
+    { primary: { key: "pierre_brute",qty: 10 }, secondary: { key: "lingot_royal",    qty: 1 }, tertiary: { key: "contrat_artisan", qty: 1 } },
+  ],
+};
+
+// Cooldowns d'amélioration (en secondes) par grade visé
+export const COMBAT_UPGRADE_COOLDOWN_SEC = [60, 120, 240, 480, 960];
+
+// Plage de tarif autorisée pour le Bûcheron/Mineur
+export const COMBAT_UPGRADE_PRICE_MIN = 0;
+export const COMBAT_UPGRADE_PRICE_MAX = 500;
+
+// Répartition de l'or payé par le client : 80% à l'artisan, 20% au trésor de la ville
+export const COMBAT_UPGRADE_ARTISAN_SHARE = 0.80;
+export const COMBAT_UPGRADE_CITY_SHARE = 0.20;
+
+// Renvoie le coût d'amélioration pour un grade donné et un type (atk/def)
+export function getCombatUpgradeCost(type, currentGrade) {
+  if (currentGrade < 0 || currentGrade >= COMBAT_MAX_GRADE) return null;
+  const arr = COMBAT_UPGRADE_COSTS[type];
+  return arr ? arr[currentGrade] : null;
+}
+
+// Renvoie le tarif "or" fixé par un artisan donné pour les améliorations.
+// Stocké dans profile.upgrade_price (number, 0-500).
+export function getArtisanUpgradePrice(artisanProfile) {
+  const v = artisanProfile?.upgrade_price;
+  if (v === undefined || v === null) return null; // pas configuré
+  return Math.max(COMBAT_UPGRADE_PRICE_MIN, Math.min(COMBAT_UPGRADE_PRICE_MAX, v));
+}
+
+// Récupère l'item équipé sur un slot donné
+export function getEquippedItem(profile, slot) {
+  return profile?.equipment?.[slot] || null;
+}
+
+// Score d'attaque universel : effet de l'épée équipée (slot "weapon").
+// Identique quelle que soit la zone visée (système simplifié Option B).
+export function getCombatAttackScore(profile) {
+  const equipped = getEquippedItem(profile, "weapon");
+  if (!equipped) return 0;
+  return getCombatItemValue(equipped.grade);
+}
+
+// Compat : ancienne fonction zone-based, redirige vers le score universel.
+// Conservée pour ne pas casser le code existant qui appelle encore getAttackScoreByZone.
+export function getAttackScoreByZone(profile /* , zone */) {
+  return getCombatAttackScore(profile);
+}
+
+// Calcule le score de défense sur une zone donnée (armure équipée sur cette zone)
+export function getDefenseScoreByZone(profile, zone) {
+  const slot = `${zone}_def`;
+  const equipped = getEquippedItem(profile, slot);
+  if (!equipped) return 0;
+  return getCombatItemValue(equipped.grade);
+}
+
+// % de casse pour un item à un grade donné
+export function getCombatBreakPct(grade) {
+  const idx = Math.max(0, Math.min(COMBAT_MAX_GRADE, grade ?? 0));
+  return COMBAT_BREAK_PCT_BY_GRADE[idx];
+}
+
+// Progression du % de vol selon le grade de l'arme (Phase 3 Option A)
+// Index = grade (0 à 5). À chaque grade, +2% par rapport au précédent.
+// G0 = 10%, G5 = 20%. Capé à COMBAT_STEAL_MAX_GOLD (100💰) en valeur absolue.
+export const COMBAT_STEAL_PCT_BY_GRADE = [0.10, 0.12, 0.14, 0.16, 0.18, 0.20];
+
+// % de vol d'or pour une arme donnée (item_key) à un grade donné.
+// Le steal_pct défini dans craftingData.js sert de base au G0 et est ignoré sinon
+// (pour l'épée actuelle). Si un nouvel item d'attaque arrive avec un steal_pct
+// différent, on garde sa valeur de base et on applique le même barème additif.
+export function getCombatStealPct(itemKey, grade = 0) {
+  const item = ITEMS_DEF?.[itemKey];
+  if (!item) return 0;
+  // Pour l'épée (et tout item dont le steal_pct de base = 0.10), on utilise
+  // directement le barème de progression.
+  const baseAtG0 = item.steal_pct ?? 0;
+  const idx = Math.max(0, Math.min(grade ?? 0, COMBAT_STEAL_PCT_BY_GRADE.length - 1));
+  // Différentiel = ce qu'ajoute le grade par rapport au G0 standard (0.10)
+  const standardG0 = COMBAT_STEAL_PCT_BY_GRADE[0]; // 0.10
+  const standardAtGrade = COMBAT_STEAL_PCT_BY_GRADE[idx];
+  const delta = standardAtGrade - standardG0;
+  return Math.max(0, baseAtG0 + delta);
+}
+
+// HP du joueur, avec valeur par défaut et clamp [0, MAX_HP]
+export function getPlayerHP(profile) {
+  if (profile?.hp === undefined || profile?.hp === null) return COMBAT_MAX_HP;
+  return Math.max(0, Math.min(COMBAT_MAX_HP, profile.hp));
+}
+
+// True si le joueur est KO (0 PV ou hp_ko_until > maintenant)
+export function isPlayerKO(profile) {
+  if (getPlayerHP(profile) <= 0) return true;
+  if (profile?.hp_ko_until && new Date(profile.hp_ko_until) > new Date()) return true;
+  return false;
+}
+
+
+export const MAX_HUNGER  = 15;        // base, avant bonus logement
+export const MAX_FATIGUE = 15;        // base, avant bonus logement
+export const REGEN_AUTO_CAP = 5;      // plafond de la régen auto pour les deux jauges
+export const HUNGER_WARNING_THRESHOLD = 4; // seuil UI uniquement (warning visuel "mangez bientôt") — n'a plus d'effet mécanique
 // Regen faim : UNIQUEMENT via consommables ou bâtiments (Fontaine/Hospice/Cathédrale)
 
-// ─────────────────────────────────────────────
-// APPÉTIT & FORME — barres de fond journalières (sur 10)
-// Appétit (satiety) : basse → +10% cooldown par point manquant
-// Forme (vitality)  : basse → -10% capacité inventaire par point manquant
-// Perte : -2 par jour répartis aléatoirement entre les deux
-// ─────────────────────────────────────────────
-export const MAX_SATIETY = 10;
-export const MAX_VITALITY = 10;
-// Items qui remontent l'appétit (satiety)
-export const SATIETY_ITEMS = {
-  ble:    { satiety_restore: 1, label: "Blé",    icon: "🌾" },
-  farine: { satiety_restore: 2, label: "Farine", icon: "🧺" },
-  pain:   { satiety_restore: 4, label: "Pain",   icon: "🍞" },
-  ragout: { satiety_restore: 8, label: "Ragoût", icon: "🍲" },
-};
-// Items qui remontent la forme (vitality)
-export const VITALITY_ITEMS = {
-  herbes:         { vitality_restore: 2, label: "Herbes",            icon: "🌿" },
-  extrait_herbes: { vitality_restore: 5, label: "Extrait d'herbes",  icon: "🧪" },
-  potion_soin:    { vitality_restore: 8, label: "Potion de soin",    icon: "🧪" },
-  potion_endur:   { vitality_restore: 4, label: "Potion d'endurance", icon: "💪" },
-};
 export const FATIGUE_REGEN_INTERVAL_MS = 7200000; // valeur par défaut (maison) — voir getFatigueRegenInterval
 
 // Regen énergie liée au logement : tente = 1h, cabane = 50min, maison = 40min, manoir = 30min
@@ -262,23 +422,49 @@ export function getInventoryWeight(profile) {
   return (profile.inventory || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
 }
 
-// Get max inventory capacity for a profile based on housing
-// ── Bonus passif inventaire (non cumulable — meilleur bonus) ──
+// ── Bonus passif cooldown (non cumulable — meilleur bonus) ──
+// Sources : planches T2 (−20%), outils T4 (−30%), armure/Tunique T4 (−40%)
 export function getPassiveCooldownBonus(profile) {
   const inv = profile.inventory || [];
-  // Planches T2 : −20% cooldown passif (meilleur entre passif et temporaire)
-  const hasPassif = inv.some(i => i.item_key === "planches" && (i.quantity || 0) > 0);
-  const passifValue = hasPassif ? 0.20 : 0;
+  let passifValue = 0;
+  // Tunique (armure) : −40%
+  if (inv.some(i => i.item_key === "armure" && (i.quantity || 0) > 0)) {
+    passifValue = Math.max(passifValue, 0.40);
+  }
+  // Outils : −30% (durabilité, mais effet passif tant que présent)
+  if (inv.some(i => i.item_key === "outils" && (i.quantity || 0) > 0 && (i.durability ?? 4) > 0)) {
+    passifValue = Math.max(passifValue, 0.30);
+  }
+  // Planches : −20%
+  if (inv.some(i => i.item_key === "planches" && (i.quantity || 0) > 0)) {
+    passifValue = Math.max(passifValue, 0.20);
+  }
   const tempValue = getTemporaryCooldownBonus(profile);
   return Math.max(passifValue, tempValue);
 }
 
+// Helper exposé : retourne la meilleure source passive cooldown active
+// (utilisé par la status bar pour afficher le bon item)
+export function getBestPassiveCooldownSource(profile) {
+  const inv = profile.inventory || [];
+  if (inv.some(i => i.item_key === "armure" && (i.quantity || 0) > 0)) {
+    return { item: "armure", name: "Tunique de travail", icon: "🥋", value: 0.40 };
+  }
+  if (inv.some(i => i.item_key === "outils" && (i.quantity || 0) > 0 && (i.durability ?? 4) > 0)) {
+    return { item: "outils", name: "Outils", icon: "🔧", value: 0.30 };
+  }
+  if (inv.some(i => i.item_key === "planches" && (i.quantity || 0) > 0)) {
+    return { item: "planches", name: "Planches", icon: "🪵", value: 0.20 };
+  }
+  return null;
+}
+
 export function getPassiveEnergyMaxBonus(profile) {
   const inv = profile.inventory || [];
-  // pierre_brute T2 : +5, lingots_fer T3 : +10 (meilleur actif)
+  // pierre_brute T2 : +2, lingots_fer T3 : +5 (meilleur actif)
   let best = 0;
-  if (inv.some(i => i.item_key === "lingots_fer" && (i.quantity || 0) > 0)) best = Math.max(best, 10);
-  if (inv.some(i => i.item_key === "pierre_brute" && (i.quantity || 0) > 0)) best = Math.max(best, 5);
+  if (inv.some(i => i.item_key === "lingots_fer" && (i.quantity || 0) > 0)) best = Math.max(best, 5);
+  if (inv.some(i => i.item_key === "pierre_brute" && (i.quantity || 0) > 0)) best = Math.max(best, 2);
   // Comparer avec bonus temporaire
   return Math.max(best, getTemporaryEnergyMaxBonus(profile));
 }
@@ -299,22 +485,69 @@ export function getMaxWeight(profile) {
 
 // Get max fatigue for a profile based on housing
 export function getMaxFatigue(profile, cityFatigueBonus = 0) {
-  const base = (HOUSING[profile.housing_level || "tente"]?.maxFatigue || 80) + cityFatigueBonus;
+  const housingBonus = HOUSING[profile.housing_level || "tente"]?.fatigueBonus || 0;
   const epidemieMalus = (profile.epidemie_malus_until && new Date(profile.epidemie_malus_until) > new Date()) ? -3 : 0;
-  return Math.max(5, base + getPassiveEnergyMaxBonus(profile) + epidemieMalus);
+  return Math.max(5, MAX_FATIGUE + housingBonus + cityFatigueBonus + getPassiveEnergyMaxBonus(profile) + epidemieMalus);
 }
 
-// Get effective max weight (with convoi bonus + vitality malus)
+export function getMaxHunger(profile, cityHungerBonus = 0) {
+  const housingBonus = HOUSING[profile.housing_level || "tente"]?.hungerBonus || 0;
+  return Math.max(5, MAX_HUNGER + housingBonus + cityHungerBonus + (profile.hunger_max_bonus || 0));
+}
+
+// Helpers ville → bonus pour faim/énergie/régen
+// Ces fonctions prennent une liste de bâtiments (city.buildings) et retournent le bonus
+// à passer aux fonctions getMaxHunger / getMaxFatigue / applyHungerRegen.
+//
+// Université = +2 faim max, Cathédrale = +2 faim max, +2 énergie max
+// Hospice (par niveau) = +1/+2/+3/+4/+5 au plafond de régen automatique
+// Fontaine = ×2 vitesse de régénération
+export function getCityHungerBonus(buildings = []) {
+  let bonus = 0;
+  if (buildings.some(b => b.building_type === "universite"))  bonus += 2;
+  if (buildings.some(b => b.building_type === "cathedrale"))  bonus += 2;
+  return bonus;
+}
+
+export function getCityFatigueBonus(buildings = []) {
+  let bonus = 0;
+  if (buildings.some(b => b.building_type === "cathedrale")) bonus += 2;
+  return bonus;
+}
+
+// Plafond de la régénération auto (faim et énergie) :
+// 5 par défaut, + niveau de l'Hospice (max 10).
+export function getRegenCap(buildings = []) {
+  const hospice = buildings.find(b => b.building_type === "hospice");
+  const lvl = hospice?.level || 0;
+  return Math.min(MAX_HUNGER, REGEN_AUTO_CAP + lvl);
+}
+
+// Vitesse de régénération auto : intervalle de base divisé par 2 si Fontaine présente.
+export function getRegenInterval(housingLevel, buildings = []) {
+  const base = getFatigueRegenInterval(housingLevel || "tente");
+  const hasFontaine = buildings.some(b => b.building_type === "fontaine");
+  return hasFontaine ? Math.round(base / 2) : base;
+}
+
+// Festin empoisonné (T5) : pendant la durée de l'effet, manger pour restaurer la faim
+// coûte X⚡ supplémentaires par usage. Retourne 0 si l'effet est inactif sur la ville.
+export function getFestinHungerDrain(city) {
+  if (!city?.production_malus) return 0;
+  const until = city.production_malus.hunger_drain_active_until;
+  if (!until) return 0;
+  if (new Date(until) <= new Date()) return 0;
+  return city.production_malus.hunger_drain_value || 5;
+}
+
+// Get effective max weight (with convoi bonus)
 export function getEffectiveMaxWeight(profile) {
   const base = getMaxWeight(profile);
   let weight = base;
   if (profile.convoi_expires_at && new Date(profile.convoi_expires_at) > new Date()) {
     weight = base * 2;
   }
-  // Malus forme : −10% capacité par point manquant de vitality
-  const vitality = profile.vitality ?? MAX_VITALITY;
-  const vitalityMalus = 1 - (MAX_VITALITY - Math.min(MAX_VITALITY, vitality)) * 0.10;
-  return Math.max(10, Math.floor(weight * vitalityMalus));
+  return Math.max(10, Math.floor(weight));
 }
 
 // Check if adding qty units would exceed capacity
@@ -331,14 +564,75 @@ export function isHungry(profile) {
   return getHunger(profile) <= 0;
 }
 
-export function hasHungerPenalty(profile) {
-  return getHunger(profile) < HUNGER_WARNING_THRESHOLD;
+// Conservé pour compat — toujours false depuis la refonte du système faim/énergie
+export function hasHungerPenalty() {
+  return false;
 }
 
-// Coût réel en fatigue d'une action selon l'état de faim
+// Conservé pour compat — retourne toujours baseCost depuis la refonte
 export function getActionFatigueCost(profile, baseCost = 1) {
-  if (hasHungerPenalty(profile)) return baseCost + 1;
   return baseCost;
+}
+
+// ─────────────────────────────────────────────
+// applyRandomActionCost
+// ─────────────────────────────────────────────
+// Calcule le coût d'une action selon le système unifié faim/énergie.
+//
+// Tirage : pour chaque action, pile/face entre faim et énergie.
+//   - jauge tirée a assez → on prélève dessus
+//   - jauge tirée à 0 → on bascule sur l'autre jauge
+//   - les deux insuffisantes → action bloquée
+//
+// Pour T2-T5 (cost > 1) : un seul tirage pour tout le coût d'un coup.
+//   Si la jauge n'a pas assez, on bascule la totalité sur l'autre jauge.
+//
+// @param {Object} profile - PlayerProfile
+// @param {number} cost - nombre de points à consommer (1 par défaut, 2 pour T2, etc.)
+// @param {Object} opts - { cityFatigueBonus, cityHungerBonus } pour calculs max
+// @returns { ok, newHunger, newFatigue, drainedFrom, errorMessage }
+//   ok=false → action bloquée (errorMessage rempli)
+//   drainedFrom = "hunger" | "fatigue" (la jauge qui a effectivement payé)
+export function applyRandomActionCost(profile, cost = 1, opts = {}) {
+  const { cityFatigueBonus = 0, cityHungerBonus = 0 } = opts;
+  const currentHunger  = profile.hunger ?? getMaxHunger(profile, cityHungerBonus);
+  const currentFatigue = profile.fatigue ?? getMaxFatigue(profile, cityFatigueBonus);
+
+  // Si les deux jauges sont insuffisantes, on bloque
+  if (currentHunger + currentFatigue < cost) {
+    return {
+      ok: false,
+      newHunger: currentHunger,
+      newFatigue: currentFatigue,
+      drainedFrom: null,
+      errorMessage: "💤 Vous êtes à bout de forces, reposez-vous !",
+    };
+  }
+
+  // Tirage 50/50
+  let pickHunger = Math.random() < 0.5;
+
+  // Si la jauge tirée n'a pas assez, on bascule sur l'autre
+  if (pickHunger && currentHunger < cost) pickHunger = false;
+  else if (!pickHunger && currentFatigue < cost) pickHunger = true;
+
+  if (pickHunger) {
+    return {
+      ok: true,
+      newHunger:  Math.max(0, currentHunger - cost),
+      newFatigue: currentFatigue,
+      drainedFrom: "hunger",
+      errorMessage: null,
+    };
+  } else {
+    return {
+      ok: true,
+      newHunger:  currentHunger,
+      newFatigue: Math.max(0, currentFatigue - cost),
+      drainedFrom: "fatigue",
+      errorMessage: null,
+    };
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -406,7 +700,7 @@ export const BUILDING_TYPES = {
     stackable: true, unique: false,
     costBase: { bois_brut: 25, pierre: 10 },
     maintenance: { farine: 1, or: 1 },
-    effect: "−1 faim par action pour le Fermier. Bonus blé : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
+    effect: "−1 au coût d'action pour le Fermier (faim ou énergie). Bonus blé : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
     functionType: "production_bonus", functionValue: 50, targetProfession: "Fermier" },
   bergerie: {
     name: "Bergerie", icon: "🧶",
@@ -425,7 +719,7 @@ export const BUILDING_TYPES = {
     stackable: true, unique: false,
     costBase: { pierre: 30, bois_brut: 15, herbes: 8 },
     maintenance: { extrait: 1, or: 1 },
-    effect: "−1 faim par action pour l'Alchimiste. Bonus herbes : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
+    effect: "−1 au coût d'action pour l'Alchimiste (faim ou énergie). Bonus herbes : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
     functionType: "production_bonus", functionValue: 25, targetProfession: "Alchimiste",
   },
   fonderie: {
@@ -447,7 +741,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 40, pierre: 15, ble: 20 },
     maintenance: { farine: 1, or: 2 },
-    effect: "Tchat entre joueurs + possibilité de dormir pour récupérer de l'énergie.",
+    effect: "Tchat entre joueurs. Dormir restaure 50% de l'énergie max (1×/jour, payant). Annonces officielles de la ville.",
     functionType: "chat",
   },
   marche: {
@@ -509,8 +803,8 @@ export const BUILDING_TYPES = {
     stackable: true, unique: false,
     costBase: { laine_brute: 8, minerai_fer: 8, bois_brut: 8, quartz_brut: 6, ble: 6, herbes: 6, pierre: 6 },
     maintenance: { extrait: 1, or: 2 },
-    effect: "Distribue +2 faim à tous les résidents au reset quotidien (par niveau : +2/+4/+6/+8/+10). Contre-mesure : Festin empoisonné. Coût et entretien doublent.",
-    functionType: "hunger_max_bonus", functionValue: 2,
+    effect: "Augmente le plafond de la régénération automatique (faim et énergie) de +1 par niveau (6/15 au niv.1, 7/15 au niv.2, 8/15 au niv.3, 9/15 au niv.4, 10/15 au niv.5). Coût et entretien doublent.",
+    functionType: "regen_cap_bonus", functionValue: 1,
   },
   eglise: {
     name: "Église", icon: "⛪",
@@ -519,8 +813,8 @@ export const BUILDING_TYPES = {
     stackable: true, unique: false,
     costBase: { pierre: 60, bois_brut: 30, or: 10 },
     maintenance: { fil: 1, or: 2 },
-    effect: "+10 énergie max (niveau 1), +20 (niv.2), +30 (niv.3), +40 (niv.4), +50 (niv.5). Coût et entretien doublent.",
-    functionType: "fatigue_max_bonus", functionValue: 10,
+    effect: "Une action sur deux ne consomme aucun point (faim ou énergie). Coût et entretien doublent.",
+    functionType: "action_skip_alternate",
   },
   fontaine: {
     name: "Fontaine", icon: "💧",
@@ -529,8 +823,8 @@ export const BUILDING_TYPES = {
     stackable: true, unique: false,
     costBase: { pierre: 25, bois_brut: 8 },
     maintenance: { extrait: 1, or: 1 },
-    effect: "Regen de faim passive ×2. Coût et entretien doublent à chaque tier.",
-    functionType: "hunger_regen_boost",
+    effect: "Double la vitesse de régénération automatique (faim et énergie). Toujours plafonné par l'Hospice si présent. Coût et entretien doublent à chaque tier.",
+    functionType: "regen_speed_x2",
   },
   bibliotheque: {
     name: "Bibliothèque", icon: "📚",
@@ -640,8 +934,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { pierre: 80, bois_brut: 40, ble: 20, or: 20 },
     maintenance: { quartz_poli: 1, farine: 1, or: 3 },
-    effect: "+1 faim max pour tous les habitants de la ville.",
-    functionType: "hunger_max_bonus", functionValue: 1,
+    effect: "+2 faim max pour tous les habitants de la ville.",
+    functionType: "hunger_max_bonus", functionValue: 2,
   },
   palais: {
     name: "Palais", icon: "👑",
@@ -670,8 +964,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { pierre: 120, bois_brut: 50, or: 40, herbes: 15 },
     maintenance: { fil: 1, extrait: 1, or: 4 },
-    effect: "+10 énergie max et +2 faim max pour tous les habitants. Distribue aussi +3 faim au reset quotidien.",
-    functionType: "fatigue_max_bonus", functionValue: 10,
+    effect: "+2 faim max et +2 énergie max pour tous les habitants de la ville.",
+    functionType: "fatigue_and_hunger_max_bonus", functionValue: 2,
   },
 };
 
@@ -680,17 +974,17 @@ export const BUILDING_TYPES = {
 export const MAYOR_COST_MAX = 20;
 export const MAYOR_COST_MAX_PALAIS = 20;
 export const MAYOR_DAYS = 10;
-export const PROFESSION_CHANGE_COST = 100; // or versé à la mairie
+export const PROFESSION_CHANGE_COST = 20; // or détruit (n'enrichit pas la ville)
 
 // ── Récompenses connexion quotidienne (modifier ici pour rééquilibrer) ──
 export const STREAK_REWARDS = [
-  { days: 1,  gold: 5,   label: "1 jour",    icon: "🌱" },
-  { days: 2,  gold: 10,  label: "2 jours",   icon: "🌿" },
-  { days: 3,  gold: 15,  label: "3 jours",   icon: "🌾" },
-  { days: 5,  gold: 25,  label: "5 jours",   icon: "⭐" },
-  { days: 7,  gold: 40,  label: "1 semaine", icon: "🔥" },
-  { days: 14, gold: 80,  label: "2 semaines",icon: "💎" },
-  { days: 30, gold: 150, label: "1 mois",    icon: "👑" },
+  { days: 1,  gold: 1,   label: "1 jour",    icon: "🌱" },
+  { days: 2,  gold: 2,   label: "2 jours",   icon: "🌿" },
+  { days: 3,  gold: 3,   label: "3 jours",   icon: "🌾" },
+  { days: 5,  gold: 8,   label: "5 jours",   icon: "⭐" },
+  { days: 7,  gold: 15,  label: "1 semaine", icon: "🔥" },
+  { days: 14, gold: 35,  label: "2 semaines",icon: "💎" },
+  { days: 30, gold: 100, label: "1 mois",    icon: "👑" },
 ];
 
 // ── XP par ressource rare échangée/consommée ──
@@ -701,49 +995,18 @@ export const RARE_RESOURCE_XP = 100;
 // Importer depuis craftingData si nécessaire : import { EQUIPMENT_KEYS, EQUIPMENT_DURABILITY } from "./craftingData.js"
 // Conservés ici pour rétrocompatibilité — se synchronisent avec craftingData.ITEMS
 export { EQUIPMENT_KEYS, EQUIPMENT_DURABILITY } from "./craftingData.js";
-import { ITEMS as ITEMS_DEF } from "./craftingData.js";
+// (ITEMS_DEF déjà importé en haut du fichier)
 export const EQUIPMENT_MAX_DURABILITY = 5;
 
-// Score d'attaque : epee_courte +1, epee_longue +2
-// + bonus temporaire consommable (pierre T1, charbon T2) via attack_bonus_expires_at
+// Score d'attaque (Phase 3 Option B : 1 seule arme universelle, plus de somme par zone)
 export function getAttackScore(profile) {
-  const inv = profile.inventory || [];
-  let score = 0;
-  // Lecture dynamique depuis ITEMS — modifier craftingData.js pour changer les valeurs
-  for (const invItem of inv) {
-    const def = ITEMS_DEF?.[invItem.item_key];
-    if (!def) continue;
-    if (def.trigger === "durability" && def.effect === "attack_bonus" || def.trigger === "durability" && def.effect === "combat_attack") {
-      const dur = invItem.durability ?? def.durability ?? 1;
-      if (dur > 0) score += def.value || 0;
-    }
-  }
-  // Bonus temporaire via consommable (pierre T1, charbon T2)
-  if (profile.attack_bonus_expires_at && new Date(profile.attack_bonus_expires_at) > new Date()) {
-    score += profile.attack_bonus_value || 1;
-  }
-  return score;
+  return getCombatAttackScore(profile);
 }
 
-// Score de défense : lu dynamiquement depuis ITEMS dans craftingData.js
-// + bonus temporaire consommable (laine_brute T1) via defense_bonus_expires_at
+// Score de défense TOTAL (somme des 4 zones) — conservé pour compatibilité affichage
+// Pour le combat réel, utiliser getDefenseScoreByZone(profile, zone)
 export function getDefenseScore(profile) {
-  const inv = profile.inventory || [];
-  let score = 0;
-  // Lecture dynamique depuis ITEMS — modifier craftingData.js pour changer les valeurs
-  for (const invItem of inv) {
-    const def = ITEMS_DEF?.[invItem.item_key];
-    if (!def) continue;
-    if (def.trigger === "durability" && (def.effect === "combat_defense" || def.effect === "defense_bonus")) {
-      const dur = invItem.durability ?? def.durability ?? 1;
-      if (dur > 0) score += def.value || 0;
-    }
-  }
-  // Bonus temporaire via consommable (laine_brute T1)
-  if (profile.defense_bonus_expires_at && new Date(profile.defense_bonus_expires_at) > new Date()) {
-    score += profile.defense_bonus_value || 2;
-  }
-  return score;
+  return COMBAT_ZONES.reduce((sum, zone) => sum + getDefenseScoreByZone(profile, zone), 0);
 }
 
 // getCombatScore conservé pour compatibilité (attaque seulement pour le voleur)
@@ -885,7 +1148,7 @@ export function getCityBonuses(lingotsCumul = 0) {
 // ─────────────────────────────────────────────
 
 export const ROAD_TYPES = {
-  royale:     { label: "🛤️ Route royale",       baseMin: 0,  baseMax: 0,  maritime: false },
+  royale:     { label: "🛤️ Route royale",       baseMin: 1,  baseMax: 3,  maritime: false },
   forestier:  { label: "🌲 Chemin forestier",   baseMin: 3,  baseMax: 8,  maritime: false },
   montagneux: { label: "⛰️ Passage montagneux", baseMin: 10, baseMax: 20, maritime: false },
   maritime:   { label: "⛵ Route maritime",      baseMin: 0,  baseMax: 0,  maritime: true  },
@@ -943,9 +1206,12 @@ export function computeWallToll(arrivalCity, playerProfile) {
 }
 
 export function getRouteType(route) {
-  if (route.road_type) return route.road_type;
+  // Priorité au danger_level (source de vérité affichée sur la carte).
+  // road_type n'est utilisé qu'en fallback (ex: routes inter-territoires) ou si danger_level absent.
   const map = { "sûr": "royale", "modéré": "forestier", "dangereux": "montagneux" };
-  return map[route.danger_level] || "royale";
+  if (route.danger_level && map[route.danger_level]) return map[route.danger_level];
+  if (route.road_type) return route.road_type;
+  return "royale";
 }
 
 
@@ -1008,12 +1274,14 @@ export function getPvpRank(cumul = 0) {
   return                  { label: "Manant",             icon: "🌾", next: "Écuyer",            nextAt: 1   };
 }
 
+// Coût d'action total par tier (refonte avril 2026 : un seul nombre, prélevé aléatoirement
+// sur faim ou énergie via applyRandomActionCost). Ancienne forme : { hunger, fatigue } sur chaque.
 export const TIER_ACTION_COST = {
-  1: { hunger: 1, fatigue: 1 },
-  2: { hunger: 2, fatigue: 2 },
-  3: { hunger: 3, fatigue: 3 },
-  4: { hunger: 4, fatigue: 4 },
-  5: { hunger: 5, fatigue: 5 },
+  1: 1,
+  2: 2,
+  3: 3,
+  4: 4,
+  5: 5,
 };
 // ── Prix de rachat de l'entrepôt (reset quotidien) ──
 export const WAREHOUSE_BUYBACK_PRICES = {

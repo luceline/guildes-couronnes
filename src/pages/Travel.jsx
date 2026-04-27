@@ -7,25 +7,17 @@ import PlayerStatusBar from "../components/PlayerStatusBar";
 import BiomeHub from "../components/BiomeHub";
 import { toast } from "sonner";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
+import { logGold } from '@/lib/goldLog';
 import {
   ROAD_TYPES, ROAD_COLORS,
   getDailyRouteCost, computeTravelCost, computeWallToll, getRouteType,
-  MAX_HUNGER, isHungry, hasHungerPenalty,
+  MAX_HUNGER, isHungry, hasHungerPenalty, applyRandomActionCost, getMaxHunger, getCityHungerBonus,
 } from "../lib/gameData";
 
 // Données des biomes
 import { BIOMES } from "../lib/biomeData";
 
 
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
 
 export default function Travel({ profile, city, homeCity, onRefresh }) {
   const [routes, setRoutes] = useState([]);
@@ -227,13 +219,18 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       : baseMinutes;
     const arrivalTime = new Date(Date.now() + actualMinutes * 60 * 1000).toISOString();
 
+    // Système unifié : 1 point aléatoire faim/énergie
+    const costResult = applyRandomActionCost(profile, 1);
+    if (!costResult.ok) { toast.error(costResult.errorMessage); return; }
+
     const updates = {
       is_traveling: true,
       travel_destination_id: destinationId,
       travel_arrival_time: arrivalTime,
       travel_discount: 0,
       last_travel_route_id: routeId,
-      hunger: Math.max(0, (profile.hunger ?? MAX_HUNGER) - 1),
+      hunger:  costResult.newHunger,
+      fatigue: costResult.newFatigue,
     };
 
     if (travelCost > 0) {
@@ -289,6 +286,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
   const hasPort = departCity?.buildings?.some(b => b.building_type === "port") || false;
   const isMarchand = profile.profession === "Marchand";
   const hunger = profile.hunger ?? MAX_HUNGER;
+  const maxHunger = getMaxHunger(profile, getCityHungerBonus(homeCity?.buildings || []));
   const hungryBlocked = isHungry(profile);
   const hungerPenalty = hasHungerPenalty(profile);
 
@@ -313,7 +311,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} />
+      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
 
       {(profile.travel_discount || 0) > 0 && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-sm font-body text-indigo-800">
@@ -404,48 +402,21 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       })()}
 
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-2xl font-bold">Voyage</h2>
+        <h2 className="font-heading text-2xl font-bold heading-medieval">Voyage</h2>
         <div className="text-xs text-muted-foreground font-body bg-muted/60 rounded-lg px-3 py-1.5">
           📅 Prix du jour — changent chaque nuit
         </div>
       </div>
 
-      {/* ── Barre de faim ── */}
-      <div className={`rounded-lg border px-4 py-3 flex items-center gap-3 ${
-        hungryBlocked
-          ? "bg-red-50 border-red-300"
-          : hungerPenalty
-            ? "bg-orange-50 border-orange-300"
-            : "bg-muted/30 border-border"
-      }`}>
-        <span className="text-xl">🍽️</span>
-        <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-body font-semibold">
-              Faim : {hunger}/{MAX_HUNGER}
-            </span>
-            {hungryBlocked && (
-              <span className="text-xs text-red-700 font-body font-semibold">⛔ Trop faim pour voyager</span>
-            )}
-            {hungerPenalty && !hungryBlocked && (
-              <span className="text-xs text-orange-700 font-body">⚠️ Fatigue +1 par action</span>
-            )}
-          </div>
-          <div className="w-full bg-muted rounded-full h-2">
-            <div
-              className={`h-2 rounded-full transition-all ${
-                hungryBlocked ? "bg-red-500" : hungerPenalty ? "bg-orange-400" : "bg-green-500"
-              }`}
-              style={{ width: `${(hunger / MAX_HUNGER) * 100}%` }}
-            />
-          </div>
+      {/* Avertissement faim trop basse pour voyager (la jauge est dans la status bar) */}
+      {hungryBlocked && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 flex items-center gap-3">
+          <span className="text-xl">💤</span>
+          <span className="text-sm font-body font-semibold text-red-700">
+            Trop épuisé pour voyager — mangez d'abord !
+          </span>
         </div>
-        {hungryBlocked && (
-          <span className="text-xs font-body text-red-700">Mangez d'abord !</span>
-        )}
-      </div>
-
-
+      )}
 
       {profile.is_traveling && (
         <Card className="border-accent border-2">
@@ -614,7 +585,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
                         variant={canAfford && !hungryBlocked ? "default" : "outline"}
                       >
                         {hungryBlocked
-                          ? "🍽️ Trop faim"
+                          ? "💤 Épuisé"
                           : isMaritime
                             ? "Embarquer ⛵"
                             : (canAfford || isMarchand)

@@ -9,8 +9,9 @@ import { Send, Lock } from "lucide-react";
 import BountyBoard from "../components/BountyBoard";
 import PlayerRanking from "../components/PlayerRanking";
 import { FOOD_ITEMS_WITH_FATIGUE, computeFatigueWithDailyReset, getTodayStr } from "../lib/craftingData";
-import { PROFESSIONS, getMaxFatigue } from "../lib/gameData";
+import { PROFESSIONS, getMaxFatigue, getCityFatigueBonus } from "../lib/gameData";
 import { toast } from "sonner";
+import { usePlayerData } from "../lib/usePlayerData";
 
 async function getTavernSleepPrice(cityId) {
   const today = getTodayStr();
@@ -82,16 +83,13 @@ function ChatMessages({ messages, profile, bottomRef, emptyText, bubbleClass }) 
 }
 
 export default function TavernPage() {
-  const [profile, setProfile] = useState(null);
-  const [city, setCity] = useState(null);
-  const [homeCity, setHomeCity] = useState(null); // ville d'origine pour les bonus bâtiments
+  const { profile, city, homeCity, loading, refresh } = usePlayerData();
   const [messages, setMessages] = useState([]);
   const [privateMessages, setPrivateMessages] = useState([]);
   const [input, setInput] = useState("");
   const [privateInput, setPrivateInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sendingPrivate, setSendingPrivate] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [sleepPrice, setSleepPrice] = useState(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [sleeping, setSleeping] = useState(false);
@@ -99,28 +97,9 @@ export default function TavernPage() {
   const bottomRef = useRef(null);
   const privateBottomRef = useRef(null);
 
-  const cathedraleFatigueBonus = (homeCity?.buildings || []).some(b => b.building_type === "cathedrale") ? 10 : 0;
-  const maxFatigue = profile ? getMaxFatigue(profile, cathedraleFatigueBonus) : 40;
+  const cityFatigueBonus = getCityFatigueBonus(homeCity?.buildings || []);
+  const maxFatigue = profile ? getMaxFatigue(profile, cityFatigueBonus) : 40;
   const isResident = !!(profile && city && profile.home_city_id === city.id);
-
-  useEffect(() => {
-    async function loadProfile() {
-      const user = await base44.auth.me();
-      const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
-      if (profiles.length > 0) {
-        const p = profiles[0];
-        setProfile(p);
-        if (p.city_id) {
-          const cities = await base44.entities.City.list();
-          setCity(cities.find(ct => ct.id === p.city_id) || null);
-          const homeCityId = p.home_city_id || p.city_id;
-          setHomeCity(cities.find(ct => ct.id === homeCityId) || null);
-        }
-      }
-      setLoading(false);
-    }
-    loadProfile();
-  }, []);
 
   useEffect(() => {
     if (!city?.id) return;
@@ -144,27 +123,22 @@ export default function TavernPage() {
 
   useEffect(() => {
     if (!profile?.city_id) return;
-    loadMessages();
-    const unsub = base44.entities.TavernMessage.subscribe((event) => {
-      if (event.type === "create" && event.data.city_id === profile.city_id) {
-        if (event.data.is_private) {
-          setPrivateMessages(prev => [...prev, event.data]);
-        } else {
-          setMessages(prev => [...prev, event.data]);
-        }
-      }
-    });
-    return () => unsub();
+    const cityId = profile.city_id;
+    loadMessages(cityId);
+    const interval = setInterval(() => loadMessages(cityId), 10000);
+    return () => clearInterval(interval);
   }, [profile?.city_id]);
 
-  async function loadMessages() {
+  async function loadMessages(cityId) {
+    const cid = cityId || profile?.city_id;
+    if (!cid) return;
     const all = await base44.entities.TavernMessage.filter(
-      { city_id: profile.city_id },
-      "created_date",
+      { city_id: cid },
+      "created",
       100
     );
-    setMessages(all.filter(m => !m.is_private));
-    setPrivateMessages(all.filter(m => m.is_private));
+    setMessages(all.filter(m => !m.is_private && m.is_active !== false));
+    setPrivateMessages(all.filter(m => m.is_private && m.is_active !== false));
   }
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -194,9 +168,7 @@ export default function TavernPage() {
       tavern_sleep_date: today,
     });
     toast.success(`🛌 Bonne nuit ! +${fatigueRestored}⚡ énergie (${newFatigue}/${maxFatigue})`);
-    const user = await base44.auth.me();
-    const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
-    if (profiles.length > 0) setProfile(profiles[0]);
+    await refresh();
     setSleeping(false);
   };
 
@@ -211,9 +183,11 @@ export default function TavernPage() {
       profession: profile.profession,
       message: input.trim(),
       is_private: false,
+      is_active: true,
     });
     setInput("");
     setSending(false);
+    await loadMessages(profile?.city_id);
   };
 
   const sendPrivateMessage = async () => {
@@ -227,9 +201,11 @@ export default function TavernPage() {
       profession: profile.profession,
       message: privateInput.trim(),
       is_private: true,
+      is_active: true,
     });
     setPrivateInput("");
     setSendingPrivate(false);
+    await loadMessages(profile?.city_id);
   };
 
   const handleKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
@@ -264,7 +240,7 @@ export default function TavernPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <div>
-          <h2 className="font-heading text-2xl font-bold">🍺 La Taverne</h2>
+          <h2 className="font-heading text-2xl font-bold heading-medieval">🍺 La Taverne</h2>
           <p className="text-muted-foreground font-body text-sm">
             {city ? `La taverne de ${city.name} — Échangez vos bons plans !` : "Taverne locale"}
           </p>

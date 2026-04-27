@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy } from "lucide-react";
+import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword } from "lucide-react";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import { updateLastActive } from "@/lib/inactivityCheck";
@@ -14,9 +15,10 @@ const BASE_NAV = [
   { path: "/market", icon: ShoppingBag, label: "Marché" },
   { path: "/production", icon: Hammer, label: "Production" },
   { path: "/travel", icon: Route, label: "Voyage" },
-  { path: "/ranking", icon: Trophy, label: "Classement" },
+  { path: "/combat", icon: Sword, label: "Combat" },
   { path: "/quetes", icon: Target, label: "Quêtes" },
   { path: "/inventaire", icon: Package, label: "Inventaire" },
+  { path: "/ranking", icon: Trophy, label: "Classement" },
   { path: "/profile", icon: User, label: "Profil" },
 ];
 
@@ -26,6 +28,7 @@ export default function GameLayout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [navItems, setNavItems] = useState(BASE_NAV);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
   const { isDark, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -53,17 +56,67 @@ export default function GameLayout() {
     return () => clearInterval(interval);
   }, []);
 
+  // ── Compteur défis PvP à défendre (Phase 3) ──
+  // Ping toutes les 60 secondes pour mettre à jour le badge sur l'onglet Combat.
+  // Toast au premier détection après le login (pour ne pas rater un défi).
+  useEffect(() => {
+    let firstCheck = true;
+    let lastCount = 0;
+    const pollPendingDefenses = async () => {
+      try {
+        const user = await base44.auth.me();
+        if (!user?.email) return;
+        const challenges = await base44.entities.CombatChallenge.filter(
+          { defender_email: user.email, status: "pending_defense" },
+          "",
+          50
+        ).catch(() => []);
+        const now = Date.now();
+        const active = challenges.filter(c =>
+          !c.expires_at || new Date(c.expires_at).getTime() > now
+        );
+        const count = active.length;
+        setPendingDefenses(count);
+
+        // Toast à la première détection (login) ou si nouveau défi reçu
+        if (firstCheck && count > 0) {
+          toast.warning(`⚔️ ${count} défi${count > 1 ? "s" : ""} en attente de votre défense !`, {
+            duration: 8000,
+            action: {
+              label: "Voir",
+              onClick: () => { window.location.href = "/combat"; },
+            },
+          });
+        } else if (!firstCheck && count > lastCount) {
+          // Nouveau défi détecté en cours de session
+          toast.warning(`⚔️ Nouveau défi reçu ! ${count} en attente.`, {
+            duration: 6000,
+            action: {
+              label: "Voir",
+              onClick: () => { window.location.href = "/combat"; },
+            },
+          });
+        }
+        lastCount = count;
+        firstCheck = false;
+      } catch (e) { /* silencieux */ }
+    };
+    pollPendingDefenses();
+    const interval = setInterval(pollPendingDefenses, 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col">
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
 
       {/* Top Bar */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
-            <span className="text-2xl">⚜️</span>
-            <h1 className="font-heading text-lg font-semibold tracking-wide text-foreground">
-              Guildes & Couronnes
+          <Link to="/" className="flex items-center gap-2 group">
+            <span className="text-2xl group-hover:rotate-12 transition-transform">⚜️</span>
+            <h1 className="font-display text-xl tracking-wider text-primary">
+              Guildes <span className="text-accent">&amp;</span> Couronnes
             </h1>
           </Link>
 
@@ -79,10 +132,15 @@ export default function GameLayout() {
                 <Button
                   variant={location.pathname === path ? "default" : "ghost"}
                   size="sm"
-                  className="gap-2 font-body text-sm"
+                  className="gap-2 font-body text-sm relative"
                 >
                   <Icon className="h-4 w-4" />
                   {label}
+                  {path === "/combat" && pendingDefenses > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-heading rounded-full h-4 min-w-4 px-1 flex items-center justify-center animate-pulse">
+                      {pendingDefenses}
+                    </span>
+                  )}
                 </Button>
               </Link>
             ))}
@@ -143,10 +201,15 @@ export default function GameLayout() {
               <Link key={path} to={path} onClick={() => setMobileOpen(false)}>
                 <Button
                   variant={location.pathname === path ? "default" : "ghost"}
-                  className="w-full justify-start gap-3 font-body"
+                  className="w-full justify-start gap-3 font-body relative"
                 >
                   <Icon className="h-4 w-4" />
                   {label}
+                  {path === "/combat" && pendingDefenses > 0 && (
+                    <span className="ml-auto bg-red-600 text-white text-xs font-heading rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center animate-pulse">
+                      {pendingDefenses}
+                    </span>
+                  )}
                 </Button>
               </Link>
             ))}

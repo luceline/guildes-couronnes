@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { getTodayDateStr, getAttackScore, getCityTier, getMaxWeight, getInventoryWeight } from "../lib/gameData";
+import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRandomActionCost } from "../lib/gameData";
 
 // ──────────────────────────────────────────────
 // RÉCOLTE AFK — config par biome
@@ -146,7 +146,11 @@ function getMasteryInfo(biomeKey, masteryData) {
  */
 async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   const hasMetierBonus = BIOME_RARES[biomeKey].professions.includes(profile.profession);
-  const playerScore = getAttackScore(profile);
+  // Refonte avril 2026 : retrait de l'apport des items combat sur les monstres.
+  // Le score joueur est désormais basé uniquement sur la maîtrise du biome.
+  // (système combat zoné réservé au PvP)
+  const masteryInfo = getMasteryInfo(biomeKey, profile.biome_mastery);
+  const playerScore = masteryInfo?.level || 0;
 
   const monster = (biomeData?.monstres_du_jour || []).find(m => m.id === monsterId);
   if (!monster) return null;
@@ -167,8 +171,10 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   let goldReward = 0, rareDropped = false, rareKey = null;
   let newInventory = [...(profile.inventory || [])];
 
-  const newFatigue = Math.max(0, (profile.fatigue || 0) - 2);
-  const newHunger = Math.max(0, (profile.hunger || 10) - 1);
+  // Note (avril 2026) : la consommation faim/énergie a été déplacée au lancement
+  // du combat (handleCombat) pour éviter que la résolution plante si le joueur
+  // est à 0 entre-temps. Plus aucune logique de durabilité ici (système combat
+  // zoné — les items combat ne servent plus contre les monstres).
 
   if (victory) {
     goldReward = monster.score === 1 ? 5 : monster.score === 2 ? 7 : 10;
@@ -188,14 +194,6 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
       }
       rareDropped = true;
     }
-  } else {
-    const EQUIPMENT_KEYS = ["epee_courte", "epee_longue", "armure", "besace"];
-    const equippedItems = newInventory.filter(i => EQUIPMENT_KEYS.includes(i.item_key) && (i.durability ?? 2) > 0);
-    if (equippedItems.length > 0) {
-      const target = equippedItems[Math.abs(hash * 17) % equippedItems.length];
-      target.durability = (target.durability ?? 2) - 1;
-      if (target.durability <= 0) newInventory = newInventory.filter(i => i !== target);
-    }
   }
 
   const today = getTodayDateStr();
@@ -204,8 +202,6 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   const profileUpdates = {
     gold: currentGold + goldReward,
     inventory: newInventory,
-    fatigue: newFatigue,
-    hunger: newHunger,
     biome_combat_resolved: true,
     biome_combat_result: { victory, goldReward, rareDropped, rareKey, monsterName: monster.name, monsterIcon: monster.icon },
     daily_combats_count: (profile.daily_combats_date === today ? (profile.daily_combats_count || 0) : 0) + 1,
@@ -362,13 +358,17 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
 
   const handleStartTravel = async () => {
     if (departing) return;
+    // Système unifié : 1 point aléatoire faim/énergie
+    const costResult = applyRandomActionCost(profile, 1);
+    if (!costResult.ok) { toast.error(costResult.errorMessage); return; }
     setDeparting(true);
     try {
       await base44.entities.PlayerProfile.update(profile.id, {
         is_traveling: true,
         travel_destination_id: `biome:${biomeKey}`,
         travel_arrival_time: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
-        hunger: Math.max(0, (profile.hunger ?? 10) - 1),
+        hunger:  costResult.newHunger,
+        fatigue: costResult.newFatigue,
       });
       toast.success(`🐴 Votre monture s'élance vers ${biomeInfo.name} — soyez prêt au combat dans 2 min.`);
       onRefresh?.();
@@ -395,12 +395,23 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
     setLaunching(true);
     const COMBAT_DURATION = 30;
     try {
+      // Système unifié : 1 point aléatoire faim/énergie consommé AU LANCEMENT
+      // (la résolution ne consomme plus rien, pour éviter qu'elle reste bloquée
+      // si le joueur est à 0 entre-temps)
+      const costResult = applyRandomActionCost(profile, 1);
+      if (!costResult.ok) {
+        toast.error(costResult.errorMessage);
+        setLaunching(false);
+        return;
+      }
       await base44.entities.PlayerProfile.update(profile.id, {
         biome_combat_started_at: new Date().toISOString(),
         biome_combat_monster_id: monster.id,
         biome_combat_duration: COMBAT_DURATION,
         biome_combat_resolved: false,
         biome_combat_result: null,
+        hunger:  costResult.newHunger,
+        fatigue: costResult.newFatigue,
       });
       onRefresh?.();
       startCountdown(COMBAT_DURATION);
@@ -526,7 +537,8 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
     travelTimeRemaining = Math.max(0, Math.ceil((new Date(profile.travel_arrival_time).getTime() - Date.now()) / 1000));
   }
 
-  const playerAttack = getAttackScore(profile);
+  const masteryInfoForDisplay = getMasteryInfo(biomeKey, profile.biome_mastery);
+  const playerAttack = masteryInfoForDisplay?.level || 0;
   const monstresDisponibles = (biomeData?.monstres_du_jour || []).filter(m => !m.combattu);
   const hasMetierBonus = BIOME_RARES[biomeKey].professions.includes(profile.profession);
   const cityTier = getCityTier(city?.lingots_cumul || 0);
@@ -670,8 +682,8 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
           })()}
 
           <div className="flex flex-wrap gap-4 text-sm font-body">
-            <span>⚔️ Score attaque : <strong>{playerAttack}</strong></span>
             <span>💰 Or : <strong>{profile.gold || 0}</strong></span>
+            <span>🎖️ Maîtrise : <strong>Niv. {playerAttack}</strong></span>
             {(() => {
               const today = getTodayDateStr();
               const combatsToday = profile.daily_combats_date === today ? (profile.daily_combats_count || 0) : 0;
@@ -778,15 +790,46 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
                   </div>
 
                   <div className="mb-3">
-                    <p className="text-xs font-body text-muted-foreground mb-1">
-                      Chance de victoire : <strong>{Math.round(winProb * 100)}%</strong>
-                    </p>
-                    <Progress value={winProb * 100} className="h-1.5" />
+                    {(() => {
+                      const winPct = Math.round(winProb * 100);
+                      const isStrongOdds  = winPct >= 70;
+                      const isMediumOdds  = winPct >= 40 && winPct < 70;
+                      const isWeakOdds    = winPct < 40;
+                      const labelColor =
+                        isStrongOdds ? "text-green-700"  :
+                        isMediumOdds ? "text-orange-700" :
+                                       "text-red-700";
+                      const barColor =
+                        isStrongOdds ? "[&>div]:bg-green-500"  :
+                        isMediumOdds ? "[&>div]:bg-orange-500" :
+                                       "[&>div]:bg-red-500";
+                      return (
+                        <>
+                          <p className="text-xs font-body mb-1">
+                            Chance de victoire : <strong className={labelColor}>{winPct}%</strong>
+                            {isStrongOdds  && <span className="ml-1 text-green-600">✓ favorable</span>}
+                            {isMediumOdds  && <span className="ml-1 text-orange-600">⚠ risqué</span>}
+                            {isWeakOdds    && <span className="ml-1 text-red-600">⛔ très risqué</span>}
+                          </p>
+                          <Progress value={winPct} className={`h-1.5 ${barColor}`} />
+                          {isWeakOdds && (
+                            <p className="text-xs font-body text-red-700 mt-1.5 italic">
+                              Votre maîtrise du biome est trop faible face à ce monstre. Affrontez d'abord des cibles plus modestes pour gagner en expérience.
+                            </p>
+                          )}
+                          {isMediumOdds && (
+                            <p className="text-xs font-body text-orange-700 mt-1.5 italic">
+                              Combat équilibré, mais la défaite reste probable. Préparez vos potions de soin si besoin.
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div className="bg-red-50 rounded-lg p-2 mb-3 border border-red-200">
-                    <p className="text-xs font-body text-red-800">⚠️ Coûts du combat :</p>
-                    <p className="text-sm font-heading text-red-900">−2⚡ énergie · −1🍽️ faim</p>
+                    <p className="text-xs font-body text-red-800">⚠️ Coût du combat :</p>
+                    <p className="text-sm font-heading text-red-900">−1 ⚡/🍽️ aléatoire</p>
                   </div>
 
                   {(() => {

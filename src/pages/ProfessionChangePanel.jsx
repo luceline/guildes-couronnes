@@ -3,19 +3,11 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { logGold } from '@/lib/goldLog';
 
 const PROFESSIONS = ["Marchand","Producteur","Forgeron","Tisserand","Alchimiste","Bûcheron","Mineur","Fermier","Orfèvre"];
 
 
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
 
 export default function ProfessionChangePanel({ profile, city, onRefresh }) {
   const [changing, setChanging] = useState(false);
@@ -35,7 +27,11 @@ export default function ProfessionChangePanel({ profile, city, onRefresh }) {
       profession: chosen,
       gold: (profile.gold || 0) - PROFESSION_CHANGE_COST,
     });
-    // L'or est détruit (n'est pas versé à la trésorerie de la ville).
+    const fresh = await base44.entities.City.get(city.id).catch(() => city);
+    await base44.entities.City.update(city.id, {
+      gold_treasury: (fresh.gold_treasury || 0) + PROFESSION_CHANGE_COST,
+      treasury_cumulative: (fresh.treasury_cumulative || 0) + PROFESSION_CHANGE_COST,
+    });
     try {
       await base44.entities.GoldTransaction.create({
         player_email: profile.user_email, player_name: profile.character_name || "",
@@ -53,7 +49,7 @@ export default function ProfessionChangePanel({ profile, city, onRefresh }) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-body text-muted-foreground">
-        🏛️ <strong>Changer de métier</strong> — {PROFESSION_CHANGE_COST} 💰 (l'or est détruit)
+        🏛️ <strong>Changer de métier</strong> — {PROFESSION_CHANGE_COST} 💰 versés à la mairie
       </p>
       <div className="flex items-center gap-2 flex-wrap">
         <select value={chosen} onChange={e => setChosen(e.target.value)}

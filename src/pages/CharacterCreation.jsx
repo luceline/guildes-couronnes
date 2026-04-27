@@ -112,6 +112,11 @@ export default function CharacterCreation({ onComplete }) {
     onComplete();
   };
 
+  const handleLogout = () => {
+    try { base44.auth.logout(); } catch {}
+    window.location.reload();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -123,7 +128,7 @@ export default function CharacterCreation({ onComplete }) {
   const { activeCount, inactiveCount, canCreate } = getPlayerStatus();
   if (!canCreate) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <Card className="w-full max-w-2xl border-2 border-destructive/20">
           <CardHeader className="text-center space-y-2">
             <span className="text-4xl">⚠️</span>
@@ -133,6 +138,9 @@ export default function CharacterCreation({ onComplete }) {
             <p className="font-body text-sm">Le jeu a atteint sa limite de <strong>500 joueurs actifs</strong>.</p>
             <p className="font-body text-xs text-muted-foreground">Joueurs actifs: <strong>{activeCount}</strong> | Comptes inactifs (30+ jours): <strong>{inactiveCount}</strong></p>
             <p className="font-body text-xs">Les comptes inactifs seront progressivement supprimés pour libérer de la place.</p>
+            <Button variant="ghost" size="sm" className="font-body text-muted-foreground mt-2" onClick={handleLogout}>
+              Se déconnecter
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -147,7 +155,7 @@ export default function CharacterCreation({ onComplete }) {
   const counts = getProfessionCounts();
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl border-2 border-primary/20">
         <CardHeader className="text-center space-y-2">
           <span className="text-4xl">⚜️</span>
@@ -271,6 +279,12 @@ export default function CharacterCreation({ onComplete }) {
             disabled={creating || !form.character_name || !form.sex || !form.profession || (!form.city_id && !allCitiesFull && !isSdfMode) || (isSdfMode && !form.preferred_city_id)}>
             {creating ? "Les dieux tracent votre destin…" : "Entrer dans les chroniques ⚔️"}
           </Button>
+
+          <div className="text-center pt-2">
+            <Button variant="ghost" size="sm" className="font-body text-muted-foreground" onClick={handleLogout}>
+              Se déconnecter
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

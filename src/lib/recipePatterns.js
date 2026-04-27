@@ -43,7 +43,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
   },
   {
     id: "craft_armure",
-    name: "Armure",
+    name: "Tunique de travail",
     icon: "🥋",
     profession: "Bûcheron",
     tier: 4,
@@ -56,7 +56,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "armure", quantity: 1 },
     costGold: 0,
     cooldown: 480,
-    description: "Meuble (cadre boisé) + Lingots fer (plaques) + Potion (huile protectrice) + Parchemin (brevet) → 1 armure",
+    description: "Meuble (cadre boisé) + Lingots fer (plaques) + Potion (huile protectrice) + Parchemin (brevet) → 1 Tunique de travail",
   },
   {
     id: "craft_huile_inflammable",
@@ -74,7 +74,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "huile_inflammable", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Ragout + Épée longue + Besace + Potion endurance + Lingot raffiné → Huile inflammable",
+    description: "Ragout + Outil multifonction renforcé + Sac de voyage + Potion endurance + Lingot raffiné → Huile inflammable",
   },
 
   // ════ MINEUR ════
@@ -125,7 +125,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "outils", quantity: 1 },
     costGold: 0,
     cooldown: 480,
-    description: "Lingots fer (lames) + Tissu (poignées rembourrées) + Épée courte (acier trempé) + Pain (nourriture de chantier) → 2 outils",
+    description: "Lingots fer (lames) + Tissu (poignées rembourrées) + Outil multifonction (acier trempé) + Pain (nourriture de chantier) → 2 outils",
   },
   {
     id: "craft_poudre_corrosive",
@@ -143,7 +143,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "poudre_corrosive", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Armure + Ragout + Besace + Épée longue + Contrat artisan → Poudre corrosive",
+    description: "Tunique de travail + Ragout + Sac de voyage + Outil multifonction renforcé + Contrat artisan → Poudre corrosive",
   },
 
   // ════ FERMIER ════
@@ -212,7 +212,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "festin_empoisonne", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Armure + Outils + Besace + Potion endurance + Contrat artisan → Festin empoisonné",
+    description: "Tunique de travail + Outils + Sac de voyage + Potion endurance + Contrat artisan → Festin empoisonné",
   },
 
   // ════ TISSERAND ════
@@ -250,7 +250,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
   },
   {
     id: "craft_besace",
-    name: "Besace",
+    name: "Sac de voyage",
     icon: "🎒",
     profession: "Tisserand",
     tier: 4,
@@ -263,7 +263,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "besace", quantity: 1 },
     costGold: 0,
     cooldown: 480,
-    description: "Tissu + Lingots fer (armatures) + Lingots or (fermoirs dorés) + Parchemin (étiquette) → 1 besace",
+    description: "Tissu + Lingots fer (armatures) + Lingots or (fermoirs dorés) + Parchemin (étiquette) → 1 Sac de voyage",
   },
   {
     id: "craft_faux_contrat",
@@ -281,7 +281,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "faux_contrat", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Armure + Outils + Épée longue + Potion endurance + Lingot raffiné → Faux contrat",
+    description: "Tunique de travail + Outils + Outil multifonction renforcé + Potion endurance + Lingot raffiné → Faux contrat",
   },
 
   // ════ FORGERON ════
@@ -303,8 +303,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
   },
   {
     id: "craft_epee_courte",
-    name: "Épée courte",
-    icon: "🗡️",
+    name: "Outil multifonction",
+    icon: "🛠️",
     profession: "Forgeron",
     tier: 3,
     inputs: [
@@ -315,12 +315,12 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "epee_courte", quantity: 1 },
     costGold: 0,
     cooldown: 240,
-    description: "Charbon (forge) + Pierre brute (enclume/moule) + Quartz poli (Orfèvre, affûtage) → 1 épée courte",
+    description: "Charbon (forge) + Pierre brute + Quartz poli → 1 Outil multifonction (durabilité 10, débloque craft T3).",
   },
   {
     id: "craft_epee_longue",
-    name: "Épée longue",
-    icon: "⚔️",
+    name: "Outil multifonction renforcé",
+    icon: "⚒️",
     profession: "Forgeron",
     tier: 4,
     inputs: [
@@ -332,7 +332,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "epee_longue", quantity: 1 },
     costGold: 0,
     cooldown: 480,
-    description: "Épée courte + Tissu (garde/poignée) + Lingots fer (allonge) + Meuble (Bûcheron, atelier équipé) → 1 épée longue",
+    description: "Outil multifonction + Tissu + Lingots fer + Meuble → 1 Outil multifonction renforcé (durabilité 10, débloque craft T5).",
   },
   {
     id: "craft_cle_forgee",
@@ -350,7 +350,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "cle_forgee", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Ragout + Épée longue + Outils + Besace + Potion endurance → Clé forgée",
+    description: "Ragout + Outil multifonction renforcé + Outils + Sac de voyage + Potion endurance → Clé forgée",
   },
 
   // ════ ALCHIMISTE ════
@@ -419,7 +419,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "elixir_discorde", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Armure + Outils + Ragout + Épée longue + Contrat artisan → Élixir de discorde",
+    description: "Tunique de travail + Outils + Ragout + Outil multifonction renforcé + Contrat artisan → Élixir de discorde",
   },
 
   // ════ ORFÈVRE ════
@@ -471,7 +471,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "lingot_raffine", quantity: 1 },
     costGold: 0,
     cooldown: 480,
-    description: "Lingot or + Tissu (polissage) + Épée courte (moule acier) + Parchemin (certificat) → 1 lingot raffiné [Fonderie]",
+    description: "Lingot or + Tissu (polissage) + Outil multifonction (moule acier) + Parchemin (certificat) → 1 lingot raffiné [Fonderie]",
   },
   {
     id: "craft_lingot_royal",
@@ -490,7 +490,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "lingot_royal", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Lingot raffiné + Armure + Outils + Besace + Épée longue → Lingot royal [Fonderie]",
+    description: "Lingot raffiné + Tunique de travail + Outils + Sac de voyage + Outil multifonction renforcé → Lingot royal [Fonderie]",
   },
 
   // ════ MARCHAND ════
@@ -541,7 +541,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "contrat_artisan", quantity: 1 },
     costGold: 0,
     cooldown: 480,
-    description: "Parchemin + Épée courte (sceau de forge) + Meuble (bureau) + Potion soin (cachet alchimique) → 1 contrat artisan",
+    description: "Parchemin + Outil multifonction (sceau de forge) + Meuble (bureau) + Potion soin (cachet alchimique) → 1 contrat artisan",
   },
   {
     id: "craft_contrat_noble",
@@ -559,7 +559,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "contrat_noble", quantity: 1 },
     costGold: 200,
     cooldown: 960,
-    description: "Contrat artisan + Armure + Épée longue + Potion endurance + Lingot raffiné → Contrat noble",
+    description: "Contrat artisan + Tunique de travail + Outil multifonction renforcé + Potion endurance + Lingot raffiné → Contrat noble",
   },
   {
     id: "craft_lettre_desinformation",
@@ -577,7 +577,95 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "lettre_desinformation", quantity: 1 },
     costGold: 0,
     cooldown: 960,
-    description: "Armure + Outils + Besace + Épée longue + Lingot raffiné → Lettre de désinformation",
+    description: "Tunique de travail + Outils + Sac de voyage + Outil multifonction renforcé + Lingot raffiné → Lettre de désinformation",
+  },
+
+  // ════════════════════════════════════════════════
+  // T1 COMBAT — items équipables (Forgeron + Tisserand)
+  // 3 ressources T1 simples → 1 item au grade 0
+  // ════════════════════════════════════════════════
+
+  // ── ARME (Forgeron) — 1 seule arme universelle (Phase 3 Option B) ──
+  {
+    id: "craft_epee",
+    name: "Épée",
+    icon: "⚔️",
+    profession: "Forgeron",
+    tier: 1,
+    inputs: [
+      { key: "minerai_fer",  quantity: 1 },
+      { key: "bois_brut",    quantity: 1 },
+      { key: "pierre",       quantity: 1 },
+    ],
+    output: { key: "epee", quantity: 1 },
+    costGold: 0,
+    cooldown: 60,
+    description: "Minerai + Bois + Pierre → 1 Épée (grade 0).",
+  },
+
+  // ── DÉFENSE (Tisserand) ──
+  {
+    id: "craft_heaume",
+    name: "Heaume",
+    icon: "🪖",
+    profession: "Tisserand",
+    tier: 1,
+    inputs: [
+      { key: "laine_brute",  quantity: 1 },
+      { key: "minerai_fer",  quantity: 1 },
+      { key: "bois_brut",    quantity: 1 },
+    ],
+    output: { key: "heaume", quantity: 1 },
+    costGold: 0,
+    cooldown: 60,
+    description: "Laine + Minerai + Bois → 1 Heaume (grade 0).",
+  },
+  {
+    id: "craft_cuirasse",
+    name: "Cuirasse",
+    icon: "🛡️",
+    profession: "Tisserand",
+    tier: 1,
+    inputs: [
+      { key: "laine_brute",  quantity: 2 },
+      { key: "minerai_fer",  quantity: 1 },
+    ],
+    output: { key: "cuirasse", quantity: 1 },
+    costGold: 0,
+    cooldown: 60,
+    description: "2 Laines + Minerai → 1 Cuirasse (grade 0).",
+  },
+  {
+    id: "craft_brassard",
+    name: "Brassard",
+    icon: "🛡️",
+    profession: "Tisserand",
+    tier: 1,
+    inputs: [
+      { key: "laine_brute",  quantity: 1 },
+      { key: "minerai_fer",  quantity: 1 },
+      { key: "herbes",       quantity: 1 },
+    ],
+    output: { key: "brassard", quantity: 1 },
+    costGold: 0,
+    cooldown: 60,
+    description: "Laine + Minerai + Herbes → 1 Brassard (grade 0).",
+  },
+  {
+    id: "craft_jambiere",
+    name: "Jambière",
+    icon: "🦵",
+    profession: "Tisserand",
+    tier: 1,
+    inputs: [
+      { key: "laine_brute",  quantity: 1 },
+      { key: "bois_brut",    quantity: 1 },
+      { key: "minerai_fer",  quantity: 1 },
+    ],
+    output: { key: "jambiere", quantity: 1 },
+    costGold: 0,
+    cooldown: 60,
+    description: "Laine + Bois + Minerai → 1 Jambière (grade 0).",
   },
 ];
 

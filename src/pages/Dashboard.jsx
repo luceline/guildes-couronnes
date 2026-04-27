@@ -3,64 +3,41 @@ import { base44 } from "@/api/base44Client";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import PlayerStatusBar from "../components/PlayerStatusBar";
-import { PROFESSIONS, getMaxFatigue, MAX_HUNGER, HUNGER_WARNING_THRESHOLD } from "../lib/gameData";
+import { PROFESSIONS, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, HUNGER_WARNING_THRESHOLD } from "../lib/gameData";
 import { computeFatigueWithDailyReset } from "../lib/craftingData";
 import LoginStreakWidget from "../components/LoginStreakWidget";
-
-const TRANSACTION_LABELS = {
-  vente:           { icon: "🏪", label: "Vente marché" },
-  achat:           { icon: "🛒", label: "Achat marché" },
-  taxe_marche:     { icon: "📊", label: "Taxe marché" },
-  impot:           { icon: "💸", label: "Impôt journalier" },
-  peage:           { icon: "🏰", label: "Péage" },
-  frais_voyage:    { icon: "🛤️", label: "Frais de voyage" },
-  rachat_entrepot: { icon: "📦", label: "Rachat entrepôt" },
-  pret:            { icon: "🏦", label: "Prêt bancaire" },
-  remboursement:   { icon: "💳", label: "Remboursement" },
-  depot:           { icon: "🏦", label: "Dépôt bancaire" },
-  retrait_depot:   { icon: "💰", label: "Retrait dépôt" },
-  vol_recu:        { icon: "🦹", label: "Vol réussi (reçu)" },
-  vol_subi:        { icon: "😤", label: "Vol subi" },
-  vol_echoue:      { icon: "❌", label: "Tentative de vol échouée" },
-  vol_repousse:    { icon: "🛡️", label: "Vol repoussé" },
-  cout_production: { icon: "⚒️", label: "Coût production" },
-  logement:        { icon: "🏠", label: "Logement" },
-  maire:           { icon: "👑", label: "Investiture maire" },
-  demenagement:    { icon: "🚚", label: "Déménagement" },
-  objectif:         { icon: "🎯", label: "Objectif accompli" },
-  service_atelier:  { icon: "🏪", label: "Service d'atelier" },
-  rachat_t2t3:      { icon: "📦", label: "Rachat entrepôt T2/T3" },
-};
+import { getTxLabel } from "../lib/transactionTypes";
 
 
 
 
 export default function Dashboard({ profile, city, homeCity, onShowTutorial, onProfileUpdate }) {
   const [transactions, setTransactions] = useState([]);
-  const [loadingTx, setLoadingTx] = useState(true);
+  const [loadingTx, setLoadingTx] = useState(false);
   const [liveProfile, setLiveProfile] = useState(profile);
 
   useEffect(() => { setLiveProfile(profile); }, [profile]);
 
   const [quests, setQuests] = useState([]);
   const [marketListings, setMarketListings] = useState([]);
+  const [period, setPeriod] = useState("24h"); // "24h" | "48h" | "7j"
 
   const loadTransactions = useCallback(async () => {
-    if (!profile) return;
+    if (!liveProfile) return;
     try {
-      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const hours = period === "24h" ? 24 : period === "48h" ? 48 : 168;
+      const since = new Date(Date.now() - hours * 60 * 60 * 1000);
       const txs = await base44.entities.GoldTransaction.filter(
-        { player_email: profile.user_email },
-        "-id", 100
+        { player_email: liveProfile.user_email },
+        "-created", 200
       );
-      const sorted = txs
-        .filter(t => new Date(t.created || t.created_date || 0) >= new Date(since24h))
-        .sort((a, b) => new Date(b.created || b.created_date || 0) - new Date(a.created || a.created_date || 0));
-      setTransactions(sorted);
+      setTransactions(txs.filter(t => new Date(t.created || t.created_date || t.created_at || 0) >= since));
     } catch (e) {
       console.warn("GoldTransaction load:", e);
+    } finally {
+      setLoadingTx(false);
     }
-  }, [profile?.id, profile?.user_email]);
+  }, [liveProfile?.id, liveProfile?.user_email, period]);
 
   // Recharger au focus (retour sur le dashboard) + polling 60s
   useEffect(() => {
@@ -73,7 +50,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
 
   useEffect(() => {
     async function load() {
-      if (!profile) return;
+      if (!liveProfile) return;
       try {
         await loadTransactions();
       } catch (e) {
@@ -82,21 +59,20 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
       // Quêtes du jour
       try {
         const todayStr = new Date().toISOString().split("T")[0];
-        const allObjs = await base44.entities.PlayerObjective.filter({ player_email: profile.user_email });
+        const allObjs = await base44.entities.PlayerObjective.filter({ player_email: liveProfile.user_email });
         const todayQuests = allObjs.filter(q => (q.created_date || q.quest_date || "").startsWith(todayStr) && !q.parchemin_type);
         setQuests(todayQuests);
       } catch(e) {}
       // Annonces marché actives
       try {
-        const listings = await base44.entities.MarketListing.filter({ seller_email: profile.user_email, status: "active" });
+        const listings = await base44.entities.MarketListing.filter({ seller_email: liveProfile.user_email, status: "active" });
         setMarketListings(listings);
       } catch(e) {}
       setLoadingTx(false);
     }
     load();
-  }, [profile?.id]);
-
-  if (!liveProfile || !city) return null;
+  }, [liveProfile?.id]);
+  if (!liveProfile) return null;
 
   const prof = PROFESSIONS[liveProfile.profession];
   const netBalance = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -105,17 +81,18 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={liveProfile} homeCity={homeCity} />
+      <PlayerStatusBar profile={liveProfile} homeCity={homeCity} city={city} onRefresh={onProfileUpdate} />
 
       {/* Welcome */}
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-primary/10 via-card to-accent/10 border border-border p-6">
+      <div className="card-royal card-gold-border rounded-xl p-6 relative">
         <div className="relative z-10">
-          <h2 className="font-heading text-2xl font-semibold mb-1">Bienvenue, {liveProfile.character_name}</h2>
-          <p className="text-muted-foreground font-body">
-            {prof?.icon} {liveProfile.profession} à {city.name} — Gouvernée par {city.mayor_name || "personne"}
+          <h2 className="font-display text-3xl mb-1 text-primary">
+            Bienvenue, {liveProfile.character_name}
+          </h2>
+          <p className="text-muted-foreground font-body italic">
+            {prof?.icon} {liveProfile.profession}{city ? ` à ${city.name} — Gouvernée par ${city.mayor_name || "personne"}` : ""}
           </p>
         </div>
-        <div className="absolute top-2 right-4 text-6xl opacity-10">⚜️</div>
       </div>
 
       {/* ── Check-up du jour ── */}
@@ -124,7 +101,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
         const maxFatigue = getMaxFatigue(liveProfile);
         const { fatigue } = computeFatigueWithDailyReset(liveProfile, maxFatigue);
         const hunger = liveProfile.hunger ?? MAX_HUNGER;
-        const maxHunger = MAX_HUNGER + (liveProfile.hunger_max_bonus || 0);
+        const maxHunger = getMaxHunger(liveProfile, getCityHungerBonus(homeCity?.buildings || []));
         const dailyCombatsDate = liveProfile.daily_combats_date;
         const dailyCombatsCount = dailyCombatsDate === todayStr ? (liveProfile.daily_combats_count || 0) : 0;
         const biomeCombatsLeft = Math.max(0, 5 - dailyCombatsCount);
@@ -240,11 +217,26 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
         </button>
       )}
 
-      {/* Journal 24h */}
+      {/* Journal des transactions */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-heading text-lg flex items-center gap-2">
-            📋 Journal des 24 dernières heures
+          <CardTitle className="font-heading text-lg flex items-center justify-between flex-wrap gap-2">
+            <span className="flex items-center gap-2">📋 Journal des transactions ({period})</span>
+            <div className="flex gap-1">
+              {["24h", "48h", "7j"].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`text-xs font-heading px-3 py-1 rounded-full border transition-colors ${
+                    period === p
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted text-muted-foreground border-border hover:border-primary"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -268,56 +260,24 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
             </div>
           )}
 
-          {/* Résumé vols */}
-          {transactions.filter(t => ['vol_recu','vol_subi','vol_echoue','vol_repousse'].includes(t.type)).length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-2">
-              <p className="text-xs font-heading font-semibold text-red-800 mb-1">⚔️ Activité de vol (24h)</p>
-              {transactions.filter(t => ['vol_recu','vol_subi','vol_echoue','vol_repousse'].includes(t.type)).map((tx, i) => {
-                const meta = TRANSACTION_LABELS[tx.type] || { icon: "⚔️", label: tx.type };
-                const bgClass = tx.type === "vol_subi" ? "text-red-700" :
-                                tx.type === "vol_recu" ? "text-green-700" :
-                                tx.type === "vol_repousse" ? "text-blue-700" :
-                                "text-muted-foreground";
-                const txDate = new Date(tx.created || tx.created_date || 0);
-                const now2 = new Date();
-                const isYest = txDate.getDate() !== now2.getDate();
-                const t2 = (tx.created || tx.created_date)
-                  ? (isYest ? "Hier " : "") + txDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-                  : "";
-                return (
-                  <div key={i} className="flex items-center gap-2 text-xs font-body py-0.5">
-                    <span className="shrink-0">{meta.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <span className={`font-semibold ${bgClass}`}>{meta.label}</span>
-                      <span className="text-muted-foreground ml-1.5 truncate">{tx.description}</span>
-                    </div>
-                    {tx.amount !== 0 && (
-                      <span className={`font-heading font-bold shrink-0 ${tx.amount > 0 ? "text-green-600" : "text-red-600"}`}>
-                        {tx.amount > 0 ? "+" : ""}{tx.amount} 💰
-                      </span>
-                    )}
-                    {t2 && <span className="text-muted-foreground shrink-0">{t2}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          {/* Résumé vols : retiré (Phase 3 - le vol PvP est désormais intégré
+              au système de combat zoné, plus de bloc dédié dans le dashboard) */}
 
           {loadingTx ? (
             <p className="text-xs text-muted-foreground font-body text-center py-4">Chargement...</p>
           ) : transactions.length === 0 ? (
             <p className="text-xs text-muted-foreground font-body text-center py-4">
-              Aucune transaction dans les dernières 24h.
+              Aucune transaction sur cette période.
             </p>
           ) : (
             <div className="space-y-1.5">
-              {transactions.filter(tx => !['vol_recu','vol_subi','vol_echoue','vol_repousse'].includes(tx.type)).map((tx, idx) => {
-                const meta = TRANSACTION_LABELS[tx.type] || { icon: "💱", label: tx.type };
+              {transactions.map((tx, idx) => {
+                const meta = getTxLabel(tx.type);
                 const isPositive = tx.amount > 0;
-                const txDate = new Date(tx.created || tx.created_date || 0);
+                const txDate = new Date(tx.created_at || tx.created || tx.created_date || 0);
                 const now = new Date();
                 const isYesterday = txDate.getDate() !== now.getDate();
-                const time = (tx.created || tx.created_date)
+                const time = (tx.created_at || tx.created || tx.created_date)
                   ? (isYesterday ? "Hier " : "") + txDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
                   : "";
                 return (
@@ -343,10 +303,3 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
     </div>
   );
 }
-
-
-
-
-
-
-

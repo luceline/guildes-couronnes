@@ -14,7 +14,7 @@ import {
   ITEMS,
 } from "../lib/craftingData";
 import {
-  MAX_HUNGER, HUNGER_WARNING_THRESHOLD,
+  MAX_HUNGER, HUNGER_WARNING_THRESHOLD, applyRandomActionCost,
   getMaxFatigue, TIER_ACTION_COST,
 } from "../lib/gameData";
 import { getPlayerLevelBonuses } from "../lib/playerLevelSystem";
@@ -49,6 +49,9 @@ function formatCd(s) {
 export default function AtelierCommande({ producer, clientProfile, onClose, onRefresh }) {
   const [ordering, setOrdering] = useState(null);
   const vitrine = producer.atelier_vitrine || {};
+  // Note (avril 2026) : on n'exit plus si pas de vitrine — d'autres services
+  // peuvent être disponibles (ex: amélioration combat pour Bûcheron/Mineur).
+  // Si pas de vitrine active ET aucune autre raison d'afficher, on rend null à la fin.
   if (!vitrine.active) return null;
 
   const priceT1    = vitrine.price_t1 ?? 2;
@@ -57,17 +60,21 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
   // Recettes T1 du producteur (récolte)
   const t1Recipes = PROFESSION_PRODUCTION[producer.profession] || [];
 
-  // Recettes T2-T5 du producteur (craft) — filtrées par profession
-  // On utilise toutes les recettes disponibles (pas de restriction par profession côté craft)
-  const craftRecipes = CRAFTING_RECIPES.filter(r => r.output?.key && r.inputs?.length > 0);
+  // Recettes T2-T5 du producteur (craft) — filtrées par la PROFESSION DU PRODUCTEUR.
+  // Un client qui passe par l'atelier d'un Bûcheron ne peut commander que des recettes Bûcheron.
+  const craftRecipes = CRAFTING_RECIPES.filter(r =>
+    r.output?.key &&
+    r.inputs?.length > 0 &&
+    (!r.profession || r.profession === producer.profession)
+  );
 
   const clientHunger  = clientProfile.hunger ?? MAX_HUNGER;
   const clientFatigue = clientProfile.fatigue ?? getMaxFatigue(clientProfile);
 
   const canAffordFatigue = (tier) => {
-    const cost = TIER_ACTION_COST?.[tier] || { fatigue: 1, hunger: 1 };
-    const extra = clientHunger < HUNGER_WARNING_THRESHOLD ? 1 : 0;
-    return clientFatigue >= (cost.fatigue + extra);
+    const cost = TIER_ACTION_COST?.[tier] || 1;
+    // Système unifié : il faut faim + énergie cumulés ≥ cost pour pouvoir agir
+    return clientHunger + clientFatigue >= cost;
   };
 
   const hasIngredients = (inputs) => {
@@ -82,20 +89,14 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
     const recipeId  = isT1 ? recipe.id : recipe.id;
     const tier      = isT1 ? 1 : (ITEMS[recipe.output?.key]?.tier || 2);
     const price     = tier === 1 ? priceT1 : priceT2plus;
-    const tierCost  = TIER_ACTION_COST?.[tier] || { fatigue: 1, hunger: 1 };
-    const extra     = clientHunger < HUNGER_WARNING_THRESHOLD ? 1 : 0;
-    const fatCost   = tierCost.fatigue + extra;
-    const hunCost   = tierCost.hunger;
+    const actionCost = TIER_ACTION_COST?.[tier] || 1;
 
     // Validations
     if ((clientProfile.gold || 0) < price) {
       toast.error(`Il vous faut ${price} 💰 pour ce service.`); return;
     }
-    if (clientFatigue < fatCost) {
-      toast.error("Vos bras ne répondent plus — reposez-vous avant de commander."); return;
-    }
-    if (clientHunger <= 0) {
-      toast.error("Votre ventre crie famine — mangez avant de commander."); return;
+    if (clientHunger + clientFatigue < actionCost) {
+      toast.error("💤 Vous êtes à bout de forces, reposez-vous !"); return;
     }
     const cdLeft = getCooldownLeft(recipeId, clientProfile);
     if (cdLeft > 0) {
@@ -167,17 +168,21 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
         });
       }
 
-      // ── Cooldown + faim + fatigue client ──
+      // ── Cooldown + faim/énergie aléatoire (système unifié) ──
       const newCooldowns = {
         ...(freshClient.production_cooldowns || {}),
         [recipeId]: new Date().toISOString(),
       };
-      const newFatigue = Math.max(0, (freshClient.fatigue ?? getMaxFatigue(freshClient)) - fatCost);
-      const newHunger  = Math.max(0, (freshClient.hunger ?? MAX_HUNGER) - hunCost);
+      const costResult = applyRandomActionCost(freshClient, actionCost);
+      if (!costResult.ok) { toast.error(costResult.errorMessage); return; }
+      const newFatigue = costResult.newFatigue;
+      const newHunger  = costResult.newHunger;
       const newGold    = (freshClient.gold || 0) - price;
 
-      // ── Créditer le producteur ──
-      const producerGold = (freshProducer.gold || 0) + price;
+      // ── Split 80/20 : artisan reçoit 80%, ville reçoit 20% ──
+      const artisanShare = Math.floor(price * 0.80);
+      const cityShare    = price - artisanShare;
+      const producerGold = (freshProducer.gold || 0) + artisanShare;
 
       await Promise.all([
         base44.entities.PlayerProfile.update(freshClient.id, {
@@ -192,7 +197,19 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
         }),
       ]);
 
-      // Log transaction
+      // ── Verser la commission au trésor de la ville où se trouve le client ──
+      const cityIdForCommission = clientProfile.city_id;
+      if (cityIdForCommission && cityShare > 0) {
+        try {
+          const freshCity = await base44.entities.City.get(cityIdForCommission);
+          await base44.entities.City.update(cityIdForCommission, {
+            gold_treasury:       (freshCity.gold_treasury || 0) + cityShare,
+            treasury_cumulative: (freshCity.treasury_cumulative || 0) + cityShare,
+          });
+        } catch (e) { console.warn("Commission ville atelier:", e); }
+      }
+
+      // Log transaction (côté client = paiement)
       await base44.entities.GoldTransaction.create({
         player_email: clientProfile.user_email,
         player_name:  clientProfile.character_name || "",
@@ -200,7 +217,7 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
         city_name:    "",
         amount:       -price,
         type:         "service_atelier",
-        description:  `Service d'atelier : ${outputItem?.name || outputKey} par ${producer.character_name}`,
+        description:  `Service d'atelier : ${outputItem?.name || outputKey} par ${producer.character_name} (${artisanShare}💰 artisan, ${cityShare}💰 ville)`,
       }).catch(() => {});
 
       const itemName = isT1 ? (outputItem?.name || outputKey) : (outputItem?.name || recipe.output.key);

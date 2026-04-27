@@ -39,7 +39,7 @@ export default function TrailerPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen">
       {/* Hero Section */}
       <div className="relative py-20 px-4 bg-gradient-to-b from-primary/10 to-background">
         <div className="max-w-4xl mx-auto text-center space-y-6">

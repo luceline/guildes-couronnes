@@ -120,7 +120,7 @@ async function runDailyReset(resetDate) {
   await applyMilitaryMaintenance(updatedCities);
   await applyPopulationConsumption(updatedCities, players);
   await rotateInterTerritoryGateways(updatedCities);
-  await applySatietyVitalityDecay(players);
+  // applySatietyVitalityDecay retiré (barres appétit/forme supprimées du jeu)
   await expireMarketListings(resetDate);
 }
 
@@ -434,7 +434,12 @@ async function resetCity(city, resetDate, players = []) {
   }
 
   // ── Application du taux de taxe marché J+1 fixé par le maire ──
-  if (mayorActive && city.tax_rate_next !== undefined && city.tax_rate_next !== null) {
+  // Si tax_rate_next a été défini par le maire (CityView ou MairieTab), on l'applique
+  // ce matin et on remet tax_rate_next à null pour éviter des applications répétées.
+  if (mayorActive
+      && city.tax_rate_next !== undefined
+      && city.tax_rate_next !== null
+      && typeof city.tax_rate_next === "number") {
     cityUpdates.tax_rate      = city.tax_rate_next;
     cityUpdates.tax_rate_next = null;
   }
@@ -904,7 +909,7 @@ async function collectDailyTax(players, cities, resetDate) {
     const maxHunger = 10 + (buildings.some(b => b.building_type === "universite") ? 2 : 0);
 
     if (hungerBonus > 0 && (player.hunger ?? 10) < maxHunger) {
-      const newHunger = Math.min(maxHunger, (player.hunger ?? 10) + hungerBonus);
+      const newHunger = Math.min(5, (player.hunger ?? 10) + hungerBonus); // bonus bâtiments plafonné à 5 (regen passive)
       try {
         await base44.entities.PlayerProfile.update(player.id, { hunger: newHunger });
       } catch(e) { console.warn("hunger bonus reset:", e); }
@@ -1345,28 +1350,9 @@ async function expireMarketListings(resetDate) {
 
 
 
-async function applySatietyVitalityDecay(players) {
-  // Perte de 2 points par jour répartis aléatoirement entre appétit et forme
-  for (const player of players) {
-    const roll = Math.random();
-    let satietyLoss = 0;
-    let vitalityLoss = 0;
-    if (roll < 0.33) { satietyLoss = 2; vitalityLoss = 0; }
-    else if (roll < 0.66) { satietyLoss = 1; vitalityLoss = 1; }
-    else { satietyLoss = 0; vitalityLoss = 2; }
-
-    const newSatiety = Math.max(0, (player.satiety ?? 10) - satietyLoss);
-    const newVitality = Math.max(0, (player.vitality ?? 10) - vitalityLoss);
-
-    if (newSatiety !== (player.satiety ?? 10) || newVitality !== (player.vitality ?? 10)) {
-      await base44.entities.PlayerProfile.update(player.id, {
-        satiety: newSatiety,
-        vitality: newVitality,
-      }).catch(() => {});
-    }
-  }
-  console.log(`SatietyVitalityDecay: ${players.length} joueurs traités`);
-}
+// applySatietyVitalityDecay : retiré (barres appétit/forme supprimées du jeu)
+// La fonction décrémentait satiety/vitality dans player_profiles. Comme ces
+// colonnes vont être droppées, on retire toute la logique.
 
 async function rotateInterTerritoryGateways(cities) {
   // Chaque jour, changer aléatoirement la ville de passage entre territoires

@@ -1,47 +1,67 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=MedievalSharp&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ── Taille de base : agrandie sur desktop pour confort de lecture ──
+   Mobile garde 16px (densité écrans tactiles différente).
+   Tailwind utilise rem partout, donc tout s'agrandit proportionnellement. */
+html { font-size: 16px; }
+@media (min-width: 768px) {
+  html { font-size: 17.5px; }
+}
+@media (min-width: 1280px) {
+  html { font-size: 18.5px; }
+}
+
 @layer base {
   :root {
     --font-heading: 'Cinzel', serif;
+    --font-display: 'MedievalSharp', cursive;
     --font-body: 'Crimson Text', serif;
 
-    --background: 36 33% 94%;
-    --foreground: 25 30% 12%;
-    --card: 38 40% 96%;
-    --card-foreground: 25 30% 12%;
-    --popover: 38 40% 96%;
-    --popover-foreground: 25 30% 12%;
-    --primary: 32 60% 32%;
-    --primary-foreground: 40 40% 95%;
-    --secondary: 36 25% 85%;
-    --secondary-foreground: 25 30% 15%;
-    --muted: 36 20% 88%;
-    --muted-foreground: 25 15% 45%;
-    --accent: 45 70% 50%;
-    --accent-foreground: 25 30% 12%;
-    --destructive: 0 65% 50%;
+    /* Palette doré crème renforcée */
+    --background: 38 35% 90%;          /* parchemin clair */
+    --foreground: 25 35% 14%;          /* encre brun foncé */
+    --card: 40 50% 94%;                /* parchemin légèrement plus chaud */
+    --card-foreground: 25 35% 14%;
+    --popover: 40 50% 94%;
+    --popover-foreground: 25 35% 14%;
+    --primary: 30 65% 28%;             /* brun bois */
+    --primary-foreground: 40 50% 96%;
+    --secondary: 38 30% 82%;           /* crème grise */
+    --secondary-foreground: 25 35% 18%;
+    --muted: 38 25% 86%;                /* crème très claire */
+    --muted-foreground: 25 20% 42%;
+    --accent: 42 80% 48%;               /* or franc */
+    --accent-foreground: 25 35% 14%;
+    --destructive: 0 70% 45%;
     --destructive-foreground: 0 0% 98%;
-    --border: 32 25% 78%;
-    --input: 32 25% 78%;
-    --ring: 32 60% 32%;
+    --border: 35 30% 70%;               /* brun doré */
+    --input: 35 30% 70%;
+    --ring: 42 80% 48%;
     --chart-1: 32 60% 42%;
     --chart-2: 145 40% 35%;
     --chart-3: 210 35% 40%;
     --chart-4: 45 70% 50%;
     --chart-5: 0 50% 45%;
     --radius: 0.5rem;
-    --sidebar-background: 36 30% 92%;
-    --sidebar-foreground: 25 30% 15%;
-    --sidebar-primary: 32 60% 32%;
-    --sidebar-primary-foreground: 40 40% 95%;
-    --sidebar-accent: 36 25% 85%;
-    --sidebar-accent-foreground: 25 30% 15%;
-    --sidebar-border: 32 25% 78%;
-    --sidebar-ring: 32 60% 32%;
+
+    /* Couleurs custom doré/or pour les ornements */
+    --gold: 42 80% 50%;
+    --gold-deep: 38 70% 38%;
+    --gold-shadow: 30 60% 25%;
+    --parchment-vein: 35 35% 75%;       /* veines du parchemin */
+
+    --sidebar-background: 38 32% 88%;
+    --sidebar-foreground: 25 35% 18%;
+    --sidebar-primary: 30 65% 28%;
+    --sidebar-primary-foreground: 40 50% 96%;
+    --sidebar-accent: 38 28% 80%;
+    --sidebar-accent-foreground: 25 35% 18%;
+    --sidebar-border: 35 30% 70%;
+    --sidebar-ring: 42 80% 48%;
   }
 
   .dark {
@@ -90,4 +110,550 @@
   .card {
     @apply text-foreground;
   }
+}
+
+/* ──────────────────────────────────────────────────────────
+   THÈME PARCHEMIN MÉDIÉVAL — Étage 1
+   ────────────────────────────────────────────────────────── */
+
+/* ── Fond global texturé parchemin ── */
+body {
+  /* Couche 1 : pattern subtil de fibres de papier */
+  background-image:
+    /* Petites taches de "vieillissement" (cercles très flous) */
+    radial-gradient(ellipse at 20% 30%, hsl(35 40% 78% / 0.45) 0%, transparent 35%),
+    radial-gradient(ellipse at 80% 70%, hsl(38 45% 80% / 0.40) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, hsl(32 35% 75% / 0.30) 0%, transparent 50%),
+    /* Pattern croisé fin (fibres) */
+    repeating-linear-gradient(
+      45deg,
+      transparent 0px,
+      transparent 2px,
+      hsl(32 30% 70% / 0.04) 2px,
+      hsl(32 30% 70% / 0.04) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0px,
+      transparent 2px,
+      hsl(35 35% 65% / 0.03) 2px,
+      hsl(35 35% 65% / 0.03) 4px
+    ),
+    /* Couleur de base */
+    linear-gradient(180deg, hsl(38 35% 90%) 0%, hsl(36 32% 87%) 100%);
+  background-attachment: fixed;
+  background-size: 100% 100%, 100% 100%, 100% 100%, 12px 12px, 12px 12px, 100% 100%;
+  min-height: 100vh;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(ellipse at 20% 30%, hsl(28 30% 14% / 0.6) 0%, transparent 40%),
+    radial-gradient(ellipse at 80% 70%, hsl(32 35% 12% / 0.5) 0%, transparent 45%),
+    repeating-linear-gradient(
+      45deg,
+      transparent 0px,
+      transparent 2px,
+      hsl(35 25% 20% / 0.06) 2px,
+      hsl(35 25% 20% / 0.06) 4px
+    ),
+    linear-gradient(180deg, hsl(25 25% 10%) 0%, hsl(22 22% 8%) 100%);
+}
+
+/* ── Cartes : aspect parchemin avec texture et ombre dorée ── */
+.card,
+[class*="bg-card"],
+.bg-card {
+  background-image:
+    /* Texture de papier vieilli avec petites taches */
+    radial-gradient(ellipse at 25% 25%, hsl(36 40% 88% / 0.5) 0%, transparent 30%),
+    radial-gradient(ellipse at 75% 75%, hsl(40 45% 90% / 0.4) 0%, transparent 35%),
+    /* Veines fines */
+    repeating-linear-gradient(
+      30deg,
+      transparent 0px,
+      transparent 3px,
+      hsl(32 30% 75% / 0.05) 3px,
+      hsl(32 30% 75% / 0.05) 5px
+    ),
+    /* Couleur de base parchemin */
+    linear-gradient(135deg, hsl(40 50% 95%) 0%, hsl(38 45% 92%) 100%);
+  /* Ombre dorée chaude au lieu de l'ombre grise standard */
+  box-shadow:
+    0 1px 3px hsl(30 50% 40% / 0.12),
+    0 4px 12px hsl(30 50% 40% / 0.08),
+    inset 0 0 0 1px hsl(38 60% 85% / 0.3);
+}
+
+.dark .card,
+.dark [class*="bg-card"],
+.dark .bg-card {
+  background-image:
+    radial-gradient(ellipse at 25% 25%, hsl(28 30% 16% / 0.5) 0%, transparent 30%),
+    radial-gradient(ellipse at 75% 75%, hsl(30 35% 18% / 0.4) 0%, transparent 35%),
+    linear-gradient(135deg, hsl(25 22% 14%) 0%, hsl(23 20% 12%) 100%);
+  box-shadow:
+    0 1px 3px hsl(0 0% 0% / 0.4),
+    0 4px 12px hsl(0 0% 0% / 0.3),
+    inset 0 0 0 1px hsl(42 50% 30% / 0.2);
+}
+
+/* ── Bordures plus visibles avec teinte dorée ── */
+.border {
+  border-color: hsl(35 35% 65% / 0.6);
+}
+.dark .border {
+  border-color: hsl(35 30% 30% / 0.6);
+}
+
+/* ── Boutons : aspect "sceau" avec gradient subtil ── */
+button[class*="bg-primary"],
+.bg-primary {
+  background-image: linear-gradient(135deg, hsl(30 65% 32%) 0%, hsl(28 60% 25%) 100%);
+  box-shadow:
+    inset 0 1px 0 hsl(40 60% 50% / 0.4),
+    inset 0 -1px 0 hsl(20 40% 15% / 0.4),
+    0 2px 4px hsl(25 50% 20% / 0.3);
+}
+button[class*="bg-primary"]:hover {
+  background-image: linear-gradient(135deg, hsl(30 70% 36%) 0%, hsl(28 65% 28%) 100%);
+}
+
+button[class*="bg-accent"]:not([class*="-50"]):not([class*="-100"]),
+.bg-accent:not([class*="-50"]):not([class*="-100"]) {
+  background-image: linear-gradient(135deg, hsl(45 85% 55%) 0%, hsl(38 75% 42%) 100%);
+  color: hsl(25 35% 14%);
+  text-shadow: 0 1px 0 hsl(45 80% 70% / 0.6);
+  box-shadow:
+    inset 0 1px 0 hsl(50 85% 70% / 0.5),
+    inset 0 -1px 0 hsl(28 60% 28% / 0.4),
+    0 2px 4px hsl(30 50% 25% / 0.25);
+}
+
+/* ── Polices renforcées ── */
+.font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: 0.02em;
+}
+
+/* Classe ".font-display" pour les titres principaux qui claquent */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* ── Headers de pages : effet bandeau doré ── */
+h1, h2.font-heading {
+  text-shadow: 0 1px 0 hsl(38 50% 90%), 0 -1px 0 hsl(30 50% 30% / 0.1);
+}
+
+/* ── Ornements : bordure dorée pour les Cards importantes ── */
+.card-ornate {
+  position: relative;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.card-ornate::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, hsl(45 80% 55%) 0%, hsl(35 60% 35%) 50%, hsl(45 80% 55%) 100%);
+}
+
+/* ── Ornements de coin (4 petits triangles dorés sur les Cards spéciales) ── */
+.card-corners {
+  position: relative;
+}
+.card-corners::before,
+.card-corners::after,
+.card-corners > .corner-tl,
+.card-corners > .corner-br {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: hsl(42 80% 48%);
+  pointer-events: none;
+}
+.card-corners::before { top: 4px; left: 4px;  border-top: 2px solid; border-left: 2px solid; }
+.card-corners::after  { top: 4px; right: 4px; border-top: 2px solid; border-right: 2px solid; }
+
+/* ── Animation subtile : texte doré qui scintille pour les éléments précieux ── */
+@keyframes goldShimmer {
+  0%, 100% { text-shadow: 0 0 0 transparent; }
+  50%      { text-shadow: 0 0 6px hsl(45 100% 60% / 0.6); }
+}
+.text-gold-shimmer {
+  animation: goldShimmer 3s ease-in-out infinite;
+}
+
+/* ── Séparateur orné : filigrane décoratif entre sections ── */
+.divider-ornament {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0;
+}
+.divider-ornament::before,
+.divider-ornament::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, hsl(42 60% 45% / 0.5), transparent);
+}
+.divider-ornament-icon {
+  color: hsl(42 70% 45%);
+  font-size: 0.875rem;
+  text-shadow: 0 0 4px hsl(45 80% 60% / 0.4);
+}
+
+/* ── Inputs et selects : aspect parchemin ── */
+input,
+textarea,
+select {
+  background-color: hsl(40 45% 92%) !important;
+  border: 1px solid hsl(35 35% 65% / 0.7);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: hsl(42 70% 50%);
+  box-shadow: 0 0 0 2px hsl(45 80% 60% / 0.25);
+  outline: none;
+}
+.dark input,
+.dark textarea,
+.dark select {
+  background-color: hsl(25 20% 18%) !important;
+  border-color: hsl(35 25% 30% / 0.7);
+}
+
+/* ── Tableau : aspect grimoire ── */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+table thead {
+  background: linear-gradient(180deg, hsl(38 35% 82%) 0%, hsl(36 30% 78%) 100%);
+}
+.dark table thead {
+  background: linear-gradient(180deg, hsl(25 22% 18%) 0%, hsl(23 20% 14%) 100%);
+}
+
+/* ── Scrollbar dorée ── */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(36 30% 88%);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, hsl(38 60% 50%) 0%, hsl(32 50% 38%) 100%);
+  border-radius: 6px;
+  border: 2px solid hsl(36 30% 88%);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, hsl(42 70% 55%) 0%, hsl(35 60% 42%) 100%);
+}
+.dark ::-webkit-scrollbar-track {
+  background: hsl(25 18% 14%);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, hsl(38 55% 40%) 0%, hsl(32 45% 28%) 100%);
+  border-color: hsl(25 18% 14%);
+}
+
+/* ──────────────────────────────────────────────────────────
+   ÉTAGE 2 BIS — Paysage médiéval IA en arrière-plan
+   ────────────────────────────────────────────────────────── */
+
+/* Le paysage couvre tout l'écran en arrière-plan, fixe.
+   Le contenu (Cards opaques) passe par-dessus et reste lisible.
+   L'image est importée comme asset Vite (la classe est appliquée par JS). */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--landscape-bg);
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  /* Sur fond crème, l'image est légèrement atténuée pour laisser respirer le contenu */
+  opacity: 0.7;
+}
+
+/* Mode sombre : image inversée + sombre pour ambiance nuit */
+.dark body::before {
+  filter: brightness(0.45) hue-rotate(-15deg) saturate(0.7);
+  opacity: 0.85;
+}
+
+/* Voile dégradé chaud par-dessus pour cohérence avec la palette parchemin */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    /* Halo doux au centre-haut pour adoucir l'image */
+    radial-gradient(ellipse at 50% 30%, hsl(40 50% 92% / 0.3) 0%, transparent 60%),
+    /* Léger voile crème pour homogénéiser avec les Cards */
+    linear-gradient(180deg, hsl(38 35% 90% / 0.35) 0%, hsl(36 32% 88% / 0.15) 50%, hsl(38 40% 92% / 0.3) 100%);
+}
+
+.dark body::after {
+  background:
+    radial-gradient(ellipse at 50% 30%, hsl(40 30% 18% / 0.4) 0%, transparent 60%),
+    linear-gradient(180deg, hsl(25 25% 10% / 0.5) 0%, hsl(23 22% 8% / 0.3) 50%, hsl(25 25% 10% / 0.45) 100%);
+}
+
+/* Le contenu passe systématiquement au-dessus du paysage */
+#root, main, [data-page] {
+  position: relative;
+  z-index: 1;
+}
+
+/* ──────────────────────────────────────────────────────────
+   ÉTAGE 2 — Cadres ornés, filigranes, sceaux
+   ────────────────────────────────────────────────────────── */
+
+/* ── Filigrane fleur de lys en watermark sur fond de Card royale ── */
+.card-royal {
+  position: relative;
+  overflow: hidden;
+}
+.card-royal::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -30px;
+  transform: translateY(-50%);
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+  /* Fleur de lys SVG en data-uri, très opaque pour être discret */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M50 10 Q 45 25 35 30 Q 30 35 40 40 Q 35 45 30 50 Q 35 50 50 45 Q 65 50 70 50 Q 65 45 60 40 Q 70 35 65 30 Q 55 25 50 10 Z M 50 45 L 50 80 Q 45 75 40 75 Q 40 80 50 85 Q 60 80 60 75 Q 55 75 50 80 Z M 30 60 Q 35 60 40 65 Q 35 65 30 60 Z M 70 60 Q 65 60 60 65 Q 65 65 70 60 Z' fill='%23a8842c' opacity='0.08'/></svg>");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: right center;
+  z-index: 0;
+}
+.card-royal > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Bordure dorée plus présente pour Cards importantes ── */
+.card-gold-border {
+  border: 1.5px solid transparent;
+  background-image:
+    linear-gradient(135deg, hsl(40 50% 95%) 0%, hsl(38 45% 92%) 100%),
+    linear-gradient(135deg, #d4a93e 0%, #8a6d24 50%, #d4a93e 100%);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  box-shadow:
+    0 2px 8px hsl(38 60% 40% / 0.18),
+    inset 0 0 12px hsl(45 50% 80% / 0.25);
+}
+.dark .card-gold-border {
+  background-image:
+    linear-gradient(135deg, hsl(25 22% 14%) 0%, hsl(23 20% 12%) 100%),
+    linear-gradient(135deg, #c89a3e 0%, #6e5418 50%, #c89a3e 100%);
+}
+
+/* ── Card "manuscrit" avec petits "trous" simulant un parchemin déchiré ── */
+.card-manuscript {
+  position: relative;
+}
+.card-manuscript::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  /* Légère ombre intérieure aux 4 coins pour effet "courbe" parchemin */
+  background:
+    radial-gradient(circle at 0% 0%,   hsl(30 40% 55% / 0.15) 0%, transparent 5%),
+    radial-gradient(circle at 100% 0%, hsl(30 40% 55% / 0.15) 0%, transparent 5%),
+    radial-gradient(circle at 0% 100%, hsl(30 40% 55% / 0.15) 0%, transparent 5%),
+    radial-gradient(circle at 100% 100%, hsl(30 40% 55% / 0.15) 0%, transparent 5%);
+}
+
+/* ── Headers de section avec sous-ligne dorée ── */
+.heading-medieval {
+  position: relative;
+  padding-bottom: 0.4rem;
+  display: inline-block;
+}
+.heading-medieval::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 80%;
+  height: 2px;
+  background: linear-gradient(90deg,
+    hsl(42 80% 45%) 0%,
+    hsl(38 70% 40%) 40%,
+    transparent 100%
+  );
+  border-radius: 1px;
+}
+
+/* ── Boutons "sceau" ronds (type Royal Seal) ── */
+.btn-seal {
+  position: relative;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, hsl(45 85% 55%) 0%, hsl(35 70% 38%) 100%);
+  color: hsl(25 35% 14%);
+  text-shadow: 0 1px 0 hsl(50 80% 80% / 0.5);
+  box-shadow:
+    inset 0 2px 0 hsl(50 90% 75% / 0.6),
+    inset 0 -2px 0 hsl(28 60% 25% / 0.4),
+    0 0 0 2px hsl(38 60% 40%),
+    0 0 0 3px hsl(38 35% 65%),
+    0 4px 8px hsl(30 50% 25% / 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.btn-seal:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 2px 0 hsl(50 95% 78% / 0.7),
+    inset 0 -2px 0 hsl(28 60% 25% / 0.4),
+    0 0 0 2px hsl(40 70% 45%),
+    0 0 0 3px hsl(38 35% 65%),
+    0 6px 12px hsl(30 50% 25% / 0.45);
+}
+.btn-seal:active {
+  transform: translateY(0);
+}
+
+/* ── Animation "wax seal" : pulsation dorée pour les éléments rares/importants ── */
+@keyframes wax-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 hsl(45 80% 55% / 0.4),
+      inset 0 0 0 1px hsl(45 80% 55% / 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px hsl(45 80% 55% / 0),
+      inset 0 0 0 1px hsl(45 80% 55% / 0.8);
+  }
+}
+.pulse-gold {
+  animation: wax-pulse 2.5s ease-out infinite;
+}
+
+/* ── Effet "encrage" subtil au survol des liens : transition d'écriture ── */
+a:not(.btn-seal):not([class*="bg-"]):hover {
+  text-decoration-color: hsl(42 70% 45%);
+}
+
+/* ── Card avec petit ruban "important" ── */
+.card-with-ribbon {
+  position: relative;
+}
+.card-ribbon {
+  position: absolute;
+  top: -8px;
+  left: 16px;
+  background: linear-gradient(135deg, hsl(0 65% 50%) 0%, hsl(0 55% 38%) 100%);
+  color: white;
+  font-family: var(--font-heading);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 4px 10px 6px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow:
+    inset 0 1px 0 hsl(0 70% 65%),
+    0 2px 4px hsl(0 50% 25% / 0.4);
+  /* Effet pointe en bas */
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+}
+
+
+
+
+/* ──────────────────────────────────────────────────────────
+   Mode sombre : adaptation automatique des classes Tailwind
+   hardcodées (bg-{color}-50/100 + text-{color}-700/800/900).
+   On ne touche pas aux fichiers JSX, on remappe via CSS.
+   ────────────────────────────────────────────────────────── */
+.dark {
+  /* Fonds clairs → fonds sombres avec teinte préservée */
+  .bg-red-50    { background-color: rgb(69 10 10 / 0.4) !important; }
+  .bg-red-100   { background-color: rgb(69 10 10 / 0.55) !important; }
+  .bg-orange-50 { background-color: rgb(67 20 7 / 0.4) !important; }
+  .bg-orange-100{ background-color: rgb(67 20 7 / 0.55) !important; }
+  .bg-amber-50  { background-color: rgb(69 26 3 / 0.4) !important; }
+  .bg-amber-100 { background-color: rgb(69 26 3 / 0.55) !important; }
+  .bg-yellow-50 { background-color: rgb(66 32 6 / 0.4) !important; }
+  .bg-yellow-100{ background-color: rgb(66 32 6 / 0.55) !important; }
+  .bg-green-50  { background-color: rgb(5 46 22 / 0.4) !important; }
+  .bg-green-100 { background-color: rgb(5 46 22 / 0.55) !important; }
+  .bg-emerald-50  { background-color: rgb(2 44 34 / 0.4) !important; }
+  .bg-emerald-100 { background-color: rgb(2 44 34 / 0.55) !important; }
+  .bg-teal-50   { background-color: rgb(4 47 46 / 0.4) !important; }
+  .bg-teal-100  { background-color: rgb(4 47 46 / 0.55) !important; }
+  .bg-blue-50   { background-color: rgb(23 37 84 / 0.4) !important; }
+  .bg-blue-100  { background-color: rgb(23 37 84 / 0.55) !important; }
+  .bg-sky-50    { background-color: rgb(8 47 73 / 0.4) !important; }
+  .bg-sky-100   { background-color: rgb(8 47 73 / 0.55) !important; }
+  .bg-indigo-50 { background-color: rgb(30 27 75 / 0.4) !important; }
+  .bg-indigo-100{ background-color: rgb(30 27 75 / 0.55) !important; }
+  .bg-purple-50 { background-color: rgb(59 7 100 / 0.4) !important; }
+  .bg-purple-100{ background-color: rgb(59 7 100 / 0.55) !important; }
+  .bg-pink-50   { background-color: rgb(80 7 36 / 0.4) !important; }
+  .bg-pink-100  { background-color: rgb(80 7 36 / 0.55) !important; }
+  .bg-gray-50   { background-color: rgb(17 24 39 / 0.4) !important; }
+  .bg-gray-100  { background-color: rgb(17 24 39 / 0.55) !important; }
+  .bg-slate-50  { background-color: rgb(15 23 42 / 0.4) !important; }
+  .bg-slate-100 { background-color: rgb(15 23 42 / 0.55) !important; }
+
+  /* Textes foncés → textes clairs (préservent la teinte) */
+  .text-red-700, .text-red-800, .text-red-900       { color: rgb(252 165 165) !important; }
+  .text-red-600                                      { color: rgb(248 113 113) !important; }
+  .text-orange-700, .text-orange-800, .text-orange-900 { color: rgb(253 186 116) !important; }
+  .text-orange-600                                   { color: rgb(251 146 60) !important; }
+  .text-amber-700, .text-amber-800, .text-amber-900 { color: rgb(252 211 77) !important; }
+  .text-amber-600                                    { color: rgb(251 191 36) !important; }
+  .text-yellow-700, .text-yellow-800, .text-yellow-900 { color: rgb(253 224 71) !important; }
+  .text-yellow-600                                   { color: rgb(250 204 21) !important; }
+  .text-green-700, .text-green-800, .text-green-900 { color: rgb(134 239 172) !important; }
+  .text-green-600                                    { color: rgb(74 222 128) !important; }
+  .text-emerald-700, .text-emerald-800, .text-emerald-900 { color: rgb(110 231 183) !important; }
+  .text-teal-700, .text-teal-800, .text-teal-900    { color: rgb(94 234 212) !important; }
+  .text-blue-700, .text-blue-800, .text-blue-900    { color: rgb(147 197 253) !important; }
+  .text-blue-600                                     { color: rgb(96 165 250) !important; }
+  .text-sky-700, .text-sky-800, .text-sky-900       { color: rgb(125 211 252) !important; }
+  .text-indigo-700, .text-indigo-800, .text-indigo-900 { color: rgb(165 180 252) !important; }
+  .text-purple-700, .text-purple-800, .text-purple-900 { color: rgb(216 180 254) !important; }
+  .text-pink-700, .text-pink-800, .text-pink-900    { color: rgb(249 168 212) !important; }
+  .text-gray-700, .text-gray-800, .text-gray-900    { color: rgb(229 231 235) !important; }
+  .text-slate-700, .text-slate-800, .text-slate-900 { color: rgb(226 232 240) !important; }
+
+  /* Bordures pâles → bordures plus visibles */
+  .border-red-200, .border-red-300       { border-color: rgb(127 29 29 / 0.6) !important; }
+  .border-orange-200, .border-orange-300 { border-color: rgb(124 45 18 / 0.6) !important; }
+  .border-amber-200, .border-amber-300   { border-color: rgb(120 53 15 / 0.6) !important; }
+  .border-yellow-200, .border-yellow-300 { border-color: rgb(113 63 18 / 0.6) !important; }
+  .border-green-200, .border-green-300   { border-color: rgb(20 83 45 / 0.6) !important; }
+  .border-emerald-200, .border-emerald-300 { border-color: rgb(6 78 59 / 0.6) !important; }
+  .border-teal-200, .border-teal-300     { border-color: rgb(19 78 74 / 0.6) !important; }
+  .border-blue-200, .border-blue-300     { border-color: rgb(30 58 138 / 0.6) !important; }
+  .border-sky-200, .border-sky-300       { border-color: rgb(7 89 133 / 0.6) !important; }
+  .border-indigo-200, .border-indigo-300 { border-color: rgb(49 46 129 / 0.6) !important; }
+  .border-purple-200, .border-purple-300 { border-color: rgb(88 28 135 / 0.6) !important; }
+  .border-pink-200, .border-pink-300     { border-color: rgb(131 24 67 / 0.6) !important; }
+  .border-gray-200, .border-gray-300     { border-color: rgb(55 65 81 / 0.6) !important; }
 }

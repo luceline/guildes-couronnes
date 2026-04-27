@@ -595,7 +595,7 @@ export default function AdminPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
         <div className="text-6xl">🚫</div>
-        <h2 className="font-heading text-2xl font-bold">Accès refusé</h2>
+        <h2 className="font-heading text-2xl font-bold heading-medieval">Accès refusé</h2>
         <p className="text-muted-foreground font-body">Vous n'avez pas les droits administrateur.</p>
       </div>
     );
@@ -605,7 +605,7 @@ export default function AdminPage() {
     <div className="space-y-6 pb-20 md:pb-0">
       <div className="flex items-center gap-3">
         <div>
-          <h2 className="font-heading text-2xl font-bold">⚙️ Panneau Administrateur</h2>
+          <h2 className="font-heading text-2xl font-bold heading-medieval">⚙️ Panneau Administrateur</h2>
           <p className="text-muted-foreground font-body text-sm">Contrôle total sur le jeu.</p>
         </div>
         <Badge className="bg-red-100 text-red-800 border-red-200">Admin</Badge>

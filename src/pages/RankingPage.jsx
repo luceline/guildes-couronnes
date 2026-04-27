@@ -47,7 +47,7 @@ export default function RankingPage({ profile }) {
       {profile && <PlayerStatusBar profile={profile} homeCity={homeCity} />}
 
       <div>
-        <h2 className="font-heading text-2xl font-bold">🏆 Classements</h2>
+        <h2 className="font-heading text-2xl font-bold heading-medieval">🏆 Classements</h2>
         <p className="text-muted-foreground font-body text-sm mt-1">
           Villes les plus prospères et joueurs les plus actifs du royaume.
         </p>

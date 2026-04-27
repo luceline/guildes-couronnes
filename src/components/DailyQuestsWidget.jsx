@@ -56,11 +56,33 @@ export default function DailyQuestsWidget({ profile, city }) {
     const all = await base44.entities.PlayerObjective.filter({
       player_email: profile.user_email,
     });
+
     // Garder uniquement les quêtes du jour, sans les contrats
-    const todayQuests = all.filter(q => {
-      if (q.parchemin_type) return false; // exclure les contrats
-      return isToday(q);
-    }).slice(-6); // garder les 6 plus récentes
+    const todayAll = all.filter(q => !q.parchemin_type && isToday(q));
+
+    // ── Auto-dédoublonnage en DB (anti-bug multi-reset) ──
+    // Si > 6 quêtes pour aujourd'hui, on supprime le surplus pour éviter
+    // que les hooks Production/Travel/Market itèrent sur des doublons.
+    // Priorité de conservation : complétées d'abord, puis les plus anciennes.
+    let todayQuests = todayAll;
+    if (todayAll.length > 6) {
+      const completed = todayAll.filter(q => q.status === "completed");
+      const others = todayAll.filter(q => q.status !== "completed")
+        .sort((a, b) => (a.created || a.created_date || "").localeCompare(b.created || b.created_date || ""));
+      const keep = [...completed];
+      const slotsLeft = Math.max(0, 6 - keep.length);
+      keep.push(...others.slice(0, slotsLeft));
+
+      const keepIds = new Set(keep.map(q => q.id));
+      const toDelete = todayAll.filter(q => !keepIds.has(q.id));
+      // Suppression best-effort, on ne bloque pas l'affichage si ça plante
+      Promise.all(toDelete.map(q =>
+        base44.entities.PlayerObjective.delete(q.id).catch(() => {})
+      ));
+      todayQuests = keep;
+      console.warn(`[DailyQuestsWidget] Anti-doublons : ${todayAll.length} → ${keep.length} quêtes (${toDelete.length} supprimées en DB)`);
+    }
+
     setQuests(todayQuests);
     setLoading(false);
     return todayQuests;
@@ -70,6 +92,19 @@ export default function DailyQuestsWidget({ profile, city }) {
     if (!profile || generating) return;
     setGenerating(true);
     try {
+      // ── Verrou anti-double génération ──
+      // On vérifie une dernière fois en DB avant de créer pour éviter qu'un autre
+      // appel concurrent (ou un re-mount du composant) ne génère un 2e lot.
+      const fresh = await base44.entities.PlayerObjective.filter({
+        player_email: profile.user_email,
+      }).catch(() => []);
+      const existingToday = fresh.filter(q => !q.parchemin_type && isToday(q));
+      if (existingToday.length > 0) {
+        // Quêtes déjà présentes : on les charge et on s'arrête
+        await loadQuests();
+        return;
+      }
+
       const ecoRes = await base44.entities.EconomySettings.filter({ setting_key: "global" }).catch(() => []);
       const ecoSettings = ecoRes[0] || {};
       const newQuests = generatePlayerObjectives(profile, profile.home_city_id || profile.city_id, ecoSettings);

@@ -1,49 +1,41 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
-import { checkAndRunDailyReset } from "../../lib/dailyReset";
 
 export default function DailyResetManager() {
   const [resets, setResets] = useState([]);
-  const [running, setRunning] = useState(false);
 
   useEffect(() => { load(); }, []);
 
   async function load() {
-    const r = await base44.entities.DailyReset.list("-created_date", 10);
-    setResets(r);
-  }
-
-  async function forceReset() {
-    if (!window.confirm("Forcer un reset quotidien maintenant ? Cela déclenchera taxes, maintenance, etc.")) return;
-    setRunning(true);
     try {
-      const user = await base44.auth.me();
-      // Supprimer le verrou du jour pour forcer le reset
-      const records = await base44.entities.DailyReset.list("-created_date", 1);
-      if (records[0]?.status === "done" || records[0]?.status === "running") {
-        await base44.entities.DailyReset.update(records[0].id, { status: "pending", reset_date: "force" });
-      }
-      await checkAndRunDailyReset(user?.email || "admin");
+      const r = await base44.entities.DailyReset.list("-created_date", 10);
+      setResets(r);
     } catch (e) {
-      toast.error("Erreur : " + e.message);
+      console.warn("DailyResetManager load:", e);
     }
-    setRunning(false);
-    load();
   }
 
-  const statusColor = (s) => s === "done" ? "bg-green-100 text-green-800" : s === "running" ? "bg-blue-100 text-blue-800" : "bg-yellow-100 text-yellow-800";
+  const statusColor = (s) =>
+    s === "done"    ? "bg-green-100 text-green-800"
+    : s === "running" ? "bg-blue-100 text-blue-800"
+    : "bg-yellow-100 text-yellow-800";
 
   const lastReset = resets[0];
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader><CardTitle className="font-heading text-lg">🔄 Reset quotidien</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+        <CardHeader>
+          <CardTitle className="font-heading text-lg">🔄 Reset quotidien</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs font-body text-muted-foreground">
+            Le reset quotidien est exécuté automatiquement par un cron côté serveur, tous les jours à <strong>6h UTC</strong> (= 8h heure française).
+            Aucune intervention manuelle n'est nécessaire ni possible depuis cette interface.
+          </p>
+
           {lastReset ? (
             <div className="bg-muted/40 rounded-lg p-3 font-body text-sm space-y-1">
               <div className="flex items-center gap-2">
@@ -57,32 +49,33 @@ export default function DailyResetManager() {
                 </div>
               )}
               {lastReset.triggered_by && (
-                <div className="text-xs text-muted-foreground">Déclenché par : {lastReset.triggered_by}</div>
+                <div className="text-xs text-muted-foreground">
+                  Déclenché par : {lastReset.triggered_by}
+                </div>
               )}
             </div>
           ) : (
             <p className="text-muted-foreground font-body text-sm">Aucun reset enregistré.</p>
           )}
-
-          <Button onClick={forceReset} disabled={running} variant="destructive" className="font-heading">
-            {running ? "Reset en cours..." : "⚡ Forcer le reset maintenant"}
-          </Button>
-          <p className="text-xs text-muted-foreground font-body">
-            ⚠️ Le reset déclenche : impôts, entretien logements, bâtiments, intérêts, objectifs, reset fatigue/faim.
-          </p>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="font-heading text-sm">📜 Historique des resets (10 derniers)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="font-heading text-sm">📜 Historique des resets (10 derniers)</CardTitle>
+        </CardHeader>
         <CardContent className="space-y-2">
-          {resets.map(r => (
-            <div key={r.id} className="flex items-center justify-between text-sm font-body border-b pb-1 last:border-0">
-              <span>{r.reset_date}</span>
-              <span className="text-xs text-muted-foreground">{r.triggered_by || "—"}</span>
-              <Badge className={statusColor(r.status)}>{r.status}</Badge>
-            </div>
-          ))}
+          {resets.length === 0 ? (
+            <p className="text-xs font-body text-muted-foreground">Aucun reset enregistré pour le moment.</p>
+          ) : (
+            resets.map(r => (
+              <div key={r.id} className="flex items-center justify-between text-sm font-body border-b pb-1 last:border-0">
+                <span>{r.reset_date}</span>
+                <span className="text-xs text-muted-foreground">{r.triggered_by || "—"}</span>
+                <Badge className={statusColor(r.status)}>{r.status}</Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

@@ -16,28 +16,8 @@ import { BUILDING_TYPES } from "@/lib/gameData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-
-// ── Types de transactions côté ville (revenus / dépenses trésorerie) ──
-const TX_LABELS = {
-  taxe_marche:     { icon: "📊", label: "Taxe marché",         side: "in" },
-  impot:           { icon: "💸", label: "Impôt journalier",    side: "in" },
-  peage:           { icon: "🏰", label: "Péage",               side: "in" },
-  vente:           { icon: "🏪", label: "Vente marché",        side: "in" },
-  achat:           { icon: "🛒", label: "Achat marché",        side: "out" },
-  rachat_entrepot: { icon: "📦", label: "Rachat entrepôt",     side: "out" },
-  rachat_t2t3:     { icon: "📦", label: "Rachat entrepôt T2/T3", side: "out" },
-  pret:            { icon: "🏦", label: "Prêt accordé",        side: "out" },
-  remboursement:   { icon: "💳", label: "Remboursement reçu",  side: "in" },
-  depot:           { icon: "🏦", label: "Dépôt reçu",         side: "in" },
-  retrait_depot:   { icon: "💰", label: "Retrait dépôt",       side: "out" },
-  logement:        { icon: "🏠", label: "Logement",            side: "in" },
-  maire:           { icon: "👑", label: "Investiture maire",   side: "in" },
-  demenagement:    { icon: "🚚", label: "Déménagement",        side: "in" },
-  salaire_maire:   { icon: "👑", label: "Salaire maire",       side: "out" },
-  salaire_resident:{ icon: "🎖️", label: "Salaire résident",   side: "out" },
-  entretien:       { icon: "🔧", label: "Entretien bâtiment",  side: "out" },
-  objectif:        { icon: "🎯", label: "Récompense quête",    side: "out" },
-};
+import { getTxLabel, CITY_IN_TYPES, CITY_OUT_TYPES, TRANSACTION_TYPES, toCityAmount } from "@/lib/transactionTypes";
+import { PROFESSION_EMOJIS } from "@/lib/objectiveGenerator";
 
 // ── Ressources entrepôt avec noms et icônes ──
 const WAREHOUSE_ITEMS = {
@@ -65,7 +45,8 @@ export default function MaireDashboard({ city, profile, players = [] }) {
   const [transactions, setTransactions] = useState([]);
   const [warehouseLogs, setWarehouseLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState("24h"); // "24h" | "7j"
+  const [period, setPeriod] = useState("24h"); // "24h" | "48h" | "7j"
+  const [expandedType, setExpandedType] = useState(null); // type déplié dans le résumé
 
   useEffect(() => {
     if (!city?.id) return;
@@ -75,19 +56,22 @@ export default function MaireDashboard({ city, profile, players = [] }) {
   async function loadTransactions() {
     setLoading(true);
     try {
-      const hours = period === "24h" ? 24 : 168;
+      const hours = period === "24h" ? 24 : period === "48h" ? 48 : 168;
       const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-      // Transactions or
-      const txs = await base44.entities.GoldTransaction.filter({ city_id: city.id }, "-id", 200);
+      // Transactions or — on ne garde QUE celles qui affectent la trésorerie de la ville
+      // (flux joueur-joueur comme vente/achat/vols/quêtes/banque sont exclus)
+      const txs = await base44.entities.GoldTransaction.filter({ city_id: city.id }, "-created", 200);
       const filtered = txs
-        .filter(t => new Date(t.created || t.created_date || 0) >= new Date(since))
-        .sort((a, b) => new Date(b.created || b.created_date || 0) - new Date(a.created || a.created_date || 0));
+        .filter(t => new Date(t.created || t.created_date || t.created_at || 0) >= new Date(since))
+        .filter(t => {
+          const meta = TRANSACTION_TYPES[t.type];
+          return meta && (meta.side === "in" || meta.side === "out");
+        });
       setTransactions(filtered);
       // Logs entrepôt
-      const wlogs = await base44.entities.WarehouseLog.filter({ city_id: city.id }, "-id", 300);
+      const wlogs = await base44.entities.WarehouseLog.filter({ city_id: city.id }, "-created", 300);
       const wfiltered = wlogs
-        .filter(l => new Date(l.created || l.created_date || 0) >= new Date(since))
-        .sort((a, b) => new Date(b.created || b.created_date || 0) - new Date(a.created || a.created_date || 0));
+        .filter(l => new Date(l.created || l.created_date || 0) >= new Date(since));
       setWarehouseLogs(wfiltered);
     } catch (e) {
       console.warn("MaireDashboard load:", e);
@@ -96,13 +80,14 @@ export default function MaireDashboard({ city, profile, players = [] }) {
   }
 
   // ── Calculs trésorerie ──
-  // Les transactions city_id incluent les flux joueurs ET ville
-  // On considère comme "entrée ville" les types qui renflouent la trésorerie
-  const cityInTypes  = new Set(["taxe_marche", "impot", "peage", "logement", "maire", "demenagement", "remboursement", "depot"]);
-  const cityOutTypes = new Set(["rachat_entrepot", "rachat_t2t3", "pret", "retrait_depot", "salaire_maire", "salaire_resident", "entretien", "objectif"]);
-
-  const cityIn  = transactions.filter(t => cityInTypes.has(t.type) && t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  const cityOut = transactions.filter(t => cityOutTypes.has(t.type) && t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  // Les GoldTransaction sont enregistrées du point de vue joueur ; on convertit
+  // en montant "côté ville" via toCityAmount (inverse le signe sauf exception).
+  let cityIn = 0, cityOut = 0;
+  for (const t of transactions) {
+    const amt = toCityAmount(t);
+    if (amt > 0) cityIn += amt;
+    else if (amt < 0) cityOut += Math.abs(amt);
+  }
   const netBilan = cityIn - cityOut;
 
   // ── Entrepôt ──
@@ -164,9 +149,9 @@ export default function MaireDashboard({ city, profile, players = [] }) {
       daysLeftByKey[k] = Math.floor((warehouse[k] || 0) / cost);
     }
   }
-  // Pour les T1 avec entretien bâtiment mais pas en stock → 0 jours
-  for (const k of Object.keys(maintenanceDaily)) {
-    if ((maintenanceDaily[k] || 0) > 0 && (warehouse[k] || 0) === 0) {
+  // Pour les ressources avec entretien bâtiment mais pas en stock → 0 jours
+  for (const k of Object.keys(dailyCostByKey)) {
+    if ((dailyCostByKey[k] || 0) > 0 && (warehouse[k] || 0) === 0) {
       daysLeftByKey[k] = 0;
     }
   }
@@ -180,12 +165,12 @@ export default function MaireDashboard({ city, profile, players = [] }) {
     return "green";
   };
 
-  // ── Grouper les transactions par type pour le résumé ──
+  // ── Grouper les transactions par type pour le résumé (montant côté ville) ──
   const txByType = {};
   for (const tx of transactions) {
     if (!txByType[tx.type]) txByType[tx.type] = { count: 0, total: 0 };
     txByType[tx.type].count++;
-    txByType[tx.type].total += tx.amount || 0;
+    txByType[tx.type].total += toCityAmount(tx);
   }
 
   const formatTime = (dateStr) => {
@@ -205,7 +190,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
           👑 Tableau de bord du maire
         </h3>
         <div className="flex gap-1">
-          {["24h", "7j"].map(p => (
+          {["24h", "48h", "7j"].map(p => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -251,7 +236,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
         </Card>
       </div>
 
-      {/* ── Résumé par type de transaction ── */}
+      {/* ── Résumé par type de transaction (lignes dépliables) ── */}
       {Object.keys(txByType).length > 0 && (
         <Card>
           <CardHeader className="pb-2">
@@ -262,16 +247,44 @@ export default function MaireDashboard({ city, profile, players = [] }) {
               {Object.entries(txByType)
                 .sort((a, b) => Math.abs(b[1].total) - Math.abs(a[1].total))
                 .map(([type, { count, total }]) => {
-                  const meta = TX_LABELS[type] || { icon: "💱", label: type, side: total >= 0 ? "in" : "out" };
+                  const meta = getTxLabel(type);
                   const isPositive = total >= 0;
+                  const isExpanded = expandedType === type;
+                  const detailTxs = transactions.filter(t => t.type === type);
                   return (
-                    <div key={type} className="flex items-center gap-2 text-xs font-body">
-                      <span className="w-5 text-center">{meta.icon}</span>
-                      <span className="flex-1 text-muted-foreground">{meta.label}</span>
-                      <Badge variant="outline" className="text-xs font-body">{count}×</Badge>
-                      <span className={`font-heading font-semibold w-20 text-right ${isPositive ? "text-green-600" : "text-red-600"}`}>
-                        {isPositive ? "+" : ""}{total} 💰
-                      </span>
+                    <div key={type} className="rounded-md border border-transparent hover:border-border transition-colors">
+                      <button
+                        type="button"
+                        className="w-full flex items-center gap-2 text-xs font-body px-1.5 py-1 cursor-pointer hover:bg-muted/40 rounded"
+                        onClick={() => setExpandedType(isExpanded ? null : type)}
+                      >
+                        <span className="w-3 text-center text-muted-foreground">{isExpanded ? "▾" : "▸"}</span>
+                        <span className="w-5 text-center">{meta.icon}</span>
+                        <span className="flex-1 text-left text-muted-foreground">{meta.label}</span>
+                        <Badge variant="outline" className="text-xs font-body">{count}×</Badge>
+                        <span className={`font-heading font-semibold w-20 text-right ${isPositive ? "text-green-600" : "text-red-600"}`}>
+                          {isPositive ? "+" : ""}{total} 💰
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div className="ml-8 mr-1 mb-2 mt-1 space-y-0.5 max-h-56 overflow-y-auto pr-1 border-l-2 border-muted pl-2">
+                          {detailTxs.map((tx, i) => {
+                            const cityAmt = toCityAmount(tx);
+                            const isPos = cityAmt >= 0;
+                            return (
+                              <div key={i} className="flex items-center gap-2 text-[10px] font-body py-0.5">
+                                <span className="text-muted-foreground/70 shrink-0">{formatTime(tx.created || tx.created_date)}</span>
+                                <span className="flex-1 truncate text-muted-foreground">{tx.player_name || tx.description || ""}</span>
+                                {cityAmt !== 0 && (
+                                  <span className={`font-heading shrink-0 ${isPos ? "text-green-600" : "text-red-600"}`}>
+                                    {isPos ? "+" : ""}{cityAmt}💰
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -418,53 +431,12 @@ export default function MaireDashboard({ city, profile, players = [] }) {
             <div className="space-y-1">
               {residents.map(r => (
                 <div key={r.id} className="flex items-center gap-2 text-xs font-body bg-muted/30 rounded px-2 py-1">
-                  <span>{r.profession ? { Bûcheron:"🌲", Mineur:"⛏️", Fermier:"🌾", Tisserand:"🧵", Forgeron:"⚒️", Alchimiste:"🧪", Orfèvre:"💎", Marchand:"💼" }[r.profession] || "👤" : "👤"}</span>
+                  <span>{r.profession ? PROFESSION_EMOJIS[r.profession] || "👤" : "👤"}</span>
                   <span className="flex-1 font-semibold">{r.character_name || r.user_email}</span>
                   <span className="text-muted-foreground">{r.profession || "—"}</span>
                   <span className="text-amber-600 font-semibold">{r.gold || 0} 💰</span>
                 </div>
               ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── Journal transactions détaillé ── */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="font-heading text-sm flex items-center justify-between">
-            <span>📜 Journal de la ville ({period})</span>
-            <button onClick={loadTransactions} className="text-xs text-muted-foreground hover:text-foreground font-body underline underline-offset-2">🔄</button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-xs text-muted-foreground text-center py-4 font-body">Chargement...</p>
-          ) : transactions.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4 font-body">Aucune transaction sur cette période.</p>
-          ) : (
-            <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-              {transactions.map((tx, i) => {
-                const meta = TX_LABELS[tx.type] || { icon: "💱", label: tx.type };
-                const isPos = (tx.amount || 0) >= 0;
-                return (
-                  <div key={i} className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2 text-xs font-body">
-                    <span className="w-5 text-center shrink-0">{meta.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate">{meta.label}</div>
-                      <div className="text-muted-foreground truncate">{tx.player_name || tx.description || ""}</div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      {tx.amount !== 0 && (
-                        <div className={`font-heading font-bold ${isPos ? "text-green-600" : "text-red-600"}`}>
-                          {isPos ? "+" : ""}{tx.amount} 💰
-                        </div>
-                      )}
-                      <div className="text-muted-foreground">{formatTime(tx.created || tx.created_date)}</div>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           )}
         </CardContent>

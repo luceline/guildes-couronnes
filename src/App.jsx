@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/toaster"
+import { Toaster as SonnerToaster } from "@/components/ui/sonner"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
@@ -24,6 +25,13 @@ import QuestesPage from './pages/QuestesPage';
 import InventairePage from './pages/InventairePage';
 import ItemsExportPage from './pages/ItemsExportPage';
 import RankingPageWrapper from './pages/RankingPageWrapper';
+import CombatPage from './pages/CombatPage';
+import landscapeBg from './assets/landscape.jpg';
+
+// Injection de l'image de fond paysage en variable CSS (utilisée dans index.css)
+if (typeof document !== 'undefined') {
+  document.documentElement.style.setProperty('--landscape-bg', `url(${landscapeBg})`);
+}
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, showLoginForm, setShowLoginForm } = useAuth();
@@ -67,6 +75,7 @@ const AuthenticatedApp = () => {
         <Route path="/quetes" element={<QuestesPage />} />
         <Route path="/inventaire" element={<InventairePage />} />
         <Route path="/ranking" element={<RankingPageWrapper />} />
+        <Route path="/combat" element={<CombatPage />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>
@@ -85,6 +94,7 @@ function App() {
           <SystemMessageBanner />
           <AuthenticatedApp />
           <Toaster />
+          <SonnerToaster />
         </Router>
       </QueryClientProvider>
     </AuthProvider>

@@ -5,22 +5,15 @@ import { Button } from "@/components/ui/button";
 import PatchnoteModal from "../components/PatchnoteModal";
 import { Badge } from "@/components/ui/badge";
 import PlayerStatusBar from "../components/PlayerStatusBar";
-import { PROFESSIONS, HOUSING } from "../lib/gameData";
+import HelpTooltip from "../components/HelpTooltip";
+import { PROFESSIONS, HOUSING, HOUSING_MAINTENANCE, getFatigueRegenInterval } from "../lib/gameData";
 import { activateVacationMode, cancelVacationMode, isOnVacation, isVacationExpiringSoon } from "../lib/inactivityCheck";
 import MusicPlayer from "../components/MusicPlayer";
 import PlayerLevelBadge from "../components/PlayerLevelBadge";
 import { toast } from "sonner";
+import { logGold } from '@/lib/goldLog';
 
 
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
 
 export default function Profile({ profile, city, homeCity, cities = [], onRefresh }) {
   const [upgrading, setUpgrading] = useState(false);
@@ -141,15 +134,43 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
   };
 
   if (!profile) return null;
-
   const housingOrder = ["tente", "cabane", "maison", "manoir"];
   const currentIdx = housingOrder.indexOf(profile.housing_level || "tente");
   const moveTargetCity = moveConfirm ? liveCities.find(c => c.id === moveConfirm) : null;
   const sellPrice = Math.floor((HOUSING[profile.housing_level || "tente"].cost || 0) * 0.6);
 
+  // Affichage textuel de l'intervalle de régen pour un logement
+  const formatRegenInterval = (lvl) => {
+    const ms = getFatigueRegenInterval(lvl);
+    if (ms === 3600000) return "1h";
+    if (ms === 3000000) return "50min";
+    if (ms === 2400000) return "40min";
+    if (ms === 1800000) return "30min";
+    return `${Math.round(ms / 60000)}min`;
+  };
+
+  // Texte d'infobulle complet pour un logement
+  const housingTooltip = (lvl) => {
+    const h = HOUSING[lvl];
+    const maint = HOUSING_MAINTENANCE[lvl] || 0;
+    const interval = formatRegenInterval(lvl);
+    const lines = [
+      `${h.icon} ${h.name}`,
+      `📦 Capacité d'inventaire : ${h.capacity} unités`,
+      `🍽️ Bonus faim max : +${h.hungerBonus}`,
+      `⚡ Bonus énergie max : +${h.fatigueBonus}`,
+      `⏰ Régénération auto : +1 faim ou énergie aléatoire toutes les ${interval} (plafond 5/15)`,
+      maint > 0
+        ? `🔧 Entretien quotidien : ${maint} 💰${lvl === "manoir" ? " (-30% avec un meuble)" : ""}`
+        : `🔧 Entretien : gratuit`,
+    ];
+    if (h.cost > 0) lines.push(`💰 Coût d'achat : ${h.cost} or (détruit, anti-inflation)`);
+    return lines.join("\n\n");
+  };
+
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} />
+      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
 
       {/* Niveau du joueur */}
       <PlayerLevelBadge profile={liveProfile} variant="full" />
@@ -163,6 +184,7 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {housingOrder.map((key, idx) => {
               const h = HOUSING[key];
+              const maint = HOUSING_MAINTENANCE[key] || 0;
               const isCurrent = key === (profile.housing_level || "tente");
               const canUpgrade = idx === currentIdx + 1;
               return (
@@ -172,16 +194,17 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
                     isCurrent ? "border-primary bg-primary/5" : "border-border"
                   }`}
                 >
-                  <span className="text-3xl">{h.icon}</span>
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="text-3xl">{h.icon}</span>
+                    <HelpTooltip text={housingTooltip(key)} side="bottom" />
+                  </div>
                   <div className="font-heading text-sm font-semibold mt-1">{h.name}</div>
                   <div className="text-xs text-muted-foreground font-body space-y-0.5 mt-1">
-                    <div>📦 Capacité : {h.capacity} unités</div>
-                    <div>⚡ Énergie max : {h.maxFatigue}</div>
-                    {key === "cabane"  && <div>🔧 Entretien : 3 💰/jour</div>}
-                    {key === "maison"  && <div>🔧 Entretien : 12 💰/jour</div>}
-                    {key === "manoir"  && <div>🔧 Entretien : 45 💰/jour (-30% avec meuble)</div>}
+                    <div>🍽️ +{h.hungerBonus} faim · ⚡ +{h.fatigueBonus} énergie</div>
+                    <div>⏰ Régen toutes les {formatRegenInterval(key)}</div>
+                    {maint > 0 && <div>🔧 Entretien : {maint} 💰/jour{key === "manoir" ? " (-30% meuble)" : ""}</div>}
                   </div>
-                  {h.cost > 0 && <div className="text-xs text-amber-600 font-body mt-1 font-semibold">{h.cost} 💰 (or détruit)</div>}
+                  {h.cost > 0 && <div className="text-xs text-amber-600 font-body mt-1 font-semibold">{h.cost} 💰 à l'achat</div>}
                   {isCurrent && <Badge className="mt-1">Actuel</Badge>}
                   {canUpgrade && !upgrading && (
                     <>
@@ -199,6 +222,7 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
           </div>
         </CardContent>
       </Card>
+
 
       {/* Déménager */}
       <Card>

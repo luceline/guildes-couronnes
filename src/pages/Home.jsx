@@ -27,7 +27,7 @@ function ProfessionMigration({ profile, onComplete }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-background">
+    <div className="min-h-screen flex items-center justify-center p-6">
       <div className="max-w-md w-full space-y-6 text-center">
         <div className="text-5xl mb-2">⚒️</div>
         <h2 className="text-2xl font-bold font-heading">Réorientation professionnelle</h2>
@@ -64,9 +64,13 @@ export default function Home() {
     const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
     if (profiles.length > 0) {
       let p = profiles[0];
-      
-      // Regen faim + énergie (centralisé)
-      p = await applyHungerRegen(p);
+
+      // Regen faim + énergie (centralisé) — on charge la ville pour bénéficier de Fontaine/Hospice
+      let homeCity = null;
+      if (p.home_city_id) {
+        homeCity = await base44.entities.City.get(p.home_city_id).catch(() => null);
+      }
+      p = await applyHungerRegen(p, homeCity);
 
       // Mettre à jour last_active_at
       updateLastActive(p.id);
@@ -117,7 +121,7 @@ export default function Home() {
     <>
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
       <PatchnoteModal />
-      <Dashboard profile={profile} city={city} homeCity={homeCity} onShowTutorial={() => setShowTutorial(true)} />
+      <Dashboard profile={profile} city={city} homeCity={homeCity} onShowTutorial={() => setShowTutorial(true)} onProfileUpdate={loadProfile} />
     </>
   );
 }

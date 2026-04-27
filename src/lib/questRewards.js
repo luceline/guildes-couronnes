@@ -25,7 +25,7 @@ const todayStr = () => new Date().toISOString().split('T')[0];
  * Compatible avec created_date (PocketBase) et quest_date (champ custom).
  */
 export function isTodayQuest(obj) {
-  const d = obj?.created_date || obj?.quest_date || '';
+  const d = obj?.quest_date || obj?.created_date || '';
   return d.startsWith(todayStr());
 }
 
@@ -56,8 +56,13 @@ export async function checkAndAwardObjective({ obj, addedQty, profile, city = nu
   // La quête ne doit pas être déjà complétée
   if (obj.status === 'completed') return { completed: true, reward: 0 };
 
-  const newQty = (obj.current_quantity || 0) + addedQty;
-  const completed = newQty >= (obj.target_quantity || 1);
+  // GET frais de la quête pour éviter les race conditions (clics rapides)
+  const freshObj = await base44.entities.PlayerObjective.get(obj.id).catch(() => null);
+  if (!freshObj) return { completed: false, reward: 0 };
+  if (freshObj.status === 'completed') return { completed: true, reward: 0 };
+
+  const newQty = (freshObj.current_quantity || 0) + addedQty;
+  const completed = newQty >= (freshObj.target_quantity || obj.target_quantity || 1);
 
   await base44.entities.PlayerObjective.update(obj.id, {
     current_quantity: newQty,

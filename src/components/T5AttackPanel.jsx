@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
+import { applyRandomActionCost } from "../lib/gameData";
 import HelpTooltip from "./HelpTooltip";
 
 const EFFECT_MAP = {
   huile_inflammable:   { effect: "disable_building",          counterBuilding: "caserne",           effectValue: { duration: 1 },         description: "🏚️ Détruit 1 bâtiment aléatoire" },
   poudre_corrosive:    { effect: "destroy_warehouse_stock",   counterBuilding: "entrepot_fortifie", effectValue: { min: 10, max: 20 },    description: "📦 Détruit 80% d'une ressource aléatoire de l'entrepôt" },
-  festin_empoisonne:   { effect: "hunger_regen_fatigue_drain",counterBuilding: "hospice",           effectValue: { value: 5, duration: 2 },description: "☠️ Récupération faim coûte 5⚡ supplémentaires (2j)" },
+  festin_empoisonne:   { effect: "hunger_regen_fatigue_drain",counterBuilding: "hospice",           effectValue: { value: 5, duration: 2 },description: "☠️ Manger soigne la faim mais coûte 5⚡ par usage (2j)" },
   faux_contrat:        { effect: "blind_travel",              counterBuilding: "guilde_marchands",  effectValue: { duration: 2 },         description: "👁️ Destinations des routes inconnues (2j)" },
   cle_forgee:          { effect: "steal_treasury",            counterBuilding: "coffre_fort",       effectValue: { min: 0.20, max: 0.20 },description: "🏦 Vole 20% de la trésorerie" },
   elixir_discorde:     { effect: "redirect_taxes",            counterBuilding: "scriptorium",       effectValue: { duration: 2 },         description: "💰 Taxes détournées vers votre ville (2j)" },
@@ -57,8 +58,10 @@ export default function T5AttackPanel({ profile, city, onRefresh }) {
       toast.error("Sélectionnez une ville cible.");
       return;
     }
-    if ((profile.hunger || 0) < 1) {
-      toast.error("🍽️ Pas assez de faim pour attaquer.");
+    // Système unifié faim/énergie : tirage aléatoire 1 point
+    const costResult = applyRandomActionCost(profile, 1);
+    if (!costResult.ok) {
+      toast.error(costResult.errorMessage);
       return;
     }
     // Limite : 1 attaque T5 par joueur par ville cible par jour
@@ -116,7 +119,8 @@ export default function T5AttackPanel({ profile, city, onRefresh }) {
       };
       await base44.entities.PlayerProfile.update(profile.id, {
         inventory: newInv,
-        hunger: Math.max(0, (profile.hunger || 0) - 1),
+        hunger:  costResult.newHunger,
+        fatigue: costResult.newFatigue,
         competitive_cooldowns: newCooldowns,
         cumul_t5_envoyes: (profile.cumul_t5_envoyes || 0) + 1,
       });

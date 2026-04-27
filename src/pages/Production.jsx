@@ -12,8 +12,10 @@ import {
   MAX_HUNGER, HUNGER_WARNING_THRESHOLD, HUNGER_FOOD_ITEMS,
   EQUIPMENT_KEYS, EQUIPMENT_MAX_DURABILITY, EQUIPMENT_DURABILITY,
   FATIGUE_REGEN_INTERVAL_MS, getFatigueRegenInterval,
-  TIER_ACTION_COST, PARCHEMIN_REWARDS,
+  TIER_ACTION_COST, PARCHEMIN_REWARDS, applyRandomActionCost, getMaxHunger,
+  getCityHungerBonus, getCityFatigueBonus, getFestinHungerDrain,
 } from "../lib/gameData";
+import { logGold } from '@/lib/goldLog';
 import { getPriceMultiplier } from "../lib/pricingData";
 import {
   PROFESSION_PRODUCTION, CRAFTING_RECIPES, ITEMS, ITEM_EFFECTS,
@@ -24,21 +26,15 @@ import { getTodayPvpRecipes } from "../lib/pvpRecipes";
 import { OBJECTIVE_TEMPLATES, QUEST_TEMPLATES } from "../lib/objectiveGenerator";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { toast } from "sonner";
+import GameModal from "../components/GameModal";
 import ItemTooltip from "../components/ItemTooltip";
 import HelpTooltip from "../components/HelpTooltip";
 import AtelierVitrine from "../components/AtelierVitrine";
+import UpgradeWorkshopPanel from "../components/UpgradeWorkshopPanel";
+import InventoryPanel from "../components/InventoryPanel";
 import { getPlayerLevelBonuses } from "../lib/playerLevelSystem";
 
 
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
 
 export default function Production({ profile, city, homeCity, onRefresh }) {
   const [objectives, setObjectives] = useState([]);
@@ -58,10 +54,12 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     }).catch(() => {});
   }, []);
   const [producing, setProducing] = useState(null);
+  const [coupDeMaitre, setCoupDeMaitre] = useState(null);
+  const [travelingError, setTravelingError] = useState(false);
   const [crafting, setCrafting] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [confirmConsume, setConfirmConsume] = useState(null); // { type: "food"|"temp"|"meuble"|"contrat", key, def }
   const [consumingFood, setConsumingFood] = useState(null);
-  const regenInProgress = useRef(false);
   const egliseActionCounter = useRef(0);
 
   const fonderieLevels = cityBuildings.filter(b => b.building_type === "fonderie").length;
@@ -83,56 +81,36 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     grande_place:cityBuildings.some(b => b.building_type === "grande_place"),
     palais:      cityBuildings.some(b => b.building_type === "palais"),
   };
-  const effectiveMaxHunger = MAX_HUNGER + (buildingBonuses.universite ? 2 : 0);
+  // Bonus ville (Cathédrale, Université) appliqués aux max
+  const cityHungerBonus  = getCityHungerBonus(cityBuildings);
+  const cityFatigueBonus = getCityFatigueBonus(cityBuildings);
+  const effectiveMaxHunger = getMaxHunger(profile || {}, cityHungerBonus);
 
   const [localFatigue, setLocalFatigue] = useState(null);
   const [localHunger, setLocalHunger] = useState(null);
 
   useEffect(() => {
     if (!profile) return;
-    const maxFat = getMaxFatigue(profile);
+    const maxFat = getMaxFatigue(profile, cityFatigueBonus);
     const fatigue = profile.fatigue ?? maxFat;
     setLocalFatigue(fatigue);
-  }, [profile?.id, profile?.fatigue]);
+  }, [profile?.id, profile?.fatigue, cityFatigueBonus]);
 
   useEffect(() => {
     if (!profile) return;
     if (profile.hunger !== undefined && profile.hunger !== null) {
       setLocalHunger(profile.hunger);
     } else if (localHunger === null) {
-      setLocalHunger(MAX_HUNGER);
-      base44.entities.PlayerProfile.update(profile.id, { hunger: MAX_HUNGER });
+      const maxH = getMaxHunger(profile, cityHungerBonus);
+      setLocalHunger(maxH);
+      base44.entities.PlayerProfile.update(profile.id, { hunger: maxH });
     }
-  }, [profile?.id, profile?.hunger]);
+  }, [profile?.id, profile?.hunger, cityHungerBonus]);
 
-
-  // Regen faim via Fontaine : +2/h supplémentaires (regen passive de base : +1/h toujours active)
-  useEffect(() => {
-    if (!profile) return;
-    if (!buildingBonuses.fontaine) return; // Fontaine requise pour regen passive
-    if (regenInProgress.current) return;
-    const hunger = localHunger ?? (profile.hunger ?? MAX_HUNGER);
-    if (hunger >= MAX_HUNGER) return;
-    const lastRegen = profile.hunger_regen_at ? new Date(profile.hunger_regen_at).getTime() : 0;
-    if (Date.now() < lastRegen + 3600000) return; // 1h avec Fontaine
-
-    regenInProgress.current = true;
-    const regenAmount = 2; // Fontaine = +2/h
-    const effMax = MAX_HUNGER + (buildingBonuses.universite ? 2 : 0);
-    const newHunger = Math.min(effMax, hunger + regenAmount);
-    setLocalHunger(newHunger);
-    base44.entities.PlayerProfile.update(profile.id, {
-      hunger: newHunger,
-      hunger_regen_at: new Date().toISOString(),
-    }).then(() => {
-      regenInProgress.current = false;
-      onRefresh?.();
-    }).catch(() => { regenInProgress.current = false; });
-  }, [profile?.id, now, buildingBonuses.fontaine]);
+  // NB : la régen Fontaine est désormais gérée par applyHungerRegen (×2 vitesse) — pas de useEffect ici.
 
   const today = getTodayStr();
-  const cathedraleFatigueBonus = buildingBonuses.cathedrale ? 10 : 0;
-  const maxFatigue = getMaxFatigue(profile || {}, cathedraleFatigueBonus);
+  const maxFatigue = getMaxFatigue(profile || {}, cityFatigueBonus);
   const currentFatigue = localFatigue ?? computeFatigueWithDailyReset(profile || {}, maxFatigue).fatigue;
   const currentHunger = localHunger ?? (profile?.hunger ?? MAX_HUNGER);
 
@@ -141,43 +119,71 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   const maxWeight = baseMaxWeight + (buildingBonuses.bibliotheque ? 30 : 0) + (buildingBonuses.grande_place ? 20 : 0);
   const weightFull = currentWeight >= maxWeight;
 
-  const actualFatigueCost = currentHunger < HUNGER_WARNING_THRESHOLD
-    ? ACTION_FATIGUE_COST + 1
-    : ACTION_FATIGUE_COST;
-
-  // Coût réel affiché pour une recette (farm ou craft)
+  // Coût total d'une action selon le tier (système unifié faim+énergie aléatoire)
+  // Bonus profession-bâtiment : Moulin pour Fermier, Laboratoire pour Alchimiste réduisent de 1
   const getRecipeCost = (tier, isFarm = false) => {
-    const base = TIER_ACTION_COST?.[tier] || { hunger: 1, fatigue: 1 };
-    const moulinFermier = buildingBonuses.moulin && profile?.profession === "Fermier";
+    const baseCost = TIER_ACTION_COST?.[tier] || 1;
+    const moulinFermier  = buildingBonuses.moulin       && profile?.profession === "Fermier";
     const laboAlchimiste = buildingBonuses.laboratoire && profile?.profession === "Alchimiste";
-    const hungerPenalty = currentHunger < HUNGER_WARNING_THRESHOLD ? 1 : 0;
-    const fat = Math.max(0, base.fatigue - (moulinFermier ? 1 : 0)) + hungerPenalty;
-    const hun = Math.max(0, base.hunger - (laboAlchimiste ? 1 : 0));
-    return { fatigue: fat, hunger: hun };
+    const reduction = (moulinFermier ? 1 : 0) + (laboAlchimiste ? 1 : 0);
+    return Math.max(1, baseCost - reduction);
   };
 
 
   const handleEatForHunger = async (itemKey) => {
     const hungerDef = HUNGER_FOOD_ITEMS[itemKey];
     if (!hungerDef) return;
-    if (currentHunger >= MAX_HUNGER) { toast("🍽️ Vous n'avez pas faim !"); return; }
-    const invItem = (profile.inventory || []).find(i => i.item_key === itemKey || i.item_name === hungerDef.label);
+
+    const maxHungerVal = getMaxHunger(profile, cityHungerBonus);
+
+    if (currentHunger >= maxHungerVal) {
+      toast("🍽️ Vous n'avez pas faim !"); return;
+    }
+
+    const invItem = (profile.inventory || []).find(i => i.item_key === itemKey || i.item_name === hungerDef?.label);
     if (!invItem || invItem.quantity <= 0) { toast.error("Vous n'avez plus cet aliment !"); return; }
+
     setConsumingFood(itemKey + "_hunger");
-    const newHunger = Math.min(MAX_HUNGER, currentHunger + hungerDef.hunger_restore);
-    setLocalHunger(newHunger);
-    const itemData = ITEMS[itemKey];
-    const fatBonus = itemData?.fatigue_restore || 0;
-    const newFatFromFood = fatBonus > 0 ? Math.min(maxFatigue, currentFatigue + fatBonus) : null;
-    if (newFatFromFood !== null) setLocalFatigue(newFatFromFood);
+
     const newInventory = (profile.inventory || [])
-      .map(i => (i.item_key === itemKey || i.item_name === hungerDef.label) ? { ...i, quantity: i.quantity - 1 } : i)
+      .map(i => (i.item_key === itemKey || i.item_name === hungerDef?.label) ? { ...i, quantity: i.quantity - 1 } : i)
       .filter(i => i.quantity > 0);
-    const upd = { hunger: newHunger, inventory: newInventory };
-    if (newFatFromFood !== null) { upd.fatigue = newFatFromFood; }
+
+    const newHunger = Math.min(maxHungerVal, currentHunger + hungerDef.hunger_restore);
+    const upd = { inventory: newInventory, hunger: newHunger };
+    setLocalHunger(newHunger);
+    const msgs = [`+${hungerDef.hunger_restore}🍽️`];
+
+    // Festin empoisonné actif sur la ville → drain énergie supplémentaire
+    const festinDrain = getFestinHungerDrain(city);
+    if (festinDrain > 0) {
+      const newFat = Math.max(0, currentFatigue - festinDrain);
+      upd.fatigue = newFat;
+      setLocalFatigue(newFat);
+      msgs.push(`☠️ −${festinDrain}⚡ (festin empoisonné)`);
+    }
+
+    // Bonus énergie de certains aliments
+    const fatBonus = ITEMS[itemKey]?.fatigue_restore || 0;
+    if (fatBonus > 0) {
+      const fatBase = upd.fatigue ?? currentFatigue;
+      const newFat = Math.min(maxFatigue, fatBase + fatBonus);
+      upd.fatigue = newFat;
+      setLocalFatigue(newFat);
+      msgs.push(`+${fatBonus}⚡`);
+    }
+
+    // XP reward (pain, ragoût, ...)
+    const itemDef = ITEMS[itemKey];
+    if (itemDef?.xp_reward) {
+      const freshPxp = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
+      const currentXp = freshPxp?.player_xp_total ?? profile.player_xp_total ?? 0;
+      upd.player_xp_total = currentXp + itemDef.xp_reward;
+      msgs.push(`+${itemDef.xp_reward} XP`);
+    }
+
     await base44.entities.PlayerProfile.update(profile.id, upd);
-    const bonusMsg = fatBonus > 0 ? ` +${fatBonus}⚡` : "";
-    toast.success(`${hungerDef.icon} ${hungerDef.label} mangé ! +${hungerDef.hunger_restore}🍽️${bonusMsg}`);
+    toast.success(`${hungerDef?.icon || '🍽️'} ${msgs.join(' · ')} !`);
     setConsumingFood(null);
     onRefresh?.();
   };
@@ -286,15 +292,16 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     if (foodKey === "potion_endur") {
       if (profile.profession === "Fermier") {
         // +2 faim pour le Fermier
-        if (currentHunger >= MAX_HUNGER) { toast("🍽️ Vous n'avez pas faim !"); return; }
+        const maxH = getMaxHunger(profile, cityHungerBonus);
+        if (currentHunger >= maxH) { toast("🍽️ Vous n'avez pas faim !"); return; }
         setConsumingFood(foodKey);
-        const newHunger = Math.min(MAX_HUNGER, currentHunger + 2);
+        const newHunger = Math.min(maxH, currentHunger + 2);
         setLocalHunger(newHunger);
         const newInventory = (profile.inventory || [])
           .map(i => (i.item_key === foodKey || i.item_name === foodDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
           .filter(i => i.quantity > 0);
         await base44.entities.PlayerProfile.update(profile.id, { hunger: newHunger, inventory: newInventory });
-        toast.success(`💪 Potion d'endurance bue ! +2🍽️ faim (${newHunger}/${MAX_HUNGER})`);
+        toast.success(`💪 Potion d'endurance bue ! +2🍽️ faim (${newHunger}/${maxH})`);
         setConsumingFood(null);
         onRefresh?.();
         return;
@@ -312,7 +319,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const xpUpdates = { fatigue: newFatigue, inventory: newInventory };
     if (foodDef.xp_reward) {
       const freshPxp = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-      xpUpdates.player_xp_total = (freshPxp?.player_xp_total || 0) + foodDef.xp_reward;
+      const currentXp = freshPxp?.player_xp_total ?? profile.player_xp_total ?? 0;
+      xpUpdates.player_xp_total = currentXp + foodDef.xp_reward;
     }
     // ── Buff biome harvest bonus pour les T1 fatigue_restore (herbes) ──
     const itemDefFatigue = ITEMS[foodKey];
@@ -380,13 +388,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       updates.energy_max_bonus_expires_at = expiresAt;
       updates.energy_max_bonus_value = itemDef.value;
 
-    } else if (itemDef.effect === "attack_bonus") {
-      updates.attack_bonus_expires_at = expiresAt;
-      updates.attack_bonus_value = itemDef.value || 1;
-
-    } else if (itemDef.effect === "defense_bonus") {
-      updates.defense_bonus_expires_at = expiresAt;
-      updates.defense_bonus_value = itemDef.value || 2;
+    } else if (itemDef.effect === "biome_buff_only") {
+      // pierre, laine_brute : aucun effet à la consommation hors buff biome
+      // (le buff biome est géré plus bas dans le flux T1 biome harvest)
 
     } else if (itemDef.effect === "double_prod_bonus") {
       // Charbon T2 : +10% chance double prod cumulable
@@ -412,6 +416,14 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         const freshP2 = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
         updates.gold = (freshP2?.gold || profile.gold || 0) + gambleGold;
         toast.success(`${itemDef.icon} ${gambleGold > gambleMax * 0.6 ? "📖 Votre ouvrage fait fureur !" : gambleGold > 20 ? "📖 Succès modeste..." : "📖 Un flop, hélas..."} +${gambleGold} 💰 · −${Math.round(itemDef.value * 100)}% prochain voyage`);
+        try {
+          await base44.entities.GoldTransaction.create({
+            player_email: profile.user_email, player_name: profile.character_name || '',
+            city_id: city?.id || '', city_name: city?.name || '',
+            amount: gambleGold, type: 'objectif',
+            description: `Gamble ${itemDef.name || itemDef.key} : +${gambleGold}💰 (max ${gambleMax})`,
+          });
+        } catch (_) {}
       } else {
         toast(`📖 Votre livre est resté dans les cartons... Personne n'a mordu. −${Math.round(itemDef.value * 100)}% prochain voyage tout de même.`);
       }
@@ -429,17 +441,31 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
     } else if (itemDef.effect === "hunger_restore") {
       // Farine : +5 faim
-      const currentHunger = profile.hunger ?? MAX_HUNGER;
-      updates.hunger = Math.min(MAX_HUNGER, currentHunger + (itemDef.value || 5));
+      const maxH = getMaxHunger(profile, cityHungerBonus);
+      const currentHungerLoc = profile.hunger ?? maxH;
+      updates.hunger = Math.min(maxH, currentHungerLoc + (itemDef.value || 5));
+      // Festin empoisonné actif → drain énergie
+      const festinDrain = getFestinHungerDrain(city);
+      if (festinDrain > 0) {
+        const fatBase = profile.fatigue ?? maxFatigue;
+        updates.fatigue = Math.max(0, fatBase - festinDrain);
+      }
 
     } else if (itemDef.effect === "hunger_and_regen") {
       // Pain / Ragoût : +x faim + regen
-      const currentHunger = profile.hunger ?? MAX_HUNGER;
-      updates.hunger = Math.min(MAX_HUNGER, currentHunger + (itemDef.value || 5));
+      const maxH = getMaxHunger(profile, cityHungerBonus);
+      const currentHungerLoc = profile.hunger ?? maxH;
+      updates.hunger = Math.min(maxH, currentHungerLoc + (itemDef.value || 5));
       if (expiresAt) {
         updates.hunger_regen_bonus_expires_at = expiresAt;
         updates.hunger_regen_interval_min = itemDef.regen_interval_min || 10;
         updates.hunger_regen_value = itemDef.regen_value || 1;
+      }
+      // Festin empoisonné actif → drain énergie
+      const festinDrain = getFestinHungerDrain(city);
+      if (festinDrain > 0) {
+        const fatBase = profile.fatigue ?? maxFatigue;
+        updates.fatigue = Math.max(0, fatBase - festinDrain);
       }
 
     } else if (itemDef.effect === "fatigue_and_regen") {
@@ -453,24 +479,13 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         updates.energy_regen_interval_min = itemDef.regen_interval_min || 5;
         updates.energy_regen_value = itemDef.regen_value || 1;
       }
-      // Bonus défense si défini sur l'item (potion de soin T3 : +2 def 6h)
-      if (itemDef.defense_bonus) {
-        const defExpires = new Date(now.getTime() + (itemDef.defense_bonus_h || 6) * 3600000).toISOString();
-        updates.defense_bonus_expires_at = defExpires;
-        updates.defense_bonus_value = itemDef.defense_bonus;
+      // Restauration PV (potion de soin T3 : +5 PV, potion d'endurance T4 : +10 PV)
+      if (itemDef.hp_restore) {
+        const newHp = Math.min(10, (profile.hp ?? 10) + itemDef.hp_restore);
+        updates.hp = newHp;
       }
 
     } else if (itemDef.effect === "market_tax_discount") {
-      // passif en inventaire — si consommé manuellement : +def temporaire (quartz poli T2)
-      if (itemDef.defense_bonus) {
-        const defExpires = new Date(now.getTime() + (itemDef.defense_bonus_h || 6) * 3600000).toISOString();
-        updates.defense_bonus_expires_at = defExpires;
-        updates.defense_bonus_value = itemDef.defense_bonus;
-        toast.success(`💠 Cristal brisé ! +${itemDef.defense_bonus} défense vol pendant ${itemDef.defense_bonus_h || 6}h`);
-        await base44.entities.PlayerProfile.update(profile.id, updates);
-        onRefresh?.();
-        return;
-      }
       // Quartz brut T1 : si buff biome actif, activer le harvest bonus
       if (itemDef.biome_profession && itemDef.biome_key) {
         const biomeBuffActiveQz = profile.biome_cooldown_bonus_expires_at &&
@@ -579,9 +594,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   const farmRecipes = PROFESSION_PRODUCTION[profile?.profession] || [];
 
   const handleFarm = async (recipe) => {
-    if (profile.is_traveling) { toast.error("🐴 Votre monture avance — on ne forge pas en chemin !"); return; }
-    if (currentHunger <= 0) { toast.error("🍽️ Votre ventre crie famine — nul artisan ne travaille à jeun. Mangez d'abord !"); return; }
-    if (currentFatigue < actualFatigueCost) { toast.error("⚡ Vos bras ne répondent plus — reposez-vous à la taverne ou mangez pour reprendre des forces."); return; }
+    if (profile.is_traveling) { setTravelingError(true); return; }
+    // NB : check faim/énergie effectué par applyRandomActionCost plus bas (avec toast).
     if (wouldExceedCapacity(profile, recipe.quantity)) {
       toast.error(`📦 Votre besace déborde ! (${currentWeight}/${maxWeight}) Allégez votre charge avant de produire davantage.`);
       return;
@@ -643,7 +657,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         biomeDoubleChanceProd > 0 ? `biome` : null,
         charbonBonus          > 0 ? `charbon` : null,
       ].filter(Boolean).join(" + ");
-      toast.success(`🎲 Coup de maître ! +${doubleBonus} ${item?.name || recipe.name} en bonus ! (${sources})`, { duration: 4000 });
+      setCoupDeMaitre({ qty: doubleBonus, itemName: item?.name || recipe.name, sources });
     }
     // Biome harvest bonus T1 (timer 5min — indépendant du double prod)
     let biomeHarvestBonus = 0;
@@ -677,18 +691,24 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
     const newCooldowns = { ...(profile.production_cooldowns || {}), [recipe.id]: new Date().toISOString() };
     const recipeTier = recipe.tier || (ITEMS[recipe.outputKey]?.tier) || 1;
-    const tierCost = TIER_ACTION_COST?.[recipeTier] || { hunger: 1, fatigue: 1 };
-    // Moulin (Fermier) : -1 fatigue par action (ne se cumule pas avec le palier)
-    const moulinFermier = buildingBonuses.moulin && profile.profession === "Fermier";
-    // Laboratoire (Alchimiste) : -1 faim par action (ne se cumule pas avec le palier)
+    const baseCost = TIER_ACTION_COST?.[recipeTier] || 1;
+    // Moulin (Fermier) : -1 par action ; Laboratoire (Alchimiste) : -1 par action ; Église (skip ½ actions) : -1
+    const moulinFermier  = buildingBonuses.moulin       && profile.profession === "Fermier";
     const laboAlchimiste = buildingBonuses.laboratoire && profile.profession === "Alchimiste";
     egliseActionCounter.current += 1;
     const egliseSkip = buildingBonuses.eglise && egliseActionCounter.current % 2 === 0;
-    const hungerCost = Math.max(0, tierCost.hunger - (laboAlchimiste ? 1 : 0) - (egliseSkip ? 1 : 0));
-    const fatigueCost = Math.max(0, tierCost.fatigue - (moulinFermier ? 1 : 0));
-    const newFatigue = Math.max(0, currentFatigue - fatigueCost);
+    const reduction = (moulinFermier ? 1 : 0) + (laboAlchimiste ? 1 : 0) + (egliseSkip ? 1 : 0);
+    const actionCost = Math.max(0, baseCost - reduction);
+
+    // Système unifié : tirage aléatoire faim/énergie via applyRandomActionCost
+    const costResult = applyRandomActionCost({ ...profile, hunger: currentHunger, fatigue: currentFatigue }, actionCost, { cityFatigueBonus, cityHungerBonus });
+    if (!costResult.ok) {
+      toast.error(costResult.errorMessage);
+      return;
+    }
+    const newFatigue = costResult.newFatigue;
+    const newHunger  = costResult.newHunger;
     setLocalFatigue(newFatigue);
-    const newHunger = Math.max(0, currentHunger - hungerCost);
     setLocalHunger(newHunger);
 
     let newToolCharges = profile.tool_charges || 0;
@@ -712,6 +732,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       fatigue: newFatigue,
       tool_charges: newToolCharges,
       hunger: newHunger,
+      ...(newHunger < (profile.hunger ?? 10) ? { hunger_regen_at: new Date().toISOString() } : {}),
+      ...(newFatigue < (profile.fatigue ?? 80) ? { fatigue_regen_at: new Date().toISOString() } : {}),
     });
     // ── Mise à jour des objectifs produce via checkAndAwardObjective ──
     for (const obj of filterTodayActiveObjectives(objectives, "produce")) {
@@ -729,7 +751,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const bonusDesc = [bonusQty > 0 ? `+${bonusQty} ville` : null, buildingQtyBonus > 0 ? `+${buildingQtyBonus} bâtiment` : null, biomeBonusQty > 0 ? `+${biomeBonusQty} biome ⭐` : null].filter(Boolean).join(", ");
     let msg = `✅ ${totalQty}× ${itemName} récoltés !${bonusDesc ? ` (${bonusDesc})` : ""}`;
     if (newHunger <= 0) msg += " 🍽️ Vous avez faim !";
-    else if (newHunger < HUNGER_WARNING_THRESHOLD) msg += ` 🍽️ Faim : ${newHunger}/${MAX_HUNGER} — mangez bientôt !`;
+    else if (newHunger < HUNGER_WARNING_THRESHOLD) msg += ` 🍽️ Faim : ${newHunger}/${getMaxHunger(profile, cityHungerBonus)} — mangez bientôt !`;
     toast.success(msg);
     setProducing(null);
     onRefresh?.();
@@ -738,8 +760,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
   const handleCraft = async (recipe) => {
     if (profile.is_traveling) { toast.error("🐴 Impossible de fabriquer pendant un voyage !"); return; }
-    if (currentHunger <= 0) { toast.error("🍽️ Votre ventre crie famine — nul artisan ne travaille à jeun. Mangez d'abord !"); return; }
-    if (currentFatigue < actualFatigueCost) { toast.error("⚡ Vos bras ne répondent plus — reposez-vous à la taverne ou mangez pour reprendre des forces."); return; }
+    // NB : check faim/énergie effectué par applyRandomActionCost plus bas (avec toast).
 
     // ── Vérification équipement requis par tier ──
     const outputTier = ITEMS[recipe.output.key]?.tier || 1;
@@ -813,7 +834,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         biomeDoubleChanceCraft  > 0 ? `biome` : null,
         charbonBonusCraft       > 0 ? `charbon` : null,
       ].filter(Boolean).join(" + ");
-      toast.success(`🎲 Coup de maître ! +${doubleBonusCraft} ${ITEMS[recipe.output.key]?.name || recipe.name} en bonus ! (${sources})`, { duration: 4000 });
+      setCoupDeMaitre({ qty: doubleBonusCraft, itemName: ITEMS[recipe.output.key]?.name || recipe.name, sources });
     }
 
     const totalQty = recipe.output.quantity + forgeBonusQty + cityBonusQty + doubleBonusCraft;
@@ -843,18 +864,41 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
     const cleanInv = inv.filter(i => i.quantity > 0);
     const craftTier = ITEMS[recipe.output?.key]?.tier || 1;
-    const craftTierCost = TIER_ACTION_COST?.[craftTier] || { hunger: 1, fatigue: 1 };
-    // Moulin (Fermier) : -1 fatigue par action de craft
-    const moulinFermierCraft = buildingBonuses.moulin && profile.profession === "Fermier";
-    // Laboratoire (Alchimiste) : -1 faim par action de craft
+
+    // ── Bonus Encre : si pending_t2_to_t1_bonus actif et qu'on craft un T2,
+    //    on ajoute 1× le 1er input T1 du recipe, et on consomme le flag.
+    let encreBonusConsumed = false;
+    if (profile.pending_t2_to_t1_bonus && craftTier === 2) {
+      const firstT1Input = recipe.inputs.find(inp => (ITEMS[inp.key]?.tier || 1) === 1);
+      if (firstT1Input) {
+        const t1Item = ITEMS[firstT1Input.key];
+        const existing = cleanInv.find(i => i.item_key === firstT1Input.key || i.item_name === t1Item?.name);
+        if (existing) existing.quantity += 1;
+        else cleanInv.push({ item_key: firstT1Input.key, item_name: t1Item.name, item_category: t1Item.category, quantity: 1 });
+        encreBonusConsumed = true;
+      }
+    }
+
+    const baseCraftCost = TIER_ACTION_COST?.[craftTier] || 1;
+    const moulinFermierCraft  = buildingBonuses.moulin       && profile.profession === "Fermier";
     const laboAlchimisteCraft = buildingBonuses.laboratoire && profile.profession === "Alchimiste";
     egliseActionCounter.current += 1;
     const egliseSkipCraft = buildingBonuses.eglise && egliseActionCounter.current % 2 === 0;
-    const hungerCostCraft = Math.max(0, craftTierCost.hunger - (laboAlchimisteCraft ? 1 : 0) - (egliseSkipCraft ? 1 : 0));
-    const fatigueCostCraft = Math.max(0, craftTierCost.fatigue - (moulinFermierCraft ? 1 : 0));
-    const newFatigue = Math.max(0, currentFatigue - fatigueCostCraft);
+    const reductionCraft = (moulinFermierCraft ? 1 : 0) + (laboAlchimisteCraft ? 1 : 0) + (egliseSkipCraft ? 1 : 0);
+    const craftActionCost = Math.max(0, baseCraftCost - reductionCraft);
+
+    const craftCostResult = applyRandomActionCost(
+      { ...profile, hunger: currentHunger, fatigue: currentFatigue },
+      craftActionCost,
+      { cityFatigueBonus, cityHungerBonus }
+    );
+    if (!craftCostResult.ok) {
+      toast.error(craftCostResult.errorMessage);
+      return;
+    }
+    const newFatigue = craftCostResult.newFatigue;
+    const newHunger  = craftCostResult.newHunger;
     setLocalFatigue(newFatigue);
-    const newHunger = Math.max(0, currentHunger - hungerCostCraft);
     setLocalHunger(newHunger);
 
     let newToolCharges = profile.tool_charges || 0;
@@ -875,8 +919,18 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       fatigue: newFatigue,
       tool_charges: newToolCharges,
       hunger: newHunger,
+      ...(newHunger < (profile.hunger ?? 10) ? { hunger_regen_at: new Date().toISOString() } : {}),
+      ...(newFatigue < (profile.fatigue ?? 80) ? { fatigue_regen_at: new Date().toISOString() } : {}),
       production_cooldowns: { ...(profile.production_cooldowns || {}), [recipe.id]: new Date().toISOString() },
+      ...(encreBonusConsumed ? { pending_t2_to_t1_bonus: false } : {}),
     });
+
+    if (encreBonusConsumed) {
+      const t1Input = recipe.inputs.find(inp => (ITEMS[inp.key]?.tier || 1) === 1);
+      if (t1Input) {
+        toast.success(`🖋️ Encre : +1 ${ITEMS[t1Input.key]?.name} bonus !`, { duration: 4000 });
+      }
+    }
 
     const bonusDesc = [
       forgeBonusQty   > 0 ? `+${forgeBonusQty} Forge`       : null,
@@ -888,7 +942,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     else toast.success(`⚒️ ${totalQty}× ${outItem.name} fabriqués !`);
 
     if (newHunger <= 0) toast.warning("🍽️ Vous avez faim ! Mangez avant de continuer.");
-    else if (newHunger < HUNGER_WARNING_THRESHOLD) toast(`🍽️ Faim : ${newHunger}/${MAX_HUNGER} — mangez bientôt !`);
+    else if (newHunger < HUNGER_WARNING_THRESHOLD) toast(`🍽️ Faim : ${newHunger}/${getMaxHunger(profile, cityHungerBonus)} — mangez bientôt !`);
 
     // ── Mise à jour des objectifs produce via checkAndAwardObjective ──
     for (const obj of filterTodayActiveObjectives(objectives, "produce")) {
@@ -921,6 +975,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   if (!profile) return null;
   const prof = PROFESSIONS[profile.profession];
 
+  const maxHungerVal = getMaxHunger(profile, cityHungerBonus);
+
+  // Items de faim disponibles dans l'inventaire
   const hungerFoodAvailable = Object.entries(HUNGER_FOOD_ITEMS).filter(([key, def]) =>
     (profile.inventory || []).some(i => (i.item_key === key || i.item_name === def.label) && i.quantity > 0)
   );
@@ -943,262 +1000,62 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} />
+      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
       <div>
-        <h2 className="font-heading text-2xl font-bold mb-1">{prof?.icon} Production — {profile.profession}</h2>
+        <h2 className="font-heading text-2xl font-bold mb-1 heading-medieval">{prof?.icon} Production — {profile.profession}</h2>
         <p className="text-muted-foreground font-body text-sm">Récoltez des ressources brutes, puis transformez-les en objets de valeur.</p>
       </div>
 
+      {/* Section Actions rapides — pas de duplication des jauges ni des boutons Manger (déjà dans PlayerStatusBar)
+          On garde ici uniquement les actions contextuelles à la production :
+          - Sceau royal actif
+          - Outils & avertissement T1 si bloqué */}
       {(() => {
-        const fatiguePct = (currentFatigue / maxFatigue) * 100;
-        const hungerPct = (currentHunger / MAX_HUNGER) * 100;
-        const foodInInventory = FOOD_ITEMS_WITH_FATIGUE.filter(f =>
-          (profile.inventory || []).some(i => (i.item_key === f.key || i.item_name === f.name) && i.quantity > 0)
-          && !ITEMS[f.key]?.hunger_restore
-        );
+        const showSceau = (profile.sceau_balance || 0) > 0;
+        const showT1Warning = hungryBlocked;
+        const showToolsWarning = (profile.tool_charges || 0) === 0;
+
+        if (!showSceau && !showT1Warning && !showToolsWarning) {
+          return null;
+        }
+
         return (
-          <div className={`rounded-lg border p-4 space-y-3 ${hungryBlocked ? "border-red-400 bg-red-50" : currentFatigue === 0 ? "border-red-400 bg-red-50" : "border-border bg-muted/30"}`}>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-heading font-semibold text-sm flex items-center gap-2">
-                🍽️ Faim
-                <HelpTooltip text="La faim va de 0 à 10. Chaque action coûte 1 faim. En dessous de 3 : +1 énergie par action. À 0 : impossible de travailler. Aucune regen passive — mangez ! Fontaine en ville = +2/h. Consommables : blé +1, farine +5, pain +5 + regen 1/10min, ragoût +10 + regen 1/5min." />
-                  {hungerPenalty && <span className="text-xs text-orange-600 font-body font-normal">⚠️ Fatigue +1 par action</span>}
-                  {hungryBlocked && <span className="text-xs text-red-600 font-body font-normal">⛔ Trop faim pour travailler</span>}
-                </span>
-                <span className="text-sm font-body text-muted-foreground">{currentHunger} / {MAX_HUNGER}</span>
-              </div>
-              <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${hungerPct > 50 ? "bg-green-500" : hungerPct > 20 ? "bg-orange-400" : "bg-red-500"}`}
-                  style={{ width: `${hungerPct}%` }} />
-              </div>
-              {(hungryBlocked || hungerPenalty || currentHunger < MAX_HUNGER) && hungerFoodAvailable.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs text-muted-foreground font-body">Manger pour calmer la faim :</p>
-                  <div className="flex flex-wrap gap-2">
-                    {hungerFoodAvailable.map(([key, def]) => {
-                      const qty = (profile.inventory || []).find(i => i.item_key === key || i.item_name === def.label)?.quantity || 0;
-                      return (
-                        <button key={key} onClick={() => handleEatForHunger(key)}
-                          disabled={consumingFood === key + "_hunger" || currentHunger >= MAX_HUNGER}
-                          className="flex items-center gap-1.5 bg-orange-100 hover:bg-orange-200 border border-orange-300 text-orange-800 text-xs px-2.5 py-1.5 rounded-lg font-body transition-colors disabled:opacity-50">
-                          {def.icon} {def.label} <span className="font-semibold">+{def.hunger_restore}🍽️</span>
-                          <span className="text-orange-600 ml-1">×{qty}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              {currentHunger < HUNGER_WARNING_THRESHOLD && hungerFoodAvailable.length === 0 && (
-                <p className="text-xs text-orange-700 font-body mt-1">
-                  🍽️ Achetez de la nourriture au marché (blé, farine, pain, ragoût) pour calmer votre faim.
-                </p>
-              )}
-              {currentHunger < MAX_HUNGER && !buildingBonuses.fontaine && (
-                <p className="text-xs text-orange-600 font-body mt-1">
-                  ⚠️ Aucune regen passive — achetez de la nourriture ou construisez une <strong>Fontaine</strong> en ville.
-                </p>
-              )}
-              {currentHunger < MAX_HUNGER && buildingBonuses.fontaine && (() => {
-                const lastRegen = profile.hunger_regen_at ? new Date(profile.hunger_regen_at).getTime() : 0;
-                const nextRegen = lastRegen + 3600000;
-                const msLeft = Math.max(0, nextRegen - now);
-                if (msLeft === 0) return (
-                  <p className="text-xs text-green-600 font-body mt-1">⏰ +2 🍽️ disponible (Fontaine) !</p>
-                );
-                const mLeft = Math.floor(msLeft / 60000);
-                const sLeft = Math.floor((msLeft % 60000) / 1000);
-                return (
-                  <p className="text-xs text-muted-foreground font-body mt-1">
-                    ⏰ +2 🍽️ dans {mLeft > 0 ? `${mLeft}m ${sLeft}s` : `${sLeft}s`} (Fontaine)
-                  </p>
-                );
-              })()}
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-heading font-semibold text-sm flex items-center gap-2">⚡ Énergie <HelpTooltip text="L'énergie se dépense à chaque action. Regen selon logement : Tente=+1/1h, Cabane=+1/50min, Maison=+1/40min, Manoir=+1/30min. Récupération rapide : taverne, potions, herbes. Max dépend du logement (tente=20, cabane=45, maison=50, manoir=60). Bonus passifs : Pierre brute +5, Lingots de fer +10." /></span>
-                <span className="text-sm font-body text-muted-foreground">{currentFatigue} / {maxFatigue}</span>
-              </div>
-              <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-500 ${fatiguePct > 60 ? "bg-green-500" : fatiguePct > 30 ? "bg-yellow-500" : "bg-red-500"}`}
-                  style={{ width: `${fatiguePct}%` }} />
-              </div>
-              {currentFatigue === 0 && (
-                <p className="text-xs text-red-600 font-body font-semibold mt-1">⚠️ Épuisé ! Vous ne pouvez plus effectuer d'actions. Mangez ou dormez à la taverne.</p>
-              )}
-            </div>
-
-            {/* Appétit & Forme */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-heading font-semibold text-sm flex items-center gap-2">
-                    🍽️ Appétit
-                    <HelpTooltip text="Perte de 0-2 pts/jour. Chaque point manquant ajoute +10% cooldown. Se remonte avec blé, farine, pain, ragoût." />
-                  </span>
-                  <span className="text-sm font-body text-muted-foreground">{profile?.satiety ?? 10} / 10</span>
-                </div>
-                <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${
-                    (profile?.satiety ?? 10) > 6 ? "bg-amber-500" : (profile?.satiety ?? 10) > 3 ? "bg-orange-400" : "bg-red-500"
-                  }`} style={{ width: `${((profile?.satiety ?? 10) / 10) * 100}%` }} />
-                </div>
-                {(profile?.satiety ?? 10) < 10 && (
-                  <p className="text-xs text-orange-500 font-body mt-1">
-                    ⚠️ +{(10 - (profile?.satiety ?? 10)) * 10}% cooldown
-                  </p>
-                )}
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-heading font-semibold text-sm flex items-center gap-2">
-                    ✨ Forme
-                    <HelpTooltip text="Perte de 0-2 pts/jour. Chaque point manquant réduit l'inventaire de 10%. Se remonte avec herbes, extraits et potions." />
-                  </span>
-                  <span className="text-sm font-body text-muted-foreground">{profile?.vitality ?? 10} / 10</span>
-                </div>
-                <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${
-                    (profile?.vitality ?? 10) > 6 ? "bg-green-500" : (profile?.vitality ?? 10) > 3 ? "bg-orange-400" : "bg-red-500"
-                  }`} style={{ width: `${((profile?.vitality ?? 10) / 10) * 100}%` }} />
-                </div>
-                {(profile?.vitality ?? 10) < 10 && (
-                  <p className="text-xs text-green-600 font-body mt-1">
-                    ⚠️ -{(10 - (profile?.vitality ?? 10)) * 10}% inventaire
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {(hungerPenalty || hungryBlocked) && (
+          <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2.5">
+            {/* Avertissement T1 si faim à 0 */}
+            {showT1Warning && (
               <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-1.5 text-xs font-body text-orange-800">
-                ⚠️ Coût actuel par action T1 : <strong>{getRecipeCost(1).fatigue} ⚡ + {getRecipeCost(1).hunger} 🍽️</strong>
-                {getRecipeCost(2).fatigue !== getRecipeCost(1).fatigue && <span className="text-xs font-body font-normal ml-1">(T2: {getRecipeCost(2).fatigue}⚡+{getRecipeCost(2).hunger}🍽️ · T3: {getRecipeCost(3).fatigue}⚡+{getRecipeCost(3).hunger}🍽️)</span>}
-                {hungerPenalty ? " (pénalité de faim active)" : ""}
+                ⚠️ Faim à 0 — l'énergie sera utilisée. Coût action T1 : <strong>{getRecipeCost(1)} ⚡/🍽️ aléatoire</strong>
+                {getRecipeCost(2) !== getRecipeCost(1) && <span className="font-normal ml-1">(T2: {getRecipeCost(2)} · T3: {getRecipeCost(3)})</span>}
               </div>
             )}
 
-            {(() => {
-              const now = new Date();
-              const bonuses = [];
-              // ── Bonus temporaires ──
-              if (profile?.attack_bonus_expires_at && new Date(profile.attack_bonus_expires_at) > now)
-                bonuses.push({ icon: "⚔️", label: "+1 attaque vol", expires: profile.attack_bonus_expires_at });
-              if (profile?.defense_bonus_expires_at && new Date(profile.defense_bonus_expires_at) > now)
-                bonuses.push({ icon: "🛡️", label: "+1 défense vol", expires: profile.defense_bonus_expires_at });
-              if (profile?.energy_max_bonus_expires_at && new Date(profile.energy_max_bonus_expires_at) > now)
-                bonuses.push({ icon: "⚡", label: `+${profile.energy_max_bonus_value} énergie max`, expires: profile.energy_max_bonus_expires_at });
-              if (profile?.cooldown_bonus_expires_at && new Date(profile.cooldown_bonus_expires_at) > now)
-                bonuses.push({ icon: "⏱️", label: `−${Math.round((profile.cooldown_bonus_value || 0) * 100)}% cooldown`, expires: profile.cooldown_bonus_expires_at });
-              if (profile?.hunger_regen_bonus_expires_at && new Date(profile.hunger_regen_bonus_expires_at) > now)
-                bonuses.push({ icon: "🍞", label: `+${profile.hunger_regen_value || 1} faim/${profile.hunger_regen_interval_min || 10}min`, expires: profile.hunger_regen_bonus_expires_at });
-              if (profile?.energy_regen_bonus_expires_at && new Date(profile.energy_regen_bonus_expires_at) > now)
-                bonuses.push({ icon: "💊", label: `+${profile.energy_regen_value || 1} énergie/${profile.energy_regen_interval_min || 5}min`, expires: profile.energy_regen_bonus_expires_at });
-              // ── Bonus passifs inventaire ──
-              const inv = profile?.inventory || [];
-              if (inv.some(i => i.item_key === "planches" && i.quantity > 0))
-                bonuses.push({ icon: "🪵", label: "−20% cooldown (Planches)", passive: true });
-              if (inv.some(i => i.item_key === "pierre_brute" && i.quantity > 0))
-                bonuses.push({ icon: "🗿", label: "+5 énergie max (Pierre brute)", passive: true });
-              if (inv.some(i => i.item_key === "lingots_fer" && i.quantity > 0))
-                bonuses.push({ icon: "🔩", label: "+10 énergie max (Lingots de fer)", passive: true });
-              if (inv.some(i => i.item_key === "fil" && i.quantity > 0))
-                bonuses.push({ icon: "🧵", label: "+40 inventaire (Fil)", passive: true });
-              if (inv.some(i => i.item_key === "tissu" && i.quantity > 0))
-                bonuses.push({ icon: "🧶", label: "+60 inventaire (Tissu)", passive: true });
-              if (bonuses.length === 0) return null;
-              return (
-                <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 space-y-1">
-                  <p className="text-xs font-heading font-semibold text-indigo-800">✨ Bonus actifs</p>
-                  {bonuses.map((b, i) => {
-                    if (b.passive) return (
-                      <div key={i} className="flex items-center justify-between text-xs font-body text-indigo-700">
-                        <span>{b.icon} {b.label}</span>
-                        <span className="text-indigo-400 italic">passif</span>
-                      </div>
-                    );
-                    const mins = Math.max(0, Math.round((new Date(b.expires) - now) / 60000));
-                    const h = Math.floor(mins / 60), m = mins % 60;
-                    return (
-                      <div key={i} className="flex items-center justify-between text-xs font-body text-indigo-700">
-                        <span>{b.icon} {b.label}</span>
-                        <span className="text-indigo-500">{h > 0 ? `${h}h${m}m` : `${m}min`}</span>
-                      </div>
-                    );
-                  })}
+            {/* Outils si épuisés (avertissement contextuel à la production) */}
+            {showToolsWarning && (
+              <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-body border border-orange-300 bg-orange-50">
+                <div className="flex items-center gap-2">
+                  <span>🔧</span>
+                  <span className="font-semibold text-orange-800">Outils épuisés</span>
+                  <HelpTooltip text="Sans outil actif : cooldown ×2. Fabriquez des Outils (T4 par le Forgeron) pour recharger." />
+                  <span className="text-xs text-orange-700 font-semibold">cooldown ×2</span>
                 </div>
-              );
-            })()}
-
-            {(() => {
-              const weightPct = (currentWeight / maxWeight) * 100;
-              return (
-                <div className={`space-y-1 rounded-lg border px-3 py-2 ${weightFull ? "border-red-300 bg-red-50" : weightPct >= 80 ? "border-orange-300 bg-orange-50" : "border-border bg-background"}`}>
-                  <div className="flex items-center justify-between text-sm font-body">
-                    <span className="font-semibold">📦 Inventaire</span>
-                    <span className={weightFull ? "text-red-600 font-bold" : "text-muted-foreground"}>{currentWeight} / {maxWeight}</span>
-                  </div>
-                  <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${weightFull ? "bg-red-500" : weightPct >= 80 ? "bg-orange-400" : "bg-blue-400"}`}
-                      style={{ width: `${Math.min(weightPct, 100)}%` }} />
-                  </div>
-                  {weightFull && <p className="text-xs text-red-600 font-body font-semibold">⚠️ Inventaire plein ! Vendez des items sur le marché.</p>}
-                  {!weightFull && weightPct >= 80 && <p className="text-xs text-orange-700 font-body">Inventaire presque plein — pensez à vendre.</p>}
-                </div>
-              );
-            })()}
-
-            <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm font-body border ${(profile.tool_charges || 0) === 0 ? "border-orange-300 bg-orange-50" : "border-border bg-background"}`}>
-              <div className="flex items-center gap-2">
-                <span>🔧</span>
-                <span className="font-semibold">Outils</span>
-                <HelpTooltip text="Les Outils (T4, Forgeron) : −30% cooldown production + produire un T3 génère un T2 aléatoire en bonus. Durabilité 5. Sans outil actif : cooldown ×2. Les Planches (T2 passif) donnent aussi −20% cooldown tant qu'en inventaire." />
-                {(profile.tool_charges || 0) === 0 && <span className="text-xs text-orange-700 font-semibold">⚠️ Épuisés — cooldown ×2</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={(profile.tool_charges || 0) === 0 ? "text-orange-600 font-bold" : "text-foreground"}>
-                  {profile.tool_charges || 0} charge{(profile.tool_charges || 0) !== 1 ? "s" : ""}
-                </span>
                 {(() => {
                   const toolsInInventory = (profile.inventory || []).find(i => i.item_key === "outils" || i.item_name === "Outils");
                   return toolsInInventory ? (
-                    <span className="text-xs text-muted-foreground">({toolsInInventory.quantity} set{toolsInInventory.quantity !== 1 ? "s" : ""} en inv.)</span>
+                    <span className="text-xs text-orange-700">({toolsInInventory.quantity} set{toolsInInventory.quantity !== 1 ? "s" : ""} dispo)</span>
                   ) : null;
                 })()}
               </div>
-            </div>
+            )}
 
-            {(profile.sceau_balance || 0) > 0 && (
+            {/* Sceau royal actif */}
+            {showSceau && (
               <div className="flex items-center justify-between rounded-lg px-3 py-2 text-sm font-body border border-amber-300 bg-amber-50">
                 <div className="flex items-center gap-2">
                   <span>🏵️</span>
                   <span className="font-semibold text-amber-900">Sceau royal actif</span>
-                  <HelpTooltip text="Le Sceau royal absorbe automatiquement vos taxes marché et impôts journaliers jusqu'à épuisement du solde. Acheté à la mairie lors d'événements spéciaux." />
+                  <HelpTooltip text="Le Sceau royal absorbe automatiquement vos taxes marché et impôts journaliers jusqu'à épuisement du solde." />
                 </div>
                 <span className="font-bold text-amber-800">{profile.sceau_balance}💰 restants</span>
-              </div>
-            )}
-
-            {foodInInventory.length > 0 && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-body">Consommer pour récupérer de l'énergie :</p>
-                <div className="flex flex-wrap gap-2">
-                  {foodInInventory.map(food => {
-                    const qty = (profile.inventory || []).find(i => i.item_key === food.key || i.item_name === food.name)?.quantity || 0;
-                    return (
-                      <button key={food.key} onClick={() => handleConsumeFood(food.key)}
-                        disabled={consumingFood === food.key || currentFatigue >= maxFatigue}
-                        className="flex items-center gap-1.5 bg-green-100 hover:bg-green-200 border border-green-300 text-green-800 text-xs px-2.5 py-1.5 rounded-lg font-body transition-colors disabled:opacity-50">
-                        {food.icon} {food.name} <span className="font-semibold">+{food.fatigue_restore}⚡</span>
-                        <span className="text-green-600 ml-1">×{qty}</span>
-                      </button>
-                    );
-                  })}
-                </div>
               </div>
             )}
           </div>
@@ -1289,7 +1146,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
               const ready = cooldown <= 0;
               const item = ITEMS[recipe.outputKey];
               const reqsMet = !recipe.requiresItems || recipe.requiresItems.every(req => getInventoryQty(req.key) >= req.quantity);
-              const blocked = hungryBlocked || currentFatigue < actualFatigueCost;
+              const blocked = currentHunger + currentFatigue <= 0;
               const buildingRequired = recipe.requiresBuilding
                 ? !(cityBuildings || []).some(b => b.building_type === recipe.requiresBuilding)
                 : false;
@@ -1303,7 +1160,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                           <div className="font-heading font-semibold cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{recipe.name}</div>
                         </ItemTooltip>
                         <div className="text-xs text-muted-foreground font-body">
-                          Produit ×{recipe.quantity} {item?.name} · coût {getRecipeCost(recipe.tier || 1).fatigue}⚡ + {getRecipeCost(recipe.tier || 1).hunger}🍽️
+                          Produit ×{recipe.quantity} {item?.name} · coût {getRecipeCost(recipe.tier || 1)} ⚡/🍽️
                         </div>
                         {recipe.requiresItems && (
                           <div className="flex flex-wrap gap-1 mt-1">
@@ -1374,7 +1231,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
               {getTodayPvpRecipes().filter(recipe => recipe.profession === profile?.profession).map(recipe => {
                 const possible = canCraft(recipe);
                 const outItem = ITEMS[recipe.output.key];
-                const blocked = hungryBlocked || currentFatigue < actualFatigueCost;
+                const blocked = currentHunger + currentFatigue <= 0;
                 return (
                   <Card key={recipe.id} className={possible && !blocked ? "border-accent/30 bg-accent/5" : "opacity-60"}>
                     <CardContent className="p-4">
@@ -1385,7 +1242,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                             <ItemTooltip recipe={recipe} side="top">
                               <div className="font-heading font-semibold text-sm cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{recipe.name}</div>
                             </ItemTooltip>
-                            <div className="text-xs text-muted-foreground font-body">→ ×{recipe.output.quantity} · {getRecipeCost(1).fatigue}⚡ + {getRecipeCost(1).hunger}🍽️</div>
+                            <div className="text-xs text-muted-foreground font-body">→ ×{recipe.output.quantity} · {getRecipeCost(1)} ⚡/🍽️</div>
                           </div>
                         </div>
                         <Badge className="bg-accent text-accent-foreground text-xs">T1.5 PvP</Badge>
@@ -1406,7 +1263,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                       </div>
                       <Button size="sm" className="w-full font-heading bg-accent hover:bg-accent/90" onClick={() => handleCraft(recipe)}
                         disabled={!possible || crafting === recipe.id || blocked}>
-                        {crafting === recipe.id ? "Fabrication..." : hungryBlocked ? "🍽️ Trop faim" : possible ? "Fabriquer" : "Ressources manquantes"}
+                        {crafting === recipe.id ? "Fabrication..." : hungryBlocked ? "💤 Épuisé" : possible ? "Fabriquer" : "Ressources manquantes"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1422,7 +1279,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
               {CRAFTING_RECIPES.filter(recipe => !recipe.profession || recipe.profession === profile?.profession).map(recipe => {
                 const possible = canCraft(recipe);
                 const outItem = ITEMS[recipe.output.key];
-                const blocked = hungryBlocked || currentFatigue < actualFatigueCost;
+                const blocked = currentHunger + currentFatigue <= 0;
                 const buildingRequired = recipe.requiresBuilding
                   ? !(cityBuildings || []).some(b => b.building_type === recipe.requiresBuilding)
                   : false;
@@ -1438,7 +1295,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                             <ItemTooltip itemKey={recipe.output.key} side="top">
                               <div className="font-heading font-semibold text-sm cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{recipe.name}</div>
                             </ItemTooltip>
-                            <div className="text-xs text-muted-foreground font-body">→ ×{recipe.output.quantity} {outItem?.name} · {getRecipeCost(outItem?.tier || 1).fatigue}⚡ + {getRecipeCost(outItem?.tier || 1).hunger}🍽️</div>
+                            <div className="text-xs text-muted-foreground font-body">→ ×{recipe.output.quantity} {outItem?.name} · {getRecipeCost(outItem?.tier || 1)} ⚡/🍽️</div>
                           </div>
                         </div>
                         <Badge variant={outItem?.tier === 3 ? "default" : "secondary"} className="text-xs">Tier {outItem?.tier}</Badge>
@@ -1465,7 +1322,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                       {!ready && <Progress value={100 - (cooldown / recipe.cooldown) * 100} className="h-1.5 mb-2" />}
                       <Button size="sm" className="w-full font-heading" onClick={() => handleCraft(recipe)}
                         disabled={!possible || crafting === recipe.id || blocked || !ready}>
-                        {crafting === recipe.id ? "Fabrication..." : !ready ? formatCooldown(cooldown) : hungryBlocked ? "🍽️ Trop faim" : possible ? "Fabriquer" : "Ressources manquantes"}
+                        {crafting === recipe.id ? "Fabrication..." : !ready ? formatCooldown(cooldown) : hungryBlocked ? "💤 Épuisé" : possible ? "Fabriquer" : "Ressources manquantes"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1476,123 +1333,16 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         </TabsContent>
 
         <TabsContent value="atelier" className="mt-4">
-          <AtelierVitrine profile={profile} onRefresh={onRefresh} />
+          <div className="space-y-4">
+            <AtelierVitrine profile={profile} onRefresh={onRefresh} />
+            <UpgradeWorkshopPanel profile={profile} city={city} onRefresh={onRefresh} />
+          </div>
         </TabsContent>
 
         <TabsContent value="inventory" className="mt-4">
-          <Card>
-            <CardHeader><CardTitle className="font-heading text-lg">📦 Inventaire complet</CardTitle></CardHeader>
-            <CardContent>
-              {(profile.inventory || []).length === 0 ? (
-                <p className="text-muted-foreground font-body text-sm">Inventaire vide. Commencez par récolter des ressources !</p>
-              ) : (
-                <div className="space-y-2">
-                  {(profile.inventory || []).filter(i => i.quantity > 0).map((item, idx) => {
-                    const data = ITEMS[item.item_key] ||
-                      Object.values(ITEMS).find(d => d.name === item.item_name) ||
-                      ITEMS[item.item_name?.toLowerCase().replace(/ /g, "_")];
-                    const cat = ITEM_CATEGORIES[item.item_category];
-                    const effect = item.item_key ? ITEM_EFFECTS[item.item_key] :
-                      (data ? ITEM_EFFECTS[Object.keys(ITEMS).find(k => ITEMS[k] === data)] : null);
-                    const hungerDef = item.item_key ? HUNGER_FOOD_ITEMS[item.item_key] : null;
-                    return (
-                      <div key={idx} className="flex items-center gap-3 bg-muted/40 rounded-lg p-3 text-sm font-body">
-                        <span className="text-2xl">{data?.icon || cat?.icon || "📦"}</span>
-                        <div className="flex-1">
-                          <div className="font-semibold">{item.item_name}</div>
-                          <div className="text-xs text-muted-foreground">{data?.use || "Vendable sur le marché"}</div>
-                          {effect && <div className="text-xs text-primary mt-0.5">✨ {effect.description}</div>}
-                          {hungerDef && <div className="text-xs text-orange-600 mt-0.5">🍽️ +{hungerDef.hunger_restore} faim si mangé</div>}
-                          {item.item_key === "potion_endur" && (
-                            <div className="text-xs text-blue-600 mt-0.5">
-                              {profile.profession === "Fermier" ? "🍽️ +2 faim si bu" : "⚡ +20 énergie si bu"}
-                            </div>
-                          )}
-                          {item.durability !== undefined && (() => {
-                            const maxDur = EQUIPMENT_DURABILITY?.[item.item_key] ?? EQUIPMENT_MAX_DURABILITY;
-                            return <div className="text-xs text-slate-500 mt-0.5">🛡️ Durabilité : {item.durability}/{maxDur}</div>;
-                          })()}
-                          {(item.item_key === "meuble" || item.item_name === "Meuble") && (
-                            <div className="text-xs text-amber-700 mt-0.5">
-                              {profile.meuble_expires_at && profile.meuble_expires_at >= new Date().toISOString().split("T")[0]
-                                ? `🪑 Actif jusqu'au ${profile.meuble_expires_at}`
-                                : "Inactif — cliquez pour installer (15 jours)"}
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <Badge variant="secondary">×{item.quantity}</Badge>
-                          {hungerDef && currentHunger < MAX_HUNGER && (
-                            <button onClick={() => handleEatForHunger(item.item_key)}
-                              disabled={consumingFood === item.item_key + "_hunger"}
-                              className="text-xs bg-orange-100 hover:bg-orange-200 border border-orange-300 text-orange-800 px-2 py-0.5 rounded font-body transition-colors">
-                              Manger
-                            </button>
-                          )}
-                          {(item.item_key === "meuble" || item.item_name === "Meuble") && !(profile.meuble_expires_at && profile.meuble_expires_at >= new Date().toISOString().split("T")[0]) && (
-                            <button onClick={handleActivateMeuble}
-                              className="text-xs bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 px-2 py-0.5 rounded font-body transition-colors">
-                              🪑 Installer
-                            </button>
-                          )}
-                          {(() => {
-                            const tempDef = TEMP_EFFECT_ITEMS.find(t => t.key === item.item_key);
-                            if (!tempDef) return null;
-                            return (
-                              <button onClick={() => handleConsumeTempEffect(tempDef)}
-                                className="text-xs bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 text-indigo-900 px-2 py-0.5 rounded font-body transition-colors">
-                                ✨ {tempDef.label}
-                              </button>
-                            );
-                          })()}
-                          {Object.keys(CONTRAT_DEFS).includes(item.item_key) && (
-                            <button onClick={() => handleActivateContrat(item.item_key)}
-                              className="text-xs bg-amber-100 hover:bg-amber-200 border border-amber-300 text-amber-900 px-2 py-0.5 rounded font-body transition-colors">
-                              📜 Activer
-                            </button>
-                          )}
-                          {item.item_key === "contrat_noble" && (() => {
-                            const nobleActive = !!city?.contrat_noble_active;
-                            const isResident = profile.home_city_id === city?.id;
-                            if (!isResident) return <span className="text-xs text-muted-foreground font-body italic">Activable dans votre ville</span>;
-                            if (nobleActive) return <span className="text-xs text-emerald-600 font-body">🛡️ Déjà actif</span>;
-                            return (
-                              <button
-                                onClick={async () => {
-                                  const newInv = (profile.inventory || [])
-                                    .map(i => i.item_key === "contrat_noble" ? {...i, quantity: i.quantity - 1} : i)
-                                    .filter(i => i.quantity > 0);
-                                  await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv });
-                                  await base44.entities.City.update(city.id, { contrat_noble_active: true });
-                                  toast.success("📜 Contrat Noble activé ! La ville est protégée contre la prochaine attaque T5.");
-                                  onRefresh?.();
-                                }}
-                                className="text-xs bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-900 px-2 py-0.5 rounded font-body transition-colors">
-                                📜 Activer bouclier
-                              </button>
-                            );
-                          })()}
-                          {item.item_key === "lingot_royal" && (() => {
-                            const canSell = profile.home_city_id === city?.id
-                              && (city?.gold_treasury || 0) - LINGOT_ROYAL_PRICE >= 200;
-                            return (
-                              <button
-                                onClick={() => handleSellLingotToMairie(item.item_key, item.item_name)}
-                                disabled={!canSell}
-                                title={!canSell ? (profile.home_city_id !== city?.id ? "Uniquement dans votre ville d'origine" : "Trésorerie insuffisante (min 200💰)") : ""}
-                                className={`text-xs px-2 py-0.5 rounded font-body transition-colors border ${canSell ? "bg-yellow-400 hover:bg-yellow-500 border-yellow-500 text-yellow-900" : "bg-muted border-border text-muted-foreground opacity-50 cursor-not-allowed"}`}>
-                                👑 Vendre à la mairie (+{LINGOT_ROYAL_PRICE}💰)
-                              </button>
-                            );
-                          })()}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Inventaire centralisé : utilise le composant InventoryPanel pour avoir
+              le même rendu que la page /inventaire (anti-doublon, confirmations…). */}
+          <InventoryPanel profile={profile} city={city} homeCity={homeCity} onRefresh={onRefresh} />
         </TabsContent>
       </Tabs>
 
@@ -1630,6 +1380,65 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
           </CardContent>
         </Card>
       )}
+    <GameModal
+      show={!!coupDeMaitre}
+      type="success"
+      icon="⭐"
+      title="Coup de Maître !"
+      message={coupDeMaitre ? `+${coupDeMaitre.qty} ${coupDeMaitre.itemName} en bonus ! (${coupDeMaitre.sources})` : ""}
+      onClose={() => setCoupDeMaitre(null)}
+      duration={3500}
+    />
+    <GameModal
+      show={travelingError}
+      type="warning"
+      icon="🐴"
+      title="En déplacement"
+      message="Vous ne pouvez pas produire pendant un voyage !"
+      onClose={() => setTravelingError(false)}
+      duration={3000}
+    />
+
+    {/* ── Modal de confirmation avant consommation/activation d'objet ── */}
+    {confirmConsume && (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-card border-2 border-primary/30 rounded-lg shadow-2xl max-w-sm w-full p-4 space-y-3">
+          <h3 className="font-heading text-lg flex items-center gap-2">
+            <span className="text-2xl">{confirmConsume.def?.icon || "❓"}</span>
+            <span>Confirmer ?</span>
+          </h3>
+          <p className="text-sm font-body">
+            {confirmConsume.type === "food" && <>Voulez-vous consommer <strong>{confirmConsume.def.name}</strong> ?<br /><span className="text-xs text-muted-foreground">+{confirmConsume.def.fatigue_restore}⚡ énergie</span></>}
+            {confirmConsume.type === "eatForHunger" && <>Voulez-vous manger <strong>{confirmConsume.def.name}</strong> ?{confirmConsume.def.hunger_restore && <><br /><span className="text-xs text-muted-foreground">+{confirmConsume.def.hunger_restore}🍽️ faim</span></>}</>}
+            {confirmConsume.type === "meuble" && <>Voulez-vous installer le <strong>Meuble</strong> dans votre logement ? <br /><span className="text-xs text-muted-foreground">Réduit les frais de logement de 50% pendant 10 jours.</span></>}
+            {confirmConsume.type === "temp" && <>Voulez-vous activer <strong>{confirmConsume.def.label || confirmConsume.def.name}</strong> ?</>}
+            {confirmConsume.type === "contrat" && <>Voulez-vous activer <strong>{confirmConsume.def.name}</strong> ?<br /><span className="text-xs text-muted-foreground">Cette action est irréversible.</span></>}
+          </p>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={() => setConfirmConsume(null)}
+              className="text-sm font-heading px-3 py-1.5 rounded border border-border hover:bg-muted transition-colors"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={async () => {
+                const c = confirmConsume;
+                setConfirmConsume(null);
+                if (c.type === "food") await handleConsumeFood(c.key);
+                else if (c.type === "eatForHunger") await handleEatForHunger(c.key);
+                else if (c.type === "meuble") await handleActivateMeuble();
+                else if (c.type === "temp") await handleConsumeTempEffect(c.def);
+                else if (c.type === "contrat") await handleActivateContrat(c.key);
+              }}
+              className="text-sm font-heading px-3 py-1.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Confirmer
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }

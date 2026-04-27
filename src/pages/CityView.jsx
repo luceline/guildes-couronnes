@@ -18,8 +18,9 @@ import {
   SCEAU_PRICE, SCEAU_VALUE, ADMIN_EMAILS, getVendeurRank, getContributeurRank, getPvpRank,
   EQUIPMENT_KEYS, EQUIPMENT_MAX_DURABILITY, EQUIPMENT_DURABILITY, getCombatScore, getAttackScore, getDefenseScore,
   COMPETITIVE_ITEMS, MAX_HUNGER,
+  isPlayerKO,
 } from "../lib/gameData";
-import { checkAndRunDailyReset } from "../lib/dailyReset";
+import { logGold } from '@/lib/goldLog';
 import { checkAndProclamWinner } from "../lib/electionLogic";
 import MairieShop from "../components/MairieShop";
 import T5AttackPanel from "../components/T5AttackPanel";
@@ -28,6 +29,8 @@ import ElectionPanel from "../components/ElectionPanel";
 import MaireOffresPanel from "../components/MaireOffresPanel";
 import WarehouseUnified from "../components/WarehouseUnified";
 import AtelierCommande from "../components/AtelierCommande";
+import UpgradeServicePanel from "../components/UpgradeServicePanel";
+import ChallengeForm from "../components/ChallengeForm";
 import MairieTab from "../components/MairieTab";
 import MaireDashboard from "../components/MaireDashboard";
 import ProfessionChangePanel from "../components/ProfessionChangePanel";
@@ -89,23 +92,9 @@ function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepay
       {isMayor && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
           <p className="text-xs font-body font-semibold text-amber-900">👑 Paramètres bancaires (maire)</p>
-
-          {/* Taxe marché J+1 */}
-          <div className="space-y-1 border border-amber-200 rounded-lg px-3 py-2">
-            <label className="text-xs font-body text-amber-900 font-semibold">💰 Taxe marché pour demain (J+1)</label>
-            <div className="flex items-center gap-2">
-              <input type="number" min={0} max={50} defaultValue={city.tax_rate_next ?? city.tax_rate ?? 10}
-                className="w-16 h-7 text-xs text-center border border-amber-300 rounded font-body"
-                onBlur={async (e) => {
-                  const val = Math.max(0, Math.min(50, parseInt(e.target.value) || 0));
-                  await base44.entities.City.update(city.id, { tax_rate_next: val });
-                  toast.success(`💰 Taux de taxe J+1 fixé à ${val}% (actif demain au reset).`);
-                }}
-              />
-              <span className="text-xs text-muted-foreground font-body">% (actuel : {city.tax_rate || 10}%)</span>
-            </div>
-            <p className="text-xs text-muted-foreground font-body italic">Le taux actuel ({city.tax_rate || 10}%) reste en vigueur aujourd'hui. Le nouveau taux sera appliqué au reset de minuit.</p>
-          </div>
+          <p className="text-xs text-muted-foreground font-body italic">
+            La taxe marché se fixe depuis l'onglet <strong>Mairie → Gouvernance</strong>.
+          </p>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -237,15 +226,6 @@ function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepay
 }
 
 
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
 
 
 export default function CityView({ profile, city, homeCity, onRefresh }) {
@@ -259,14 +239,13 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   const [activeCategory, setActiveCategory] = useState("logement");
   const [villeSubTab, setVilleSubTab] = useState("panneau");
   const [selectedAtelier, setSelectedAtelier] = useState(null); // id du producteur sélectionné
+  const [challengeTarget, setChallengeTarget] = useState(null); // joueur à défier (ChallengeForm)
   const [routes, setRoutes] = useState([]);
   const [allCitiesForMilitary, setAllCitiesForMilitary] = useState([]);
   // États locaux inputs maire
    const [taxInput, setTaxInput] = useState(null);
    const [lingotPriceInput, setLingotPriceInput] = useState(null);
    const [salaryInput, setSalaryInput] = useState(null);
-
-  // ── Reset quotidien géré par dailyReset.js (global, 6h UTC) ──
 
   useEffect(() => {
     if (!city) return;
@@ -322,9 +301,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   useEffect(() => {
     if (!city || !profile) return;
     let cancelled = false;
-    checkAndRunDailyReset(profile.user_email).then(ran => {
-      if (!cancelled && ran) onRefresh?.();
-    });
     checkAndProclamWinner(city, () => { if (!cancelled) onRefresh?.(); });
     return () => { cancelled = true; };
   }, [city?.id, profile?.id]);
@@ -442,149 +418,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     onRefresh?.();
   };
 
-
-  // ── Système de vol entre joueurs ──
-  const [stealing, setStealing] = useState(null);
-  const handleStealFrom = async (targetPlayer) => {
-    const today = getTodayDateStr();
-    const stealKey = `steal_attempt_${today}`;
-    if ((profile.competitive_cooldowns || {})[stealKey]) {
-      toast.error("Vous avez déjà tenté un vol aujourd'hui.");
-      return;
-    }
-    if ((targetPlayer.gold || 0) <= 0) {
-      toast.error(`${targetPlayer.character_name} n'a pas d'or.`);
-      return;
-    }
-    setStealing(targetPlayer.id);
-
-    const attackerScore = getAttackScore(profile);
-    const defenderScore = getDefenseScore(targetPlayer);
-    const success = attackerScore > defenderScore;
-
-    // Réduire durabilité au hasard parmi les équipements
-    const reduceEquipDurability = (inv, amount) => {
-      const equipped = inv.filter(i => EQUIPMENT_KEYS.includes(i.item_key) && (i.durability ?? EQUIPMENT_DURABILITY[i.item_key] ?? EQUIPMENT_MAX_DURABILITY) > 0);
-      if (equipped.length === 0) return inv;
-      const target = equipped[Math.floor(Math.random() * equipped.length)];
-      return inv.map(i => i === target
-        ? { ...i, durability: Math.max(0, (i.durability ?? EQUIPMENT_DURABILITY[i.item_key] ?? EQUIPMENT_MAX_DURABILITY) - amount) }
-        : i
-      ).filter(i => {
-        if (EQUIPMENT_KEYS.includes(i.item_key)) return (i.durability ?? EQUIPMENT_DURABILITY[i.item_key] ?? EQUIPMENT_MAX_DURABILITY) > 0;
-        return i.quantity > 0;
-      });
-    };
-
-    const newCooldowns = { ...(profile.competitive_cooldowns || {}), [stealKey]: true };
-
-    if (success) {
-      // Vérifier si épée courte (10%) ou épée longue (20%) est équipée
-      // Lecture dynamique depuis ITEMS — steal_pct défini dans craftingData.js
-      const swordLong  = (profile.inventory || []).find(i => i.item_key === "epee_longue"  && (i.durability ?? (GAME_ITEMS["epee_longue"]?.durability  ?? 1)) > 0);
-      const swordShort = (profile.inventory || []).find(i => i.item_key === "epee_courte"  && (i.durability ?? (GAME_ITEMS["epee_courte"]?.durability  ?? 1)) > 0);
-      const stealPct = swordLong
-        ? (GAME_ITEMS["epee_longue"]?.steal_pct  ?? 0.20)
-        : swordShort
-          ? (GAME_ITEMS["epee_courte"]?.steal_pct ?? 0.10)
-          : 0.10;
-      let stolen = Math.max(1, Math.floor((targetPlayer.gold || 0) * stealPct));
-
-      // Bourse de protection : plafonne le vol à 10 or, réduit la durabilité
-      const freshTargetForBourse = await base44.entities.PlayerProfile.filter({ user_email: targetPlayer.user_email });
-      const freshTargetData = freshTargetForBourse[0] || targetPlayer;
-      const bourseItem = (freshTargetData.inventory || []).find(i => i.item_key === "bourse_protection" && (i.durability ?? 3) > 0);
-      // Armure : plafonne le vol subi à 5%
-      const armureItem = (freshTargetData.inventory || []).find(i => i.item_key === "armure" && (i.durability ?? (GAME_ITEMS["armure"]?.durability ?? 1)) > 0);
-      if (armureItem) {
-        const capPct = GAME_ITEMS["armure"]?.steal_cap_pct ?? 0.05;
-        const maxStealArmure = Math.max(1, Math.floor((freshTargetData.gold || 0) * capPct));
-        stolen = Math.min(stolen, maxStealArmure);
-      }
-      if (bourseItem) {
-        stolen = Math.min(stolen, 10);
-        const newTargetInvBourse = (freshTargetData.inventory || []).map(i =>
-          i.item_key === "bourse_protection" && (i.durability ?? 3) > 0
-            ? { ...i, durability: (i.durability ?? 3) - 1 }
-            : i
-        ).filter(i => i.item_key !== "bourse_protection" || (i.durability ?? 3) > 0);
-        await base44.entities.PlayerProfile.update(freshTargetData.id, { inventory: newTargetInvBourse });
-        toast(`👜 ${targetPlayer.character_name} avait une Bourse de protection — vol limité à 10💰 !`);
-      }
-
-      let attackerNewInv = reduceEquipDurability([...(profile.inventory || [])], 1);
-      
-      // Vérifier si le voleur a Camouflage et l'utiliser
-      const hasCamouflage = attackerNewInv.some(i => i.item_key === "camouflage" || i.item_name === "Camouflage");
-      if (hasCamouflage) {
-        attackerNewInv = attackerNewInv
-          .map(i => (i.item_key === "camouflage" || i.item_name === "Camouflage") ? { ...i, quantity: i.quantity - 1 } : i)
-          .filter(i => i.quantity > 0);
-      }
-
-      // Message taverne avec Camouflage si utilisé
-       const hasTavernLocal = (city.buildings || []).some(b => b.building_type === "taverne");
-       if (hasTavernLocal) {
-         const visitorName = hasCamouflage ? "👻 un visiteur mystérieux" : profile.character_name;
-         await base44.entities.TavernMessage.create({
-           city_id: city.id, author_email: "system", author_name: "Rumeur",
-           profession: "", message: `🦹 ${targetPlayer.character_name} a été délésté de ${stolen} 💰 par ${visitorName}...`,
-         });
-       }
-       // Débiter l'or de la victime et créditer le voleur
-       await Promise.all([
-         base44.entities.PlayerProfile.update(freshTargetData.id, {
-           gold: Math.max(0, (freshTargetData.gold || 0) - stolen),
-         }),
-         base44.entities.PlayerProfile.update(profile.id, {
-           gold: (profile.gold || 0) + stolen,
-           inventory: attackerNewInv,
-           competitive_cooldowns: newCooldowns,
-         }),
-       ]);
-       await logGold(profile.user_email, profile.character_name, city.id, city.name,
-         stolen, "vol_recu", `Vol réussi sur ${targetPlayer.character_name}`);
-       await logGold(targetPlayer.user_email, targetPlayer.character_name, city.id, city.name,
-         -stolen, "vol_subi", `Vol par ${hasCamouflage ? "un inconnu" : profile.character_name}`);
-       // XP voleur +50
-       const freshAttacker = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-       if (freshAttacker) await base44.entities.PlayerProfile.update(profile.id, { player_xp_total: (freshAttacker.player_xp_total || 0) + 50 });
-
-       // ── Vérifier si une prime existe sur la cible ──
-       const activeBounties = await base44.entities.Bounty.filter({ target_email: targetPlayer.user_email, status: "active" });
-       } else {
-      const attackerNewInv = reduceEquipDurability([...(profile.inventory || [])], 2);
-      // Victime perd 1 durabilité
-      const freshTargets = await base44.entities.PlayerProfile.filter({ user_email: targetPlayer.user_email });
-      if (freshTargets.length > 0) {
-        const freshTarget = freshTargets[0];
-        const defenderNewInv = reduceEquipDurability([...(freshTarget.inventory || [])], 1);
-        await base44.entities.PlayerProfile.update(freshTarget.id, { inventory: defenderNewInv });
-        const hasTavernLocal = (city.buildings || []).some(b => b.building_type === "taverne");
-        if (hasTavernLocal) {
-          await base44.entities.TavernMessage.create({
-            city_id: city.id, author_email: "system", author_name: "Rumeur",
-            profession: "", message: `🛡️ ${targetPlayer.character_name} a repoussé une tentative de vol !`,
-          });
-        }
-      }
-      await base44.entities.PlayerProfile.update(profile.id, {
-        inventory: attackerNewInv,
-        competitive_cooldowns: newCooldowns,
-      });
-      await logGold(profile.user_email, profile.character_name, city.id, city.name,
-        0, "vol_echoue", `Tentative de vol sur ${targetPlayer.character_name} — échec`);
-      // Log pour la victime : tentative repoussée
-      await logGold(targetPlayer.user_email, targetPlayer.character_name, city.id, city.name,
-        0, "vol_repousse", `Tentative de vol repoussée par ${profile.character_name}`);
-      // XP défenseur +50 si résistance réussie
-      const freshDefender = await base44.entities.PlayerProfile.filter({ user_email: targetPlayer.user_email }).catch(() => []);
-      if (freshDefender[0]) await base44.entities.PlayerProfile.update(freshDefender[0].id, { player_xp_total: (freshDefender[0].player_xp_total || 0) + 50 });
-      toast.error(`❌ Tentative échouée — ${targetPlayer.character_name} était mieux protégé !`);
-    }
-    setStealing(null);
-    onRefresh?.();
-  };
 
   // ── Statut maire ──
   const todayStr = getTodayDateStr();
@@ -908,7 +741,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         <TabsList className="font-heading flex-wrap h-auto gap-1 w-full justify-center rounded-none border-b-0">
           <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
           <TabsTrigger value="gouvernance">👑 Gouvernance</TabsTrigger>
-          <TabsTrigger value="competitif">⚔️ Guerre</TabsTrigger>
+          <TabsTrigger value="competitif">⚔️ Attaques T5</TabsTrigger>
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
           <TabsTrigger value="batiments">🏗️ Bâtiments</TabsTrigger>
 {hasTavern && <TabsTrigger value="taverne">🍺 Taverne</TabsTrigger>}
@@ -921,7 +754,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         <div className="relative z-10 space-y-3">
 
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="font-heading text-2xl font-bold">{city.name}</h2>
+            <h2 className="font-heading text-2xl font-bold heading-medieval">{city.name}</h2>
             <Badge variant="outline" className="font-body">{cityTier.icon} {cityTier.label}</Badge>
             {isHomeCity && <Badge variant="secondary" className="font-body">🏠 Votre ville</Badge>}
           </div>
@@ -957,11 +790,11 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           {(city.buildings || []).length > 0 && (() => {
             const blds = city.buildings || [];
             const badges = [];
-            if (blds.some(b => b.building_type === "hospice"))     badges.push("🏥 +2 faim/j");
-            if (blds.some(b => b.building_type === "cathedrale"))   badges.push("🌟 +10 énergie max · +3 faim/j");
-            if (blds.some(b => b.building_type === "fontaine"))     badges.push("💧 Regen faim ×2");
+            if (blds.some(b => b.building_type === "hospice"))      badges.push("🏥 Plafond regen +1/niv");
+            if (blds.some(b => b.building_type === "cathedrale"))   badges.push("🌟 +2 faim · +2 énergie max");
+            if (blds.some(b => b.building_type === "fontaine"))     badges.push("💧 Regen ×2");
             if (blds.some(b => b.building_type === "universite"))   badges.push("🎓 +2 faim max");
-            if (blds.some(b => b.building_type === "eglise"))       badges.push("⛪ 1 faim / 2 actions");
+            if (blds.some(b => b.building_type === "eglise"))       badges.push("⛪ 1 action sur 2 gratuite");
             if (blds.some(b => b.building_type === "bibliotheque")) badges.push("📚 +30 capacité inv.");
             if (blds.some(b => b.building_type === "grande_place")) badges.push("🏟️ +20 capacité inv.");
             if (blds.some(b => b.building_type === "palais"))       badges.push("👑 +1 or/j par résident");
@@ -1314,7 +1147,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           {(() => {
             const residents = cityPlayers.filter(p => p.home_city_id === city.id);
             const visitors = cityPlayers.filter(p => p.home_city_id !== city.id && !p.is_traveling);
-            const stealUsed = !!(profile.competitive_cooldowns || {})[`steal_attempt_${getTodayDateStr()}`];
             return (
               <div className="space-y-3">
                 {/* ── Panel nomination rôles (maire uniquement) ── */}
@@ -1375,81 +1207,138 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                 {residents.length > 0 && (
                   <Card>
                     <CardHeader className="pb-2">
-                      <CardTitle className="font-heading text-sm">🏠 Résidents ({residents.length})</CardTitle>
+                      <CardTitle className="font-heading text-sm flex items-center gap-2">
+                        🏠 Résidents ({residents.length})
+                        <HelpTooltip
+                          side="bottom"
+                          text={
+                            "Légende des icônes :\n\n" +
+                            "👑 Maire de la cité\n" +
+                            "💰 Percepteur (gère les taxes)\n" +
+                            "⚔️ Chef de guerre (commande l'armée)\n" +
+                            "🛒 Acheteur (achète au marché pour la cité)\n" +
+                            "🟢 Joueur en ligne\n\n" +
+                            "Sous le nom :\n" +
+                            "🏆 Rang vendeur · 🏗️ Rang contributeur entrepôt · ⚔️ Rang PvP\n" +
+                            "⚔️X Score d'attaque · 🛡️X Score de défense\n\n" +
+                            "Boutons :\n" +
+                            "🏪 Atelier — Commander à un artisan ou améliorer ton équipement\n" +
+                            "⚔️ Défier — Lancer un défi PvP\n" +
+                            "🚫 Expulser — Réservé au maire\n" +
+                            "⚒️ M'améliorer — Self-service Bûcheron/Mineur"
+                          }
+                        />
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                         {residents.map(p => {
                           const isMe = p.id === profile.id;
                           const online = isPlayerOnline(p);
                           return (
-                          <div key={p.id} className={`flex items-center gap-3 rounded-lg p-2.5 text-sm font-body ${
+                          <div key={p.id} className={`rounded-lg p-3 text-sm font-body ${
                             online ? "bg-green-50 border border-green-200" : "bg-muted/50"
                           }`}>
-                            <span className="text-lg">{p.is_traveling ? "🐴" : "👤"}</span>
-                            <div className="flex-1">
-                              <div className="font-semibold flex items-center gap-2 flex-wrap">
-                                {p.character_name}
-                                {online && <Badge variant="outline" className="text-green-700 border-green-300 text-xs">🟢 En ligne</Badge>}
+                            {/* En-tête : avatar + nom + badge online */}
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-2xl shrink-0">{p.is_traveling ? "🐴" : "👤"}</span>
+                              <div className="font-semibold text-base flex-1 truncate">{p.character_name}</div>
+                              {online && (
+                                <span className="text-xs text-green-700 bg-green-100 border border-green-300 rounded px-2 py-0.5 font-body shrink-0">
+                                  🟢 En ligne
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Badges de rôle (sous le nom, sur leur propre ligne) */}
+                            {(city?.mayor_id === p.id || cityRoles?.percepteur_id === p.id || cityRoles?.chef_guerre_id === p.id || cityRoles?.acheteur_id === p.id) && (
+                              <div className="flex flex-wrap gap-1.5 mb-2">
                                 {city?.mayor_id === p.id && <Badge className="bg-amber-500 text-white text-xs font-heading">👑 Maire</Badge>}
                                 {cityRoles?.percepteur_id === p.id && <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">💰 Percepteur</Badge>}
                                 {cityRoles?.chef_guerre_id === p.id && <Badge variant="outline" className="text-red-700 border-red-300 text-xs">⚔️ Chef de guerre</Badge>}
                                 {cityRoles?.acheteur_id === p.id && <Badge variant="outline" className="text-purple-700 border-purple-300 text-xs">🛒 Acheteur</Badge>}
                               </div>
-                              <div className="text-muted-foreground text-xs flex items-center gap-2">
-                                <span>{p.profession} {p.is_traveling ? "· En voyage" : ""}</span>
-                                <span title={`Ventes: ${p.cumul_ventes_or||0}💰`}>{getVendeurRank(p.cumul_ventes_or||0).icon}</span>
-                                <span title={`Entrepôt: ${p.cumul_contributions_warehouse||0}`}>{getContributeurRank(p.cumul_contributions_warehouse||0).icon}</span>
-                                {(p.cumul_t5_envoyes||0) > 0 && <span title={`T5: ${p.cumul_t5_envoyes}`}>{getPvpRank(p.cumul_t5_envoyes||0).icon}</span>}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              {getAttackScore(p) > 0 && <span className="text-xs text-muted-foreground">⚔️{getAttackScore(p)}</span>}
-                              {getDefenseScore(p) > 0 && <span className="text-xs text-muted-foreground">🛡️{getDefenseScore(p)}</span>}
-                              {!isMe && !isHomeCity && (
-                                   <Button size="sm" variant="outline"
-                                     className="h-7 text-xs font-heading text-red-600 border-red-200 hover:bg-red-50"
-                                     disabled={stealUsed || stealing === p.id}
-                                     onClick={() => handleStealFrom(p)}
-                                     title={stealUsed ? "Déjà tenté aujourd'hui" : `Voler ${p.character_name}`}>
-                                     {stealing === p.id ? "..." : stealUsed ? "✓" : "🦹 Voler"}
-                                   </Button>
-                                )}
+                            )}
+
+                            {/* Métier + rangs + scores (compact, une seule ligne) */}
+                            <div className="text-muted-foreground text-xs flex items-center gap-2 flex-wrap mb-2">
+                              <span className="font-semibold">{p.profession}{p.is_traveling ? " · En voyage" : ""}</span>
+                              <span title={`Ventes: ${p.cumul_ventes_or||0}💰`}>{getVendeurRank(p.cumul_ventes_or||0).icon}</span>
+                              <span title={`Entrepôt: ${p.cumul_contributions_warehouse||0}`}>{getContributeurRank(p.cumul_contributions_warehouse||0).icon}</span>
+                              {(p.cumul_t5_envoyes||0) > 0 && <span title={`T5: ${p.cumul_t5_envoyes}`}>{getPvpRank(p.cumul_t5_envoyes||0).icon}</span>}
+                              {getAttackScore(p) > 0 && <span title="Score d'attaque">⚔️{getAttackScore(p)}</span>}
+                              {getDefenseScore(p) > 0 && <span title="Score de défense">🛡️{getDefenseScore(p)}</span>}
                               {!isMe && !isHomeCity && (() => {
-                                const hasBourse = (profile.inventory || []).some(i => i.item_key === "bourse_protection" && (i.durability ?? 3) > 0);
+                                const hasBourse = (profile.inventory || []).some(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
                                 if (!hasBourse) return null;
-                                return <span className="text-xs text-yellow-700 border border-yellow-300 bg-yellow-50 rounded px-1.5 py-0.5 font-body">👜 Bourse active</span>;
+                                return <span className="text-yellow-700 border border-yellow-300 bg-yellow-50 rounded px-1.5 py-0.5 font-body">👜 Bourse active</span>;
                               })()}
-                                {!isMe && isMayor && (
-                                  <Button size="sm" variant="outline"
-                                    className="h-7 text-xs font-heading text-orange-600 border-orange-200 hover:bg-orange-50"
-                                    onClick={() => handleExpel(p)}>
-                                    🚫 Expulser
-                                  </Button>
-                                )}
-                                {!isMe && p.atelier_vitrine?.active && (
-                                  <Button size="sm" variant="outline"
-                                    className="h-7 text-xs font-heading text-amber-700 border-amber-300 hover:bg-amber-50"
-                                    onClick={() => setSelectedAtelier(selectedAtelier === p.id ? null : p.id)}>
-                                    🏪 Atelier
-                                  </Button>
-                                )}
                             </div>
+
+                            {/* Boutons d'action — flex-wrap propre, en bas */}
+                            {(() => {
+                              const showExpel = !isMe && isMayor;
+                              const showAtelier = !isMe && (p.atelier_vitrine?.active || p.profession === "Bûcheron" || p.profession === "Mineur");
+                              const showDefier = !isMe && !isPlayerKO(profile) && !isPlayerKO(p);
+                              const showSelfImprove = isMe && (p.profession === "Bûcheron" || p.profession === "Mineur");
+                              if (!showExpel && !showAtelier && !showDefier && !showSelfImprove) return null;
+                              return (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {showExpel && (
+                                    <Button size="sm" variant="outline"
+                                      className="h-9 text-sm font-heading text-orange-600 border-orange-200 hover:bg-orange-50"
+                                      onClick={() => handleExpel(p)}>
+                                      🚫 Expulser
+                                    </Button>
+                                  )}
+                                  {showAtelier && (
+                                    <Button size="sm" variant="outline"
+                                      className="h-9 text-sm font-heading text-amber-700 border-amber-300 hover:bg-amber-50"
+                                      onClick={() => setSelectedAtelier(selectedAtelier === p.id ? null : p.id)}>
+                                      🏪 Atelier
+                                    </Button>
+                                  )}
+                                  {showDefier && (
+                                    <Button size="sm" variant="outline"
+                                      className="h-9 text-sm font-heading text-red-700 border-red-300 hover:bg-red-50"
+                                      onClick={() => setChallengeTarget(p)}
+                                      title={`Défier ${p.character_name}`}>
+                                      ⚔️ Défier
+                                    </Button>
+                                  )}
+                                  {showSelfImprove && (
+                                    <Button size="sm" variant="outline"
+                                      className="h-9 text-sm font-heading text-green-700 border-green-300 hover:bg-green-50"
+                                      onClick={() => setSelectedAtelier(selectedAtelier === p.id ? null : p.id)}>
+                                      ⚒️ M'améliorer
+                                    </Button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                           );
                         })}
                       </div>
-                      {/* ── Atelier commande ── */}
+                      {/* ── Atelier commande + Service amélioration ── */}
                       {selectedAtelier && (() => {
                         const prod = residents.find(p => p.id === selectedAtelier);
                         if (!prod) return null;
                         return (
-                          <AtelierCommande
-                            producer={prod}
-                            clientProfile={profile}
-                            onClose={() => setSelectedAtelier(null)}
-                            onRefresh={onRefresh}
-                          />
+                          <>
+                            <AtelierCommande
+                              producer={prod}
+                              clientProfile={profile}
+                              onClose={() => setSelectedAtelier(null)}
+                              onRefresh={onRefresh}
+                            />
+                            <UpgradeServicePanel
+                              producer={prod}
+                              clientProfile={profile}
+                              city={city}
+                              onRefresh={onRefresh}
+                            />
+                          </>
                         );
                       })()}
                     </CardContent>
@@ -1459,41 +1348,54 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                 {visitors.length > 0 && (
                   <Card className="border-orange-200">
                     <CardHeader className="pb-2">
-                      <CardTitle className="font-heading text-sm">🧳 Visiteurs ({visitors.length})</CardTitle>
+                      <CardTitle className="font-heading text-sm flex items-center gap-2">
+                        🧳 Visiteurs ({visitors.length})
+                        <HelpTooltip
+                          side="bottom"
+                          text={
+                            "Voyageurs de passage dans la cité.\n\n" +
+                            "🟢 En ligne · 🛡️X Score de défense\n\n" +
+                            "⚔️ Défier — Lancer un défi PvP contre ce visiteur"
+                          }
+                        />
+                      </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                         {visitors.map(p => {
                           const isMe = p.id === profile.id;
                           const defenderScore = getDefenseScore(p);
                           const online = isPlayerOnline(p);
                           return (
-                            <div key={p.id} className={`flex items-center gap-3 rounded-lg p-2.5 text-sm font-body ${
+                            <div key={p.id} className={`rounded-lg p-3 text-sm font-body ${
                               online ? "bg-green-50/50 border border-green-200" : "bg-orange-50/50 border border-orange-100"
                             }`}>
-                              <span className="text-lg">🧳</span>
-                              <div>
-                                <div className="font-semibold flex items-center gap-2">
-                                 {p.character_name}
-                                 {online && <Badge variant="outline" className="text-green-700 border-green-300 text-xs">🟢 En ligne</Badge>}
-                                </div>
-                                <div className="text-muted-foreground text-xs">{p.profession} · de {p.home_city_id ? "ailleurs" : "?"}</div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-2xl shrink-0">🧳</span>
+                                <div className="font-semibold text-base flex-1 truncate">{p.character_name}</div>
+                                {online && (
+                                  <span className="text-xs text-green-700 bg-green-100 border border-green-300 rounded px-2 py-0.5 font-body shrink-0">
+                                    🟢 En ligne
+                                  </span>
+                                )}
                               </div>
-                              <div className="ml-auto flex items-center gap-1.5">
-                                {defenderScore > 0 && <span className="text-xs text-muted-foreground">⚔️{defenderScore}</span>}
-                                {!isMe && (
+                              <div className="text-muted-foreground text-xs flex items-center gap-2 flex-wrap mb-2">
+                                <span className="font-semibold">{p.profession} · de {p.home_city_id ? "ailleurs" : "?"}</span>
+                                {defenderScore > 0 && <span title="Score de défense">🛡️{defenderScore}</span>}
+                              </div>
+                              {!isMe && !isPlayerKO(profile) && !isPlayerKO(p) && (
+                                <div className="flex">
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-7 text-xs font-heading text-red-600 border-red-200 hover:bg-red-50"
-                                    disabled={stealUsed || stealing === p.id}
-                                    onClick={() => handleStealFrom(p)}
-                                    title={stealUsed ? "Déjà tenté aujourd'hui" : `Voler ${p.character_name}`}
+                                    className="h-9 text-sm font-heading text-red-700 border-red-300 hover:bg-red-50"
+                                    onClick={() => setChallengeTarget(p)}
+                                    title={`Défier ${p.character_name}`}
                                   >
-                                    {stealing === p.id ? "..." : stealUsed ? "✓" : "🦹 Voler"}
+                                    ⚔️ Défier
                                   </Button>
-                                )}
-                              </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -1516,6 +1418,17 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           })()}
         </TabsContent>
       </Tabs>
+
+      {/* ── Modal défi PvP ── */}
+      {challengeTarget && (
+        <ChallengeForm
+          attacker={profile}
+          target={challengeTarget}
+          city={city}
+          onClose={() => setChallengeTarget(null)}
+          onCreated={onRefresh}
+        />
+      )}
     </div>
   );
 }

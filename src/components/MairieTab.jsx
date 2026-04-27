@@ -98,7 +98,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           {(isMayor || isChefGuerre) && <TabsTrigger value="armee">⚔️ Armée</TabsTrigger>}
           {(isMayor || isChefGuerre) && <TabsTrigger value="guerre">🗺️ Guerre</TabsTrigger>}
           {(isMayor || isAcheteur) && <TabsTrigger value="offres">🛒 Offres d'achat</TabsTrigger>}
-          {isMayor && <TabsTrigger value="dashboard">📊 Tableau de bord</TabsTrigger>}
+          {(isMayor || isPercepteur || isChefGuerre) && <TabsTrigger value="dashboard">📊 Tableau de bord</TabsTrigger>}
         </TabsList>
 
         {/* ── MAIRIE ── */}
@@ -116,7 +116,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
               <Badge className="font-body bg-amber-500 text-white">✨ Vous êtes maire</Badge>
             )}
           </div>
-          {isMayor && (() => {
+          {(isMayor || isPercepteur) && (() => {
             const todayStr = getTodayDateStr();
             const likes = city.building_likes || {};
             const votesToday = {};
@@ -139,7 +139,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
               </div>
             ) : null;
           })()}
-          {isMayor && (
+          {(isMayor || isPercepteur) && (
             <div className="space-y-2">
               <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-xs font-body text-amber-800 space-y-1">
                 <p className="font-semibold">👑 Guide du maire</p>
@@ -176,27 +176,33 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
 
               <div className="flex items-center gap-2 flex-wrap bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                 <span className="text-xs font-body text-red-900">🏪 Taxes marché :</span>
-                <span className="text-xs text-red-700 font-body">Actuel : <strong>{city.tax_rate || 0}%</strong></span>
+                <span className="text-xs text-red-700 font-body">
+                  Actuel : <strong>{city.tax_rate || 0}%</strong>
+                  {city.tax_rate_next !== undefined && city.tax_rate_next !== null && city.tax_rate_next !== city.tax_rate && (
+                    <span className="ml-1.5 text-amber-700">→ J+1 : <strong>{city.tax_rate_next}%</strong></span>
+                  )}
+                </span>
                 <Input
                    type="number"
                    min={0}
                    max={100}
                    step={5}
-                   value={taxRateInput ?? (city.tax_rate || 0)}
+                   value={taxRateInput ?? (city.tax_rate_next ?? city.tax_rate ?? 0)}
                    onChange={e => setTaxRateInput(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
                    className="w-20 h-7 text-xs text-center text-foreground"
                  />
                 <Button size="sm" className="h-7 text-xs font-heading"
                   onClick={async () => {
                     const val = taxRateInput ?? (city.tax_rate || 0);
-                                         await base44.entities.City.update(city.id, { tax_rate: val });
-                    toast.success(`🏪 Taxes marché changées à ${val}% (appliquées au reset).`);
+                    // J+1 : on écrit dans tax_rate_next, le reset l'applique le lendemain
+                    await base44.entities.City.update(city.id, { tax_rate_next: val });
+                    toast.success(`🏪 Taxes marché : ${val}% (appliquées au reset de demain 6h UTC).`);
                     setTaxRateInput(null);
                     onRefresh?.();
                   }}>
                   Valider
                 </Button>
-                <span className="text-xs text-red-700 font-body">(appliqué au reset — max 100%)</span>
+                <span className="text-xs text-red-700 font-body">(appliqué au reset J+1 — max 100%)</span>
               </div>
 
               <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-2">
@@ -269,12 +275,12 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
               <MaireOffresPanel city={city} onRefresh={onRefresh} />
             </div>
           )}
-          {!isMayor && (city.daily_tax_per_player || 0) > 0 && (
+          {!isMayor && !isPercepteur && (city.daily_tax_per_player || 0) > 0 && (
             <div className="text-xs text-amber-700 font-body">
               💸 Impôt journalier : <strong>{city.daily_tax_per_player} 💰</strong> / joueur
             </div>
           )}
-          {!isMayor && isHomeCity && city.resident_salary_enabled && (city.gold_treasury || 0) >= 200 && (
+          {!isMayor && !isPercepteur && isHomeCity && city.resident_salary_enabled && (city.gold_treasury || 0) >= 200 && (
             <div className="text-xs text-green-700 font-body">
               🪙 Salaire journalier : <strong>{city.resident_salary || 5}💰</strong> versé à chaque résident au reset
             </div>
@@ -343,13 +349,13 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           <CityArmyPanel
             city={city}
             profile={profile}
-            isMayor={isMayor}
+            isMayor={isMayor || isChefGuerre}
             onRefresh={onRefresh}
           />
-          {isMayor && (
+          {(isMayor || isChefGuerre) && (
             <div className="mt-4 border-t border-border pt-4">
               <p className="text-sm font-heading font-semibold mb-3">🏰 Ravitaillement de l'armée</p>
-              <ArmySupplyPanel city={city} isMayor={isMayor} onRefresh={onRefresh} />
+              <ArmySupplyPanel city={city} isMayor={isMayor || isChefGuerre} onRefresh={onRefresh} />
             </div>
           )}
         </TabsContent>
@@ -359,7 +365,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           <MilitaryCampaignPanel
             city={city}
             profile={profile}
-            isMayor={isMayor}
+            isMayor={isMayor || isChefGuerre}
             cities={cities}
             routes={routes}
             onRefresh={onRefresh}
@@ -372,7 +378,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           </TabsContent>
         )}
 
-        {isMayor && (
+        {(isMayor || isPercepteur || isChefGuerre) && (
           <TabsContent value="dashboard" className="mt-4">
             <MaireDashboard city={city} profile={profile} players={cityPlayers} />
           </TabsContent>

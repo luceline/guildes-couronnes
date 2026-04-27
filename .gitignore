@@ -29,3 +29,6 @@ dist-ssr
 
 .env
 .vite
+
+# Archive locale (scripts ponctuels, backups)
+_archive/
