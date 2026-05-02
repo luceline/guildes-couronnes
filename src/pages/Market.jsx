@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getInventoryWeight, getEffectiveMaxWeight, wouldExceedCapacity, getMarketTaxDiscount } from "../lib/gameData";
 import { ITEMS, EQUIPMENT_KEYS } from "../lib/craftingData";
-import { getItemName } from "../lib/itemHelpers";
+import { getItemName, getCanonicalItemKey } from "../lib/itemHelpers";
 import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice, calculateDynamicPrices } from "../lib/pricingData";
 import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
 import { Label } from "@/components/ui/label";
@@ -769,12 +769,13 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     ? categoryFiltered.filter(l => l.city_id === profile.city_id)
     : categoryFiltered;
 
-  // Regroupement par item_key (fallback item_name si la clé technique est absente
-  // sur de très vieux listings). Cela évite que "Pierre brute" et "Pierre taillée"
-  // forment deux groupes séparés alors qu'ils partagent le même item_key.
+  // Regroupement par clé canonique : on traduit les anciens listings (item_key
+  // vide ou item_key obsolète) vers la clé d'aujourd'hui via getCanonicalItemKey.
+  // Ainsi, les annonces legacy "Pierre" et "Pierre brute" fusionnent dans le
+  // même groupe que les annonces modernes "pierre_brute" et le titre est unique.
   const listingsByItem = {};
   for (const l of filteredListings) {
-    const groupKey = l.item_key || l.item_name;
+    const groupKey = getCanonicalItemKey(l.item_key, l.item_name) || l.item_name;
     if (!listingsByItem[groupKey]) listingsByItem[groupKey] = [];
     listingsByItem[groupKey].push(l);
   }
@@ -984,10 +985,10 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           ) : (
             Object.entries(listingsByItem).map(([groupKey, itemListings]) => {
               const cat = ITEM_CATEGORIES[itemListings[0].item_category];
-              // Nom à afficher : ITEMS[item_key] est la source de vérité,
-              // fallback sur item_name (string figée en base) si la clé est inconnue.
+              // groupKey est déjà canonique (passé par getCanonicalItemKey).
+              // Le nom à afficher vient donc de ITEMS[groupKey] en priorité.
               const firstListing = itemListings[0];
-              const displayName = getItemName(firstListing.item_key, firstListing.item_name);
+              const displayName = getItemName(groupKey, firstListing.item_name);
 
               // Identifier les meilleures affaires : prix les plus bas
               const bestDeals = [];
