@@ -769,10 +769,14 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     ? categoryFiltered.filter(l => l.city_id === profile.city_id)
     : categoryFiltered;
 
+  // Regroupement par item_key (fallback item_name si la clé technique est absente
+  // sur de très vieux listings). Cela évite que "Pierre brute" et "Pierre taillée"
+  // forment deux groupes séparés alors qu'ils partagent le même item_key.
   const listingsByItem = {};
   for (const l of filteredListings) {
-    if (!listingsByItem[l.item_name]) listingsByItem[l.item_name] = [];
-    listingsByItem[l.item_name].push(l);
+    const groupKey = l.item_key || l.item_name;
+    if (!listingsByItem[groupKey]) listingsByItem[groupKey] = [];
+    listingsByItem[groupKey].push(l);
   }
 
   const categoriesInListings = [...new Set(listings.map(l => l.item_category).filter(Boolean))];
@@ -978,8 +982,12 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               </CardContent>
             </Card>
           ) : (
-            Object.entries(listingsByItem).map(([itemName, itemListings]) => {
+            Object.entries(listingsByItem).map(([groupKey, itemListings]) => {
               const cat = ITEM_CATEGORIES[itemListings[0].item_category];
+              // Nom à afficher : ITEMS[item_key] est la source de vérité,
+              // fallback sur item_name (string figée en base) si la clé est inconnue.
+              const firstListing = itemListings[0];
+              const displayName = getItemName(firstListing.item_key, firstListing.item_name);
 
               // Identifier les meilleures affaires : prix les plus bas
               const bestDeals = [];
@@ -992,12 +1000,12 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               }
 
               return (
-                <Card key={itemName}>
+                <Card key={groupKey}>
                   <CardHeader className="pb-2">
                     <CardTitle className="font-heading text-base flex items-center gap-2">
                       <span>{cat?.icon || "📦"}</span>
-                      <ItemTooltip itemName={itemName} side="top">
-                        <span className="cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{itemName}</span>
+                      <ItemTooltip itemName={displayName} side="top">
+                        <span className="cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{displayName}</span>
                       </ItemTooltip>
                       <Badge variant="secondary" className="text-xs font-body ml-auto">
                         {itemListings.reduce((s, l) => s + l.quantity, 0)} disponibles
