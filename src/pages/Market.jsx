@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getInventoryWeight, getEffectiveMaxWeight, wouldExceedCapacity, getMarketTaxDiscount } from "../lib/gameData";
 import { ITEMS, EQUIPMENT_KEYS } from "../lib/craftingData";
+import { getItemName } from "../lib/itemHelpers";
 import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice, calculateDynamicPrices } from "../lib/pricingData";
 import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
 import { Label } from "@/components/ui/label";
@@ -566,13 +567,13 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       }
       await logGold(listing.seller_email, sellers[0].character_name, city?.id, city?.name,
         sellerTotal, "vente",
-        `Vente ${qty}× ${listing.item_name}${taxBonus > 0 ? ` (+${taxBonus} bonus Marchand)` : ""}${caravaneBonus > 0 ? ` (+${caravaneBonus} bonus Caravane)` : ""}${sellerRepaid > 0 ? ` (−${sellerRepaid} remboursement dette)` : ""}`
+        `Vente ${qty}× ${getItemName(listing.item_key, listing.item_name)}${taxBonus > 0 ? ` (+${taxBonus} bonus Marchand)` : ""}${caravaneBonus > 0 ? ` (+${caravaneBonus} bonus Caravane)` : ""}${sellerRepaid > 0 ? ` (−${sellerRepaid} remboursement dette)` : ""}`
       );
     }
 
     await logGold(profile.user_email, profile.character_name, city?.id, city?.name,
       -totalBase, "achat",
-      `Achat ${qty}× ${listing.item_name}${effectiveTaxAmount > 0 ? ` (taxe ${effectiveTaxAmount}💰 due au reset)` : ""}`
+      `Achat ${qty}× ${getItemName(listing.item_key, listing.item_name)}${effectiveTaxAmount > 0 ? ` (taxe ${effectiveTaxAmount}💰 due au reset)` : ""}`
     );
 
     await base44.entities.TradeHistory.create({
@@ -595,9 +596,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           ? ` (taxe ${taxToAccumulate}💰 due au reset${taxDiscountRate > 0 ? ` −${Math.round(taxDiscountRate*100)}%` : ""})`
           : "";
     if (isRemotePurchase) {
-      toast.success(`📦 Commande passée ! ${qty}× ${listing.item_name} vous attend à ${listingCity?.name || "destination"}${taxMsg}. Voyagez sur place pour récupérer votre colis.`);
+      toast.success(`📦 Commande passée ! ${qty}× ${getItemName(listing.item_key, listing.item_name)} vous attend à ${listingCity?.name || "destination"}${taxMsg}. Voyagez sur place pour récupérer votre colis.`);
     } else {
-      toast.success(`🤝 Affaire conclue ! ${qty}× ${listing.item_name} acquis pour ${totalBase} 💰${taxMsg}`);
+      toast.success(`🤝 Affaire conclue ! ${qty}× ${getItemName(listing.item_key, listing.item_name)} acquis pour ${totalBase} 💰${taxMsg}`);
     }
 
     setBuying(null);
@@ -1146,8 +1147,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{cat?.icon || "📦"}</span>
                         <div>
-                          <ItemTooltip itemName={listing.item_name} side="top">
-                            <div className="font-semibold font-body cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{listing.item_name}</div>
+                          <ItemTooltip itemName={getItemName(listing.item_key, listing.item_name)} side="top">
+                            <div className="font-semibold font-body cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{getItemName(listing.item_key, listing.item_name)}</div>
                           </ItemTooltip>
                           <div className="text-xs text-muted-foreground font-body">
                             ×{listing.quantity} à {listing.price_per_unit} 💰/u

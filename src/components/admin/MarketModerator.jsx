@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getItemName } from "@/lib/itemHelpers";
 
 export default function MarketModerator() {
   const [listings, setListings] = useState([]);
@@ -79,7 +80,7 @@ export default function MarketModerator() {
               <CardContent className="p-3 flex items-center justify-between gap-2">
                 <div className="font-body text-sm flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold">{l.item_name}</span>
+                    <span className="font-semibold">{getItemName(l.item_key, l.item_name)}</span>
                     <Badge variant="outline" className="text-xs">{l.item_category}</Badge>
                     {l.item_tier > 0 && <Badge variant="secondary" className="text-xs">T{l.item_tier}</Badge>}
                   </div>

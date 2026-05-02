@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { getTxLabel, CITY_IN_TYPES, CITY_OUT_TYPES, TRANSACTION_TYPES, toCityAmount } from "@/lib/transactionTypes";
 import { PROFESSION_EMOJIS } from "@/lib/objectiveGenerator";
+import { getItemName } from "@/lib/itemHelpers";
 
 // ── Ressources entrepôt avec noms et icônes ──
 const WAREHOUSE_ITEMS = {
@@ -393,7 +394,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
                   <div key={i} className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2 text-xs font-body">
                     <span className="shrink-0">{isDeposit ? "▲" : "▼"}</span>
                     <div className="flex-1 min-w-0">
-                      <span className="font-semibold">{log.item_name || log.item_key}</span>
+                      <span className="font-semibold">{getItemName(log.item_key, log.item_name || log.item_key)}</span>
                       <span className="text-muted-foreground ml-1.5">{sourceLabel}</span>
                     </div>
                     <span className={`font-heading font-bold shrink-0 ${isDeposit ? "text-green-600" : "text-red-600"}`}>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { logGold } from "@/lib/goldLog";
+import { getItemName } from "@/lib/itemHelpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -355,7 +356,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
                   <div key={idx} className="flex items-center gap-3 bg-muted/40 rounded-lg p-3 text-sm font-body">
                     <span className="text-2xl">{data?.icon || cat?.icon || "📦"}</span>
                     <div className="flex-1">
-                      <div className="font-semibold">{item.item_name}</div>
+                      <div className="font-semibold">{getItemName(item.item_key, item.item_name)}</div>
                       <div className="text-xs text-muted-foreground">{data?.use || "Vendable sur le marché"}</div>
                       {item.durability !== undefined && (() => {
                         const maxDur = EQUIPMENT_DURABILITY?.[item.item_key] ?? EQUIPMENT_MAX_DURABILITY;
