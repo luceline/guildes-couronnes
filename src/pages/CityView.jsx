@@ -23,13 +23,13 @@ import {
 import { logGold } from '@/lib/goldLog';
 import { checkAndProclamWinner } from "../lib/electionLogic";
 import MairieShop from "../components/MairieShop";
-import T5AttackPanel from "../components/T5AttackPanel";
+// SUSPENDU le 01/05/2026 : système T5 en refonte. Import désactivé.
+// import T5AttackPanel from "../components/T5AttackPanel";
 import HelpTooltip from "../components/HelpTooltip";
 import ElectionPanel from "../components/ElectionPanel";
 import MaireOffresPanel from "../components/MaireOffresPanel";
 import WarehouseUnified from "../components/WarehouseUnified";
 import AtelierCommande from "../components/AtelierCommande";
-import UpgradeServicePanel from "../components/UpgradeServicePanel";
 import ChallengeForm from "../components/ChallengeForm";
 import MairieTab from "../components/MairieTab";
 import MaireDashboard from "../components/MaireDashboard";
@@ -37,7 +37,7 @@ import ProfessionChangePanel from "../components/ProfessionChangePanel";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
 
-// T1 items de l'entrepôt — indexés directement par item_key
+// T1 items de l'entrepôt : indexés directement par item_key
 const WAREHOUSE_T1 = [
   { key: "bois_brut",   name: "Bois brut",      icon: "🪵" },
   { key: "pierre",      name: "Pierre",          icon: "🪨" },
@@ -58,7 +58,7 @@ const WAREHOUSE_LABELS = {
   herbes:      "Herbes",
   quartz_brut: "Quartz brut",
   or:          "Or",
-  // T2/T3 — repris depuis GAME_ITEMS si absent
+  // T2/T3 : repris depuis GAME_ITEMS si absent
 };
 
 // Helper pour trouver un item d'inventaire par item_key
@@ -98,21 +98,23 @@ function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepay
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-body text-muted-foreground">Taux prêt (%) — 0 = désactivé</label>
+              <label className="text-xs font-body text-muted-foreground">Taux prêt (%) : 0 = désactivé</label>
               <div className="flex items-center gap-1">
                 <input type="number" min={0} max={50} value={loanRate}
                   onChange={e => setLoanRate(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
-                  className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2" />
+                  className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
+                  onFocus={e => e.target.select()} />
                 <span className="text-xs text-muted-foreground">% / 7j</span>
               </div>
               <p className="text-xs text-muted-foreground font-body">Ex: 100 or → remb. {100 + Math.floor(100 * loanRate / 100)} or</p>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-body text-muted-foreground">Taux dépôt (%) — 0 = désactivé</label>
+              <label className="text-xs font-body text-muted-foreground">Taux dépôt (%) : 0 = désactivé</label>
               <div className="flex items-center gap-1">
                 <input type="number" min={0} max={30} value={depositRate}
                   onChange={e => setDepositRate(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
-                  className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2" />
+                  className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
+                  onFocus={e => e.target.select()} />
                 <span className="text-xs text-muted-foreground">% / 7j</span>
               </div>
               <p className="text-xs text-muted-foreground font-body">Ex: 100 or → récup. {100 + Math.floor(100 * depositRate / 100)} or</p>
@@ -146,7 +148,7 @@ function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepay
         </div>
       )}
       {!mayorActive && (
-        <p className="text-xs text-muted-foreground font-body italic">Le siège de la mairie est vide — sans gouverneur, le comptoir sommeille.</p>
+        <p className="text-xs text-muted-foreground font-body italic">Le siège de la mairie est vide : sans gouverneur, le comptoir sommeille.</p>
       )}
 
       {/* ── Prêts ── */}
@@ -172,7 +174,8 @@ function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepay
               <div className="flex items-center gap-1">
                 <input type="number" min={50} max={Math.min(500, city.gold_treasury || 0)} step={50} value={loanAmount}
                   onChange={e => setLoanAmount(Math.max(50, parseInt(e.target.value) || 50))}
-                  className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2" />
+                  className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
+                  onFocus={e => e.target.select()} />
                 <span className="text-xs text-muted-foreground">or</span>
               </div>
               <button onClick={() => onRequestLoan(loanAmount)}
@@ -211,7 +214,8 @@ function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepay
             <div className="flex items-center gap-1">
               <input type="number" min={50} max={profile.gold || 0} step={50} value={depositAmount}
                 onChange={e => setDepositAmount(Math.max(50, parseInt(e.target.value) || 50))}
-                className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2" />
+                className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
+                onFocus={e => e.target.select()} />
               <span className="text-xs text-muted-foreground">or</span>
             </div>
             <button onClick={() => onDeposit(depositAmount)}
@@ -321,12 +325,12 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   const handleRequestLoan = async (amount) => {
     if (!hasComptoir) return;
     if (profile.home_city_id !== city.id) { toast.error("Vous ne pouvez emprunter que dans votre ville d'origine."); return; }
-    if (!mayorActive) { toast.error("Sans maire en exercice, nul ne peut autoriser un prêt — attendez l'élection d'un gouverneur."); return; }
+    if (!mayorActive) { toast.error("Sans maire en exercice, nul ne peut autoriser un prêt : attendez l'élection d'un gouverneur."); return; }
     const rate = city.loan_rate || 0;
-    if (rate === 0) { toast.error("Le maire n'a point ouvert le livre des prêts — attendez qu'il active cette faveur."); return; }
+    if (rate === 0) { toast.error("Le maire n'a point ouvert le livre des prêts : attendez qu'il active cette faveur."); return; }
     const existing = (profile.active_loans || []).filter(l => l.city_id === city.id && l.status === "active");
-    if (existing.length > 0) { toast.error("Vous portez déjà une dette envers cette cité — remboursez-la avant d'en contracter une nouvelle."); return; }
-    if ((city.gold_treasury || 0) < amount) { toast.error(`Les coffres de ${city.name} sont trop maigres pour ce prêt — il ne reste que ${city.gold_treasury || 0} 💰 en trésorerie.`); return; }
+    if (existing.length > 0) { toast.error("Vous portez déjà une dette envers cette cité : remboursez-la avant d'en contracter une nouvelle."); return; }
+    if ((city.gold_treasury || 0) < amount) { toast.error(`Les coffres de ${city.name} sont trop maigres pour ce prêt : il ne reste que ${city.gold_treasury || 0} 💰 en trésorerie.`); return; }
     const interest = Math.floor(amount * (rate / 100));
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 7);
@@ -341,13 +345,13 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     });
     await logGold(profile.user_email, profile.character_name, city.id, city.name,
       amount, "pret", `Prêt bancaire de ${city.name} (→ rembourser ${amount + interest} 💰)`);
-    toast.success(`🏦 Le comptoir vous accorde sa confiance ! ${amount} 💰 dans votre bourse — remboursez ${amount + interest} 💰 avant le ${dueDate.toISOString().split("T")[0]}.`);
+    toast.success(`🏦 Le comptoir vous accorde sa confiance ! ${amount} 💰 dans votre bourse : remboursez ${amount + interest} 💰 avant le ${dueDate.toISOString().split("T")[0]}.`);
     onRefresh?.();
   };
 
   const handleRepayLoan = async (loan, idx) => {
     const total = loan.amount + loan.interest;
-    if ((profile.gold || 0) < total) { toast.error(`Votre bourse est trop légère — il vous faut ${total} 💰 pour solder cette dette.`); return; }
+    if ((profile.gold || 0) < total) { toast.error(`Votre bourse est trop légère : il vous faut ${total} 💰 pour solder cette dette.`); return; }
     const newLoans = (profile.active_loans || []).map((l, i) => i === idx ? { ...l, status: "repaid" } : l);
     await base44.entities.PlayerProfile.update(profile.id, {
       gold: (profile.gold || 0) - total,
@@ -358,16 +362,16 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     });
     await logGold(profile.user_email, profile.character_name, city.id, city.name,
       -total, "remboursement", `Remboursement prêt à ${city.name}`);
-    toast.success(`🤝 Votre dette est soldée ! ${total} 💰 rendus à la trésorerie de ${city.name} — votre honneur est sauf.`);
+    toast.success(`🤝 Votre dette est soldée ! ${total} 💰 rendus à la trésorerie de ${city.name} : votre honneur est sauf.`);
     onRefresh?.();
   };
 
   const handleBankDeposit = async (amount) => {
     if (!hasComptoir) return;
     if (profile.home_city_id !== city.id) { toast.error("Vous ne pouvez déposer que dans votre ville d'origine."); return; }
-    if (!mayorActive) { toast.error("Le siège de la mairie est vide — un maire doit d'abord être élu pour gérer les dépôts."); return; }
+    if (!mayorActive) { toast.error("Le siège de la mairie est vide : un maire doit d'abord être élu pour gérer les dépôts."); return; }
     const rate = city.deposit_rate || 0;
-    if (rate === 0) { toast.error("Le comptoir est fermé — le maire n'a pas encore ouvert le livre des dépôts."); return; }
+    if (rate === 0) { toast.error("Le comptoir est fermé : le maire n'a pas encore ouvert le livre des dépôts."); return; }
     if ((profile.gold || 0) < amount) { toast.error("Pas assez d'or."); return; }
     const interest = Math.floor(amount * (rate / 100));
     const dueDate = new Date();
@@ -390,7 +394,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   const handleClaimDeposit = async (deposit, idx) => {
     const total = deposit.amount + deposit.interest;
     const now = new Date().toISOString().split("T")[0];
-    if (now < deposit.due_at) { toast.error(`Votre dépôt est encore à terme jusqu'au ${deposit.due_at} — patience, les intérêts courent !`); return; }
+    if (now < deposit.due_at) { toast.error(`Votre dépôt est encore à terme jusqu'au ${deposit.due_at} : patience, les intérêts courent !`); return; }
     if ((city.gold_treasury || 0) < total) {
       // Trésorerie vide : rembourser uniquement la mise
       const newDeposits = (profile.active_deposits || []).map((d, i) => i === idx ? { ...d, status: "matured" } : d);
@@ -401,7 +405,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       await base44.entities.City.update(city.id, {
         gold_treasury: Math.max(0, (city.gold_treasury || 0) - deposit.amount),
       });
-      toast.error(`⚠️ La trésorerie manque de fonds pour les intérêts — seule votre mise initiale (${deposit.amount} 💰) vous est rendue.`);
+      toast.error(`⚠️ La trésorerie manque de fonds pour les intérêts : seule votre mise initiale (${deposit.amount} 💰) vous est rendue.`);
     } else {
       const newDeposits = (profile.active_deposits || []).map((d, i) => i === idx ? { ...d, status: "matured" } : d);
       await base44.entities.PlayerProfile.update(profile.id, {
@@ -487,7 +491,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       return;
     }
     setBuyingSceau(true);
-    // L'or est détruit — ne va pas en trésorerie
+    // L'or est détruit : ne va pas en trésorerie
     await base44.entities.PlayerProfile.update(profile.id, {
       gold: (profile.gold || 0) - SCEAU_PRICE,
       sceau_balance: (profile.sceau_balance || 0) + SCEAU_VALUE,
@@ -500,7 +504,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         player_email: profile.user_email, player_name: profile.character_name || "",
         city_id: city.id, city_name: city.name || "",
         amount: -SCEAU_PRICE, type: "sceau_royal",
-        description: `Achat Sceau royal — ${SCEAU_PRICE}💰 détruits, solde Sceau : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰`,
+        description: `Achat Sceau royal : ${SCEAU_PRICE}💰 détruits, solde Sceau : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰`,
       });
     } catch(e) {}
     toast.success(`🏵️ Sceau royal acquis ! Solde : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰 (absorbe taxes et impôts).`);
@@ -553,11 +557,17 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     const bType = BUILDING_TYPES[buildingKey];
     if (!bType) return;
     if (!canBuildMore(city, buildingKey)) {
-      toast.error(`${bType.name} est unique — il en existe déjà un dans la ville.`);
+      const currentLevel = getBuildingLevel(city, buildingKey);
+      if (currentLevel >= 5) {
+        toast.error(`${bType.name} est déjà au niveau maximum (5).`);
+      } else {
+        toast.error(`Impossible de construire ${bType.name} ici.`);
+      }
       return;
     }
 
     const currentLevel = getBuildingLevel(city, buildingKey);
+    const isUpgrade = currentLevel > 0 && !bType.stackable;
     const cost = getBuildingCost(buildingKey, currentLevel);
     const warehouse = city.warehouse || {};
 
@@ -574,16 +584,30 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       newWarehouse[res] = (newWarehouse[res] || 0) - qty;
     }
 
-    const newBuildings = [...(city.buildings || []), {
-      building_type: buildingKey,
-      name: bType.name,
-      level: 1,
-      built_date: getTodayDateStr(),
-    }];
+    let newBuildings;
+    let newMaxPop = city.max_population || 3;
 
-    const newMaxPop = bType.popBonus > 0
-      ? (city.max_population || 3) + bType.popBonus
-      : (city.max_population || 3);
+    if (isUpgrade) {
+      // UPGRADE : on augmente le level du bâtiment existant (1 seul exemplaire pour les uniques)
+      newBuildings = (city.buildings || []).map(b =>
+        b.building_type === buildingKey
+          ? { ...b, level: (b.level || 1) + 1 }
+          : b
+      );
+      // Pas de nouveau popBonus (le bonus est déjà appliqué à la construction initiale)
+    } else {
+      // CONSTRUCTION : on ajoute une nouvelle entrée au tableau (niveau 1)
+      newBuildings = [...(city.buildings || []), {
+        building_type: buildingKey,
+        name: bType.name,
+        level: 1,
+        built_date: getTodayDateStr(),
+      }];
+      // Le popBonus s'applique uniquement à la construction initiale
+      if (bType.popBonus > 0) {
+        newMaxPop = (city.max_population || 3) + bType.popBonus;
+      }
+    }
 
     await base44.entities.City.update(city.id, {
       warehouse: newWarehouse,
@@ -591,7 +615,11 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       max_population: newMaxPop,
     });
 
-    toast.success(`🏗️ ${bType.name} construite ! Ressources prélevées de l'entrepôt.`);
+    if (isUpgrade) {
+      toast.success(`🔧 ${bType.name} améliorée au niveau ${currentLevel + 1} !`);
+    } else {
+      toast.success(`🏗️ ${bType.name} construite ! Ressources prélevées de l'entrepôt.`);
+    }
     setBuilding(false);
     onRefresh?.();
   };
@@ -603,7 +631,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     const offers = city.rachat_t2t3_offers || {};
     const offer = offers[itemKey];
     if (!offer || !offer.price || !offer.qty_max) {
-      toast.error("La ville ne cherche pas cet item pour l'instant — revenez quand le maire aura posté une offre."); return;
+      toast.error("La ville ne cherche pas cet item pour l'instant : revenez quand le maire aura posté une offre."); return;
     }
     const pricePerUnit = offer.price;
     const totalGold = qty * pricePerUnit;
@@ -650,13 +678,13 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
 
   const handleSellToWarehouse = async (itemKey, qty) => {
     if (!mayorActive || !city.warehouse_rachat_enabled) {
-      toast.error("📦 Le rachat est désactivé — le maire doit l'activer via la Mairie.");
+      toast.error("📦 Le rachat est désactivé : le maire doit l'activer via la Mairie.");
       return;
     }
     const offers = city.rachat_t1_offers || {};
     const offer = offers[itemKey];
     if (!offer || !offer.price || !offer.qty_max) {
-      toast.error("La ville ne cherche pas cet item pour l'instant — revenez quand le maire aura posté une offre."); return;
+      toast.error("La ville ne cherche pas cet item pour l'instant : revenez quand le maire aura posté une offre."); return;
     }
     const pricePerUnit = offer.price;
     const totalGold = qty * pricePerUnit;
@@ -741,7 +769,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         <TabsList className="font-heading flex-wrap h-auto gap-1 w-full justify-center rounded-none border-b-0">
           <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
           <TabsTrigger value="gouvernance">👑 Gouvernance</TabsTrigger>
-          <TabsTrigger value="competitif">⚔️ Attaques T5</TabsTrigger>
+          <TabsTrigger value="competitif">🛠️ T5 (refonte)</TabsTrigger>
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
           <TabsTrigger value="batiments">🏗️ Bâtiments</TabsTrigger>
 {hasTavern && <TabsTrigger value="taverne">🍺 Taverne</TabsTrigger>}
@@ -794,8 +822,9 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
             if (blds.some(b => b.building_type === "cathedrale"))   badges.push("🌟 +2 faim · +2 énergie max");
             if (blds.some(b => b.building_type === "fontaine"))     badges.push("💧 Regen ×2");
             if (blds.some(b => b.building_type === "universite"))   badges.push("🎓 +2 faim max");
-            if (blds.some(b => b.building_type === "eglise"))       badges.push("⛪ 1 action sur 2 gratuite");
-            if (blds.some(b => b.building_type === "bibliotheque")) badges.push("📚 +30 capacité inv.");
+            if (blds.some(b => b.building_type === "eglise"))       badges.push("⛪ 10% chance action gratuite");
+            const biblio = blds.find(b => b.building_type === "bibliotheque");
+            if (biblio) badges.push(`📚 +${20 + 10 * (biblio.level || 1)} capacité inv.`);
             if (blds.some(b => b.building_type === "grande_place")) badges.push("🏟️ +20 capacité inv.");
             if (blds.some(b => b.building_type === "palais"))       badges.push("👑 +1 or/j par résident");
             if (badges.length === 0) return null;
@@ -924,12 +953,39 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   {(city.buildings || []).map((b, idx) => {
                     const bType = BUILDING_TYPES[b.building_type];
+                    const lvl = b.level || 1;
+                    const isMaxLevel = lvl >= 5;
+                    const canUpgrade = isMayor && !bType?.stackable && !isMaxLevel;
+                    const upgradeCost = canUpgrade ? getBuildingCost(b.building_type, lvl) : null;
+                    const warehouseObj = city.warehouse || {};
+                    const canAfford = upgradeCost
+                      ? Object.entries(upgradeCost).every(([res, qty]) => (warehouseObj[res] || 0) >= qty)
+                      : false;
                     return (
                       <div key={idx} className="bg-muted/50 rounded-lg p-2.5 text-center border border-border">
                         <span className="text-xl">{bType?.icon || "🏠"}</span>
                         <div className="font-body text-xs font-semibold mt-1">{b.name}</div>
-                        <div className="text-xs text-muted-foreground font-body">Niv. {b.level || 1}</div>
+                        <div className="text-xs text-muted-foreground font-body">
+                          Niv. {lvl}{isMaxLevel ? " (MAX)" : ""}
+                        </div>
                         {bType?.effect && <div className="text-xs text-primary font-body mt-1">{bType.effect}</div>}
+                        {canUpgrade && (
+                          <div className="mt-2 space-y-1">
+                            <div className="text-[10px] font-body text-muted-foreground">
+                              Niv. {lvl + 1} : {Object.entries(upgradeCost).map(([res, qty]) => `${qty} ${WAREHOUSE_LABELS[res] || res}`).join(" · ")}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="font-heading text-xs h-7 w-full"
+                              onClick={() => handleBuild(b.building_type)}
+                              disabled={building || !canAfford}
+                              title={!canAfford ? "Ressources insuffisantes dans l'entrepôt" : `Améliorer au niveau ${lvl + 1}`}
+                            >
+                              🔧 Améliorer
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -937,7 +993,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                 {Object.keys(dailyMaintenance).length > 0 && (
                   <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-body text-amber-800">
                     🔧 Entretien quotidien : {Object.entries(dailyMaintenance).map(([r, q]) => `${q} ${WAREHOUSE_LABELS[r] || GAME_ITEMS[r]?.name || r}`).join(" · ")}
-                    <span className="ml-2 text-amber-600">({nbResidents} résident{nbResidents > 1 ? "s" : ""} — ×{(1 + 0.2 * Math.max(0, nbResidents - 1)).toFixed(1)} multiplicateur)</span>
+                    <span className="ml-2 text-amber-600">({nbResidents} résident{nbResidents > 1 ? "s" : ""} : ×{(1 + 0.2 * Math.max(0, nbResidents - 1)).toFixed(1)} multiplicateur)</span>
                   </div>
                 )}
               </CardContent>
@@ -1089,55 +1145,22 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     </div>
   </TabsContent>
 )}
-        {/* ── ENTREPÔT ── */}
         {/* ── ITEMS COMPÉTITIFS ── */}
+        {/* SUSPENDU le 01/05/2026 : système T5 en cours de refonte (équilibrage). */}
+        {/* À ne pas réactiver sans avoir validé le nouveau design (effets, coûts, défenses). */}
         <TabsContent value="competitif" className="space-y-4 mt-4">
-          {/* Contrat Noble — bouclier défensif, visible résidents seulement */}
-          {isHomeCity && (() => {
-            const hasNoble = (profile.inventory || []).some(i => i.item_key === "contrat_noble" && i.quantity > 0);
-            const nobleActive = !!city.contrat_noble_active;
-            if (!hasNoble && !nobleActive) return null;
-            return (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-heading font-semibold text-sm text-emerald-900">📜 Contrat Noble</p>
-                  <p className="text-xs font-body text-emerald-700 mt-0.5">
-                    {nobleActive
-                      ? "✅ Bouclier actif — la prochaine attaque T5 ennemie sera annulée."
-                      : "Activez le contrat noble pour protéger la ville contre la prochaine attaque T5 ennemie."}
-                  </p>
-                </div>
-                {hasNoble && !nobleActive && (
-                  <Button size="sm" className="font-heading bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
-                    onClick={async () => {
-                      const newInv = (profile.inventory || [])
-                        .map(i => i.item_key === "contrat_noble" ? {...i, quantity: i.quantity - 1} : i)
-                        .filter(i => i.quantity > 0);
-                      await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv });
-                      await base44.entities.City.update(city.id, { contrat_noble_active: true });
-                      toast.success("📜 Contrat Noble activé ! La ville est protégée contre la prochaine attaque T5.");
-                      onRefresh?.();
-                    }}>
-                    🛡️ Activer
-                  </Button>
-                )}
-                {nobleActive && <span className="text-emerald-600 font-heading text-sm">🛡️ Protégé</span>}
-              </div>
-            );
-          })()}
-          <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm font-body text-red-900 space-y-2">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold">⚔️ Attaques inter-villes</p>
-              <HelpTooltip text="Fabriquez des items offensifs (T5) pour affecter une ville. Sélectionnez la cible, lancez l'attaque. Les effets s'activent à minuit UTC." side="right" />
-            </div>
-            <ul className="text-xs space-y-0.5">
-              <li>• Craftez des items T5 offensifs (1 par métier).</li>
-              <li>• Chaque attaque consomme 1 faim.</li>
-              <li>• Les effets s'activent à minuit UTC (délai volontaire pour riposte).</li>
-              <li>• La ville peut se défendre avec les bâtiments appropriés.</li>
-            </ul>
+          <div className="bg-amber-50 border border-amber-300 rounded-lg p-6 text-center space-y-3">
+            <div className="text-5xl">🛠️</div>
+            <h2 className="font-heading text-xl text-amber-900">Système d'attaques T5 en refonte</h2>
+            <p className="text-sm font-body text-amber-800 max-w-md mx-auto">
+              Les attaques inter-villes sont temporairement suspendues le temps de revoir leur équilibrage.
+              Vos items T5 déjà craftés restent dans votre inventaire et seront utilisables dès le retour du système.
+            </p>
+            <p className="text-xs font-body text-amber-700 italic">
+              Les bâtiments défensifs (Tour de guet, Caserne, Coffre-fort, Scriptorium, Entrepôt fortifié, Guilde des marchands)
+              seront repensés en cohérence avec la nouvelle version.
+            </p>
           </div>
-          <T5AttackPanel profile={profile} city={city} onRefresh={onRefresh} />
         </TabsContent>
 
         {/* ── HABITANTS ── */}
@@ -1190,7 +1213,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                                     if (p) handleSetRole(key, p);
                                     e.target.value = "";
                                   }}>
-                                  <option value="">— Nommer —</option>
+                                  <option value="">Nommer</option>
                                   {residents.filter(r => r.id !== profile.id).map(r => (
                                     <option key={r.id} value={r.id}>{r.character_name}</option>
                                   ))}
@@ -1222,10 +1245,10 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                             "🏆 Rang vendeur · 🏗️ Rang contributeur entrepôt · ⚔️ Rang PvP\n" +
                             "⚔️X Score d'attaque · 🛡️X Score de défense\n\n" +
                             "Boutons :\n" +
-                            "🏪 Atelier — Commander à un artisan ou améliorer ton équipement\n" +
-                            "⚔️ Défier — Lancer un défi PvP\n" +
-                            "🚫 Expulser — Réservé au maire\n" +
-                            "⚒️ M'améliorer — Self-service Bûcheron/Mineur"
+                            "🏪 Atelier : Commander à un artisan ou améliorer ton équipement\n" +
+                            "⚔️ Défier : Lancer un défi PvP\n" +
+                            "🚫 Expulser : Réservé au maire\n" +
+                            "⚒️ M'améliorer : Self-service Bûcheron/Mineur"
                           }
                         />
                       </CardTitle>
@@ -1275,7 +1298,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                               })()}
                             </div>
 
-                            {/* Boutons d'action — flex-wrap propre, en bas */}
+                            {/* Boutons d'action : flex-wrap propre, en bas */}
                             {(() => {
                               const showExpel = !isMe && isMayor;
                               const showAtelier = !isMe && (p.atelier_vitrine?.active || p.profession === "Bûcheron" || p.profession === "Mineur");
@@ -1320,25 +1343,17 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                           );
                         })}
                       </div>
-                      {/* ── Atelier commande + Service amélioration ── */}
+                      {/* ── Atelier commande (REFONTE v4 : UpgradeServicePanel retiré) ── */}
                       {selectedAtelier && (() => {
                         const prod = residents.find(p => p.id === selectedAtelier);
                         if (!prod) return null;
                         return (
-                          <>
-                            <AtelierCommande
-                              producer={prod}
-                              clientProfile={profile}
-                              onClose={() => setSelectedAtelier(null)}
-                              onRefresh={onRefresh}
-                            />
-                            <UpgradeServicePanel
-                              producer={prod}
-                              clientProfile={profile}
-                              city={city}
-                              onRefresh={onRefresh}
-                            />
-                          </>
+                          <AtelierCommande
+                            producer={prod}
+                            clientProfile={profile}
+                            onClose={() => setSelectedAtelier(null)}
+                            onRefresh={onRefresh}
+                          />
                         );
                       })()}
                     </CardContent>
@@ -1355,7 +1370,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                           text={
                             "Voyageurs de passage dans la cité.\n\n" +
                             "🟢 En ligne · 🛡️X Score de défense\n\n" +
-                            "⚔️ Défier — Lancer un défi PvP contre ce visiteur"
+                            "⚔️ Défier : Lancer un défi PvP contre ce visiteur"
                           }
                         />
                       </CardTitle>

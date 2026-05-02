@@ -71,7 +71,7 @@ export async function createNewCityWithRoutes(existingCities) {
   let newTerritoryName = null;
 
   if (territories.length === 0) {
-    // Premier territoire — créer le territoire 1
+    // Premier territoire : créer le territoire 1
     const usedTerritoryNames = new Set();
     newTerritoryName = generateTerritoryName(usedTerritoryNames);
     const newTerritory = await base44.entities.Territory.create({

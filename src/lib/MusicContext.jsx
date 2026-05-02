@@ -68,7 +68,7 @@ export function MusicProvider({ children }) {
           audioRef.current.pause();
         }
       } else {
-        // Page de nouveau visible — reprendre si on jouait avant
+        // Page de nouveau visible : reprendre si on jouait avant
         if (wasPlayingBeforeHide && audioRef.current) {
           audioRef.current.play().catch(() => {});
         }

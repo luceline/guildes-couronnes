@@ -10,15 +10,18 @@ export default function LandingPage() {
     {/* ── Bannière PWA installation ── */}
     <div style={{ background: "#c9a44a", padding: "0.6rem 1rem", textAlign: "center", position: "sticky", top: 0, zIndex: 100 }}>
       <p style={{ fontFamily: "sans-serif", fontSize: 12, fontWeight: 600, color: "#0e0b05", margin: 0, letterSpacing: 0.5 }}>
-        📲 Installez le jeu sur votre appareil — Chrome/Edge : icône ⊕ dans la barre d'adresse · Safari iOS : Partager ↑ → "Sur l'écran d'accueil"
+        📲 Installez le jeu sur votre appareil : Chrome/Edge : icône ⊕ dans la barre d'adresse · Safari iOS : Partager ↑ → "Sur l'écran d'accueil"
       </p>
     </div>
 
       {/* HERO */}
       <div style={{ position: "relative", minHeight: 340, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3.5rem 1rem 2rem", overflow: "hidden", background: "#0e0b05" }}>
-        <a href="https://fr.tipeee.com/guildes-couronnes/" target="_blank" rel="noopener noreferrer" style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 10 }}>
-          <button style={{ padding: "0.5rem 1rem", background: "#c9a44a", color: "#0e0b05", border: "none", borderRadius: "0.375rem", fontFamily: "sans-serif", fontSize: "clamp(10px, 2vw, 12px)", fontWeight: 500, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "opacity 0.2s" }} onMouseEnter={e => e.target.style.opacity = 0.85} onMouseLeave={e => e.target.style.opacity = 1}>
-            💛 Soutenir
+        <a href="https://discord.com/channels/1496627736553193782/1496627739594330143" target="_blank" rel="noopener noreferrer" style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 10 }}>
+          <button style={{ padding: "0.5rem 1rem", background: "#5865F2", color: "#ffffff", border: "none", borderRadius: "0.375rem", fontFamily: "sans-serif", fontSize: "clamp(10px, 2vw, 12px)", fontWeight: 500, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", transition: "opacity 0.2s", display: "inline-flex", alignItems: "center", gap: "0.4rem" }} onMouseEnter={e => e.currentTarget.style.opacity = 0.85} onMouseLeave={e => e.currentTarget.style.opacity = 1}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+            </svg>
+            Discord
           </button>
         </a>
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse at 50% 90%, #3d2a0a 0%, #1a1208 50%, #0e0b05 100%)", zIndex: 0 }} />
@@ -54,7 +57,7 @@ export default function LandingPage() {
 
         <div style={{ position: "relative", zIndex: 2, textAlign: "center" }}>
           <p style={{ fontFamily: "sans-serif", fontSize: 13, letterSpacing: 4, textTransform: "uppercase", color: "#c9a44a", marginBottom: "1rem" }}>
-            Chroniques du royaume — monde persistant multijoueur
+            Chroniques du royaume : monde persistant multijoueur
           </p>
           <h1 style={{ fontSize: "clamp(2.4rem, 7vw, 4rem)", fontWeight: 400, lineHeight: 1.1, color: "#f5e6c0", letterSpacing: 2, marginBottom: "0.5rem", textShadow: "0 0 40px rgba(201,164,74,0.3)" }}>
             <span style={{ color: "#c9a44a" }}>Guildes</span> & <span style={{ color: "#c9a44a" }}>Couronnes</span>
@@ -114,7 +117,7 @@ export default function LandingPage() {
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 2, background: "#3d2a0a44", border: "1px solid #3d2a0a", maxWidth: 1000, margin: "0 auto" }}>
           {[
-            { step: "01", icon: "⚡", title: "Produire & transformer", desc: "Récoltez vos matières premières, transformez-les. Gardez planches, fil et pierre brute en poche pour leurs bienfaits passifs. Vos outils ont trois usages, sans eux tout prend deux fois plus de temps." },
+            { step: "01", icon: "⚡", title: "Produire & transformer", desc: "Récoltez vos matières premières, transformez-les. Gardez planches, fil et pierre taillée en poche pour leurs bienfaits passifs. Vos outils ont trois usages, sans eux tout prend deux fois plus de temps." },
             { step: "02", icon: "🌿", title: "Terres sauvages & Titres", desc: "Parcourez les six contrées pour récolter des trésors rares. Consommez-les pour gagner en renommée. Chaque titre supplémentaire vous accélère et dédouble parfois votre récolte. Consommez un T1 pendant la bénédiction pour cinq minutes de bonus récolte en plus." },
             { step: "03", icon: "🏗️", title: "Alimenter l'entrepôt communautaire", desc: "Déposez vos matériaux transformés à l'entrepôt. L'entretien des bâtiments, des soldats et la consommation des résidents le vident chaque nuit. Le maire voit les jours d'autonomie restants en temps réel dans son tableau de bord." },
             { step: "04", icon: "👑", title: "Gouverner & Déléguer", desc: "Si vous êtes maire, nommez vos officiers depuis l'onglet Habitants. Suivez la trésorerie et les stocks critiques dans votre tableau de bord. Un Percepteur peut gérer les taxes à votre place, un Chef de guerre les campagnes militaires." },
@@ -142,7 +145,7 @@ export default function LandingPage() {
             { icon: "🌲", name: "La Forêt", desc: "Des créatures rôdent sous les frondaisons. Pierre rare et bois rare en tombent parfois. La maîtrise du lieu vous ouvre des bienfaits permanents." },
             { icon: "🌾", name: "Les Champs", desc: "Affrontez les créatures rurales pour glaner or rare et blé rare. Montez la maîtrise pour débloquer des privilèges personnels." },
             { icon: "⛏️", name: "La Mine", desc: "Plongez dans les galeries obscures. Charbon rare et minerai rare vous y attendent. Chaque victoire forge votre renommée personnelle." },
-            { icon: "🧵", name: "L'Atelier", desc: "Défiez les artisans des profondeurs. Fil rare et tissu rare. Convertissez-les en renommée ou vendez-les au marché — à vous de choisir." },
+            { icon: "🧵", name: "L'Atelier", desc: "Défiez les artisans des profondeurs. Fil rare et tissu rare. Convertissez-les en renommée ou vendez-les au marché : à vous de choisir." },
             { icon: "🔥", name: "La Forge", desc: "Duel contre les maîtres forgerons. Fer rare et lingots rares. La maîtrise de ce lieu donne accès aux bienfaits du combattant." },
             { icon: "🏛️", name: "La Guilde", desc: "Relevez les défis de la guilde. Parchemins rares et contrats rares. Certains combats déverrouillent des effets que nul ne peut prévoir." },
           ].map(e => (
@@ -154,7 +157,7 @@ export default function LandingPage() {
           ))}
         </div>
         <p style={{ textAlign: "center", fontSize: 13, color: "#7a6648", fontStyle: "italic", marginTop: "1.5rem", fontFamily: "sans-serif" }}>
-          Cinq combats par jour, six si votre cité est un bourg. Les trésors rares forgent votre renommée — ou s'échangent contre de l'or. Double fortune !
+          Cinq combats par jour, six si votre cité est un bourg. Les trésors rares forgent votre renommée : ou s'échangent contre de l'or. Double fortune !
         </p>
       </div>
 
@@ -167,7 +170,7 @@ export default function LandingPage() {
           ))}
         </div>
         <p style={{ textAlign: "center", fontSize: 14, color: "#a89070", fontStyle: "italic", marginTop: "1.2rem", maxWidth: 440, marginLeft: "auto", marginRight: "auto", lineHeight: 1.7 }}>
-          Chaque métier tient une place dans la chaîne du labeur. Sans le Mineur, les forges s'éteignent. Sans le Fermier, les ventres crient. Le Forgeron fabrique les outils qui accélèrent tout le monde — sans eux, les délais doublent. Et votre renommée personnelle ? Elle amplifie tout ce que vous faites.
+          Chaque métier tient une place dans la chaîne du labeur. Sans le Mineur, les forges s'éteignent. Sans le Fermier, les ventres crient. Le Forgeron fabrique les outils qui accélèrent tout le monde : sans eux, les délais doublent. Et votre renommée personnelle ? Elle amplifie tout ce que vous faites.
         </p>
       </div>
 
@@ -176,7 +179,7 @@ export default function LandingPage() {
         <p style={{ fontFamily: "sans-serif", fontSize: 12, letterSpacing: 4, textTransform: "uppercase", color: "#c9a44a", textAlign: "center", marginBottom: "0.5rem" }}>Alliances & Trahisons</p>
         <h2 style={{ fontSize: "1.7rem", fontWeight: 400, textAlign: "center", color: "#f5e6c0", marginBottom: "0.4rem", letterSpacing: 1 }}>La guerre se gagne aussi dans l'ombre</h2>
         <p style={{ fontSize: 15, color: "#a89070", fontStyle: "italic", textAlign: "center", marginBottom: "2rem", maxWidth: 650, marginLeft: "auto", marginRight: "auto", lineHeight: 1.7 }}>
-          Chaque maître artisan peut forger un objet de nuisance. Les coups frappent à minuit. Une seule attaque par cité par jour. Le Contrat noble annule le prochain coup ennemi. Le Fermier reste indispensable — sans lui, les ventres ne se remplissent jamais assez vite.
+          Chaque maître artisan peut forger un objet de nuisance. Les coups frappent à minuit. Une seule attaque par cité par jour. Le Contrat noble annule le prochain coup ennemi. Le Fermier reste indispensable : sans lui, les ventres ne se remplissent jamais assez vite.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "2.5rem", maxWidth: 1000, margin: "0 auto" }}>
           <div>
@@ -259,7 +262,7 @@ export default function LandingPage() {
             Issues possibles : Déroute · Défaite · Victoire courte · Victoire · Victoire nette · Victoire écrasante
           </p>
           <p style={{ fontSize: 13, color: "#c9a44a44", fontFamily: "sans-serif", marginTop: "0.5rem" }}>
-            Même les vaincus gagnent renommée et or — contribuez toujours
+            Même les vaincus gagnent renommée et or : contribuez toujours
           </p>
         </div>
       </div>
@@ -270,11 +273,11 @@ export default function LandingPage() {
         <h2 style={{ fontSize: "1.7rem", fontWeight: 400, color: "#f5e6c0", marginBottom: "2rem", letterSpacing: 1 }}>Chaque décision a un prix</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 2, background: "#3d2a0a44", border: "1px solid #3d2a0a" }}>
           {[
-            { icon: "🏚️", title: "Les bâtiments s'effondrent", body: "Sans matériaux dans l'entrepôt, les bâtiments tombent chaque nuit. Planches, farine, fil, extrait, pain — approvisionnez avant l'aurore." },
+            { icon: "🏚️", title: "Les bâtiments s'effondrent", body: "Sans matériaux dans l'entrepôt, les bâtiments tombent chaque nuit. Planches, farine, fil, extrait, pain : approvisionnez avant l'aurore." },
             { icon: "⚖️", title: "Les taxes arrivent à l'aube", body: "Vos achats au marché accumulent des taxes tout le jour. Au matin, chaque mairie vient réclamer son dû sur votre or, une par une." },
             { icon: "💸", title: "L'impôt impayé ruine", body: "Si votre bourse est vide au moment du prélèvement, vos biens sont saisis : inventaire vide, faim et forces à zéro." },
             { icon: "🍞", title: "La faim paralyse", body: "Sous trois de faim, chaque action coûte un souffle supplémentaire. À zéro, impossible de travailler. La faim remonte seule, lentement. Pain et ragoût accélèrent le retour." },
-            { icon: "🏖️", title: "Le repos du voyageur", body: "Absent quelques jours ? Déclarez votre retraite — quinze jours au plus — pour suspendre impôts et toute conséquence de l'absence." },
+            { icon: "🏖️", title: "Le repos du voyageur", body: "Absent quelques jours ? Déclarez votre retraite : quinze jours au plus : pour suspendre impôts et toute conséquence de l'absence." },
             { icon: "💤", title: "L'oubli efface les noms", body: "Sept jours sans passage : un avertissement vous parvient. À neuf jours : votre personnage est rayé des chroniques. Revenez, ou déclarez votre repos !" },
           ].map(s => (
             <div key={s.title} style={{ background: "#120e06", padding: "1.25rem 1rem" }}>
@@ -304,7 +307,12 @@ export default function LandingPage() {
           Inscription gratuite · Monde persistant · L'aurore renouvelle tout
         </p>
         <p style={{ marginTop: "1.5rem" }}>
-          <a href="https://fr.tipeee.com/guildes-couronnes/" target="_blank" rel="noopener noreferrer" style={{ color: "#c9a44a", textDecoration: "none", fontSize: 12, fontFamily: "sans-serif", letterSpacing: 1, fontWeight: 500 }}>💛 Soutenir le conteur</a>
+          <a href="https://discord.com/channels/1496627736553193782/1496627739594330143" target="_blank" rel="noopener noreferrer" style={{ color: "#5865F2", textDecoration: "none", fontSize: 12, fontFamily: "sans-serif", letterSpacing: 1, fontWeight: 500, display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+            </svg>
+            Rejoindre le Discord
+          </a>
         </p>
       </div>
 
@@ -329,7 +337,7 @@ export default function LandingPage() {
               <li>Ouvrez le site dans Chrome</li>
               <li>Appuyez sur le menu <strong style={{ color: "#f5e6c0" }}>⋮</strong> en haut à droite</li>
               <li>Choisissez <strong style={{ color: "#f5e6c0" }}>"Ajouter à l'écran d'accueil"</strong></li>
-              <li>Confirmez — l'icône apparaît sur votre écran !</li>
+              <li>Confirmez : l'icône apparaît sur votre écran !</li>
             </ol>
           </div>
           <div style={{ background: "#120e06", border: "1px solid #3d2a0a", borderRadius: "0.75rem", padding: "1.25rem" }}>
@@ -338,7 +346,7 @@ export default function LandingPage() {
               <li>Ouvrez le site dans <strong style={{ color: "#f5e6c0" }}>Safari</strong></li>
               <li>Appuyez sur le bouton <strong style={{ color: "#f5e6c0" }}>Partager ↑</strong></li>
               <li>Choisissez <strong style={{ color: "#f5e6c0" }}>"Sur l'écran d'accueil"</strong></li>
-              <li>Confirmez — l'icône apparaît sur votre écran !</li>
+              <li>Confirmez : l'icône apparaît sur votre écran !</li>
             </ol>
           </div>
         </div>

@@ -1,0 +1,227 @@
+/* src/components/combat/CombatScreen.css
+ * V2 — arène avec joueur à gauche et 3 mobs alignés à droite, indicateurs.
+ */
+
+.cs-arena {
+  position: relative;
+  min-height: 180px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.08) 100%);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  gap: 12px;
+}
+
+.cs-arena.cs-shaking {
+  animation: cs-shake 0.3s ease-out;
+}
+
+.cs-fighter {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Rangée des 3 mobs */
+.cs-monsters-row {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  flex: 1;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.cs-monster-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 1;
+}
+
+.cs-monster-slot.cs-monster-clickable {
+  cursor: pointer;
+  transition: transform 0.12s, filter 0.12s;
+}
+.cs-monster-slot.cs-monster-clickable:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.1) drop-shadow(0 0 6px #10b981);
+}
+
+/* Mob actuellement en cours de défense (wizard) */
+.cs-monster-slot.cs-monster-current {
+  filter: drop-shadow(0 0 8px #f59e0b) brightness(1.1);
+  transform: translateY(-2px);
+}
+.cs-monster-slot.cs-monster-current::before {
+  content: "▼";
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #f59e0b;
+  font-size: 12px;
+  animation: cs-bounce 0.8s ease-in-out infinite;
+}
+@keyframes cs-bounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%      { transform: translateX(-50%) translateY(3px); }
+}
+
+.cs-monster-dead {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.cs-mob-skull {
+  font-size: 32px;
+  filter: grayscale(1);
+}
+
+.cs-mob-hp {
+  width: 100%;
+  font-size: 9px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.cs-mob-hp-bar {
+  width: 80%;
+  height: 4px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.cs-mob-hp-fill {
+  height: 100%;
+  background: #ef4444;
+  transition: width 0.3s;
+}
+.cs-mob-hp-fill.cs-rage {
+  background: #b91c1c;
+  animation: cs-rage-pulse 0.8s ease-in-out infinite;
+}
+.cs-mob-hp-text {
+  color: rgba(0,0,0,0.6);
+  font-weight: 500;
+}
+
+.cs-rage-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #b91c1c;
+  color: white;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 8px;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.cs-counter-badge {
+  position: absolute;
+  bottom: 18px;
+  right: -6px;
+  background: #10b981;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  z-index: 2;
+}
+
+.cs-damage-popup {
+  position: absolute;
+  top: 30px;
+  font-size: 22px;
+  font-weight: 600;
+  color: #b91c1c;
+  pointer-events: none;
+  animation: cs-damage-float 0.9s ease-out forwards;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.7);
+  white-space: nowrap;
+  z-index: 5;
+}
+.cs-damage-popup.cs-parry {
+  color: #1d4ed8;
+  font-size: 16px;
+}
+.cs-damage-popup.cs-zero {
+  color: #475569;
+  font-size: 16px;
+}
+.cs-damage-popup.cs-shield {
+  color: #0284c7;
+  font-size: 22px;
+}
+
+/* Indices des intentions des mobs */
+.cs-intent-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-style: italic;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.cs-intent-single {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  color: #92400e;
+}
+.cs-intent-double {
+  background: #fed7aa;
+  border: 1px solid #fb923c;
+  color: #9a3412;
+}
+.cs-intent-random {
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #991b1b;
+}
+.cs-intent-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.cs-intent-text {
+  flex: 1;
+}
+.cs-rage-tag {
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+/* Animations */
+@keyframes cs-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+@keyframes cs-damage-float {
+  0%   { transform: translateY(0) scale(0.5); opacity: 0; }
+  20%  { transform: translateY(-10px) scale(1.2); opacity: 1; }
+  100% { transform: translateY(-60px) scale(1); opacity: 0; }
+}
+
+@keyframes cs-rage-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(185,28,28,0.4); }
+  50% { box-shadow: 0 0 4px 2px rgba(185,28,28,0.4); }
+}
+
+@keyframes cs-idle {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+.cs-fighter > * { animation: cs-idle 2.4s ease-in-out infinite; }
+.cs-monster-slot:not(.cs-monster-dead) > svg { animation: cs-idle 2.6s ease-in-out infinite; }

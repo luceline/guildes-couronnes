@@ -11,7 +11,7 @@ function getPriceMultiplier(orMoyen) {
   return 2.0;
 }
 
-// Liste des T1 en dur avec leurs prix max conseillés — source de vérité indépendante de la DB
+// Liste des T1 en dur avec leurs prix max conseillés : source de vérité indépendante de la DB
 const T1_ITEMS_MAIRIE = [
   { key: "bois_brut",    name: "Bois brut",      icon: "🪵", category: "bois",       basePrice: 6 },
   { key: "pierre",       name: "Pierre",          icon: "🧱", category: "pierre",     basePrice: 6 },
@@ -105,7 +105,7 @@ export default function MairieShop({ profile, city, onRefresh }) {
 
   if (unavailableItems.length === 0) return (
     <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm font-body text-emerald-900 italic">
-      🎶 Oyez, oyez ! Le ménestrel a parcouru chaque échoppe du royaume et n'a point trouvé marchandise en souffrance. Toutes les denrées circulent librement de ville en ville — la mairie referme ses coffres et repose ses charretiers. Revenez si la disette s'annonce !
+      🎶 Oyez, oyez ! Le ménestrel a parcouru chaque échoppe du royaume et n'a point trouvé marchandise en souffrance. Toutes les denrées circulent librement de ville en ville : la mairie referme ses coffres et repose ses charretiers. Revenez si la disette s'annonce !
     </div>
   );
 
@@ -116,7 +116,7 @@ export default function MairieShop({ profile, city, onRefresh }) {
     <div className="space-y-3">
       {availableItems.length > 0 && (
         <div className="bg-muted/40 border border-border rounded-lg px-4 py-3 text-xs font-body text-muted-foreground italic">
-          🎶 <em>Le ménestrel chuchote :</em> «{availableItems.map(i => i.icon + " " + i.name).join(", ")} ont été aperçu{availableItems.length > 1 ? "s" : "e"} sur les marchés du royaume — la mairie n'en point besoin de les proposer. Si vous n'en trouvez pas, regardez mieux, un marchand les a peut-être cachés dans sa besace !»
+          🎶 <em>Le ménestrel chuchote :</em> «{availableItems.map(i => i.icon + " " + i.name).join(", ")} ont été aperçu{availableItems.length > 1 ? "s" : "e"} sur les marchés du royaume : la mairie n'en point besoin de les proposer. Si vous n'en trouvez pas, regardez mieux, un marchand les a peut-être cachés dans sa besace !»
         </div>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">

@@ -108,7 +108,7 @@ export default function LoginStreakWidget({ profile, onProfileUpdate }) {
       city_id: profile.city_id,
       amount: goldEarned,
       type: "objectif",
-      description: `🔥 Connexion jour ${newStreak} — Récompense streak +${goldEarned}💰`,
+      description: `🔥 Connexion jour ${newStreak} : Récompense streak +${goldEarned}💰`,
     });
 
     setReward({ streak: newStreak, gold: goldEarned, icon: streakReward.icon });

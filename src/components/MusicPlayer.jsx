@@ -56,7 +56,7 @@ export default function MusicPlayer() {
             🎵 {currentTrack?.title}
           </p>
           <p className="text-xs text-muted-foreground font-body mt-0.5">
-            {currentTrack?.artist} — Piste {trackNumber}/{totalTracks}
+            {currentTrack?.artist} : Piste {trackNumber}/{totalTracks}
           </p>
         </div>
 
@@ -125,7 +125,7 @@ export default function MusicPlayer() {
       </div>
 
       <p className="text-xs text-muted-foreground font-body text-center">
-        La musique est activée par défaut à 20% — elle continue pendant toute votre session
+        La musique est activée par défaut à 20% : elle continue pendant toute votre session
       </p>
     </div>
   );

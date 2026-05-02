@@ -131,7 +131,7 @@ export default function TaxAuditPanel() {
                       // Recalculer le montant brut d'achats : taxeRaw / taux * 100
                       const achatsBruts = b.taxRate > 0
                         ? Math.round(b.amountRaw / b.taxRate * 100)
-                        : "—";
+                        : "-";
                       const canPay = (player.gold || 0) >= Math.ceil(total);
                       return (
                         <tr key={`${player.id}-${b.cityId}`} className="border-b border-border/50 hover:bg-muted/20">

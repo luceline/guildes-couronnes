@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,16 +39,16 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
 
   const handleBecomeMayor = async () => {
     if (!profile?.home_city_id || profile.home_city_id !== city.id) {
-      toast.error("👑 Seul un enfant du pays peut prétendre à la mairie — votre cité natale vous attend.");
+      toast.error("👑 Seul un enfant du pays peut prétendre à la mairie : votre cité natale vous attend.");
       return;
     }
     if (mayorActive) {
-      toast.error(`${city.mayor_name} tient déjà les rênes de la cité jusqu'au ${city.mayor_until} — attendez la fin de son mandat.`);
+      toast.error(`${city.mayor_name} tient déjà les rênes de la cité jusqu'au ${city.mayor_until} : attendez la fin de son mandat.`);
       return;
     }
     const effectiveMayorCost = 20;
     if ((profile.gold || 0) < effectiveMayorCost) {
-      toast.error(`Il vous faut ${effectiveMayorCost} 💰 pour briguer la mairie — votre bourse ne contient que ${profile.gold || 0} 💰.`);
+      toast.error(`Il vous faut ${effectiveMayorCost} 💰 pour briguer la mairie : votre bourse ne contient que ${profile.gold || 0} 💰.`);
       return;
     }
     const until = new Date();
@@ -66,7 +67,17 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
     await base44.entities.PlayerProfile.update(profile.id, {
       gold: (profile.gold || 0) - effectiveMayorCost,
     });
-    toast.success(`👑 Les clés de la cité sont vôtres ! Vous gouvernez ${city.name} jusqu'au ${untilStr} — que votre mandat soit juste et prospère.`);
+
+    // V6.1.7 — Trace dans le journal d'or (or va vers la trésorerie ville)
+    if (effectiveMayorCost > 0) {
+      await logGold(
+        profile.user_email, profile.character_name,
+        city.id, city.name,
+        -effectiveMayorCost, "maire",
+        `Investiture maire de ${city.name}`
+      );
+    }
+    toast.success(`👑 Les clés de la cité sont vôtres ! Vous gouvernez ${city.name} jusqu'au ${untilStr} : que votre mandat soit juste et prospère.`);
     onRefresh?.();
   };
 
@@ -85,6 +96,14 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
     await base44.entities.City.update(city.id, {
       sceaux_en_vente: Math.max(0, stock - 1),
     });
+
+    // V6.1.7 — Trace dans le journal d'or (or va vers la trésorerie ville)
+    await logGold(
+      profile.user_email, profile.character_name,
+      city.id, city.name,
+      -SCEAU_PRICE, "sceau",
+      `Achat sceau royal (${SCEAU_VALUE}💰 de couverture)`
+    );
     toast.success(`🏵️ Sceau royal acquis ! Solde : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰 (absorbe taxes et impôts).`);
     setBuyingSceau(false);
     onRefresh?.();
@@ -160,6 +179,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                    value={taxInput ?? (city.daily_tax_per_player || 0)}
                    onChange={e => setTaxInput(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
                    className="w-20 h-7 text-xs text-center text-foreground"
+                   onFocus={e => e.target.select()}
                  />
                 <Button size="sm" className="h-7 text-xs font-heading"
                   onClick={async () => {
@@ -190,6 +210,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                    value={taxRateInput ?? (city.tax_rate_next ?? city.tax_rate ?? 0)}
                    onChange={e => setTaxRateInput(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
                    className="w-20 h-7 text-xs text-center text-foreground"
+                   onFocus={e => e.target.select()}
                  />
                 <Button size="sm" className="h-7 text-xs font-heading"
                   onClick={async () => {
@@ -202,7 +223,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                   }}>
                   Valider
                 </Button>
-                <span className="text-xs text-red-700 font-body">(appliqué au reset J+1 — max 100%)</span>
+                <span className="text-xs text-red-700 font-body">(appliqué au reset J+1 : max 100%)</span>
               </div>
 
               <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-2">
@@ -213,7 +234,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                       const newVal = !salaryEnabledLocal;
                       setSalaryEnabledLocal(newVal);
                       await base44.entities.City.update(city.id, { resident_salary_enabled: newVal });
-                      toast.success(newVal ? "🪙 La mairie versera désormais un salaire à ses résidents — que règne la prospérité !" : "Le salaire a été suspendu — les résidents devront compter sur leurs propres récoltes.");
+                      toast.success(newVal ? "🪙 La mairie versera désormais un salaire à ses résidents : que règne la prospérité !" : "Le salaire a été suspendu : les résidents devront compter sur leurs propres récoltes.");
                       onRefresh?.();
                     }}/>
                   <span className="text-xs font-body text-green-800 ml-1">{salaryEnabledLocal ? "Activé" : "Désactivé"}</span>
@@ -222,7 +243,8 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                       <Input type="number" min={1} max={50} step={1}
                         value={salaryInput ?? (city.resident_salary || 5)}
                         onChange={e => setSalaryInput(Math.max(1, Math.min(50, parseInt(e.target.value) || 0)))}
-                        className="w-16 h-7 text-xs text-center text-foreground" />
+                        className="w-16 h-7 text-xs text-center text-foreground"
+                        onFocus={e => e.target.select()} />
                       <span className="text-xs text-green-700 font-body">💰/résident/jour</span>
                       <Button size="sm" className="h-7 text-xs font-heading"
                         onClick={async () => {
@@ -251,16 +273,17 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 <span className="text-xs font-body text-yellow-900 font-semibold">🏛️ Prix de rachat du lingot royal :</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-body text-yellow-800 w-32">Lingot royal</span>
-                  <span className="text-xs text-muted-foreground font-body">Référence : 156💰</span>
-                  <Input type="number" min={1} max={500} step={1}
-                    value={lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 156)}
-                    onChange={e => setLingotPriceInput(parseInt(e.target.value) || 156)}
+                  <span className="text-xs text-muted-foreground font-body">Référence : 800💰</span>
+                  <Input type="number" min={1} max={5000} step={1}
+                    value={lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 800)}
+                    onChange={e => setLingotPriceInput(parseInt(e.target.value) || 800)}
                     className="w-20 h-7 text-xs text-center text-foreground bg-white"
+                    onFocus={e => e.target.select()}
                   />
                   <span className="text-xs text-muted-foreground font-body">💰</span>
                   <Button size="sm" className="h-7 text-xs font-heading"
                     onClick={async () => {
-                      const val = lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 156);
+                      const val = lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 800);
                       const newPrices = { ...(city.lingot_buy_prices || {}), lingot_royal: val };
                       await base44.entities.City.update(city.id, { lingot_buy_prices: newPrices });
                       toast.success(`Prix du lingot royal mis à jour : ${val}💰`);
@@ -292,7 +315,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           <span className="text-sm text-muted-foreground font-body">👑 Aucun maire en exercice</span>
           {profile.home_city_id === city.id ? (
             <Button size="sm" variant="outline" className="font-heading h-8 gap-1.5" onClick={handleBecomeMayor}>
-              💰 Devenir maire — 20💰 / {MAYOR_DAYS} jours
+              💰 Devenir maire : 20💰 / {MAYOR_DAYS} jours
             </Button>
           ) : (
             <span className="text-xs text-muted-foreground font-body italic">
@@ -335,6 +358,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 toast.success(`🏵️ ${val} Sceau(x) royal/aux mis en vente.`);
                 onRefresh?.();
               }}
+              onFocus={e => e.target.select()}
             />
           </div>
         </div>

@@ -12,6 +12,7 @@ import {
   ROAD_TYPES, ROAD_COLORS,
   getDailyRouteCost, computeTravelCost, computeWallToll, getRouteType,
   MAX_HUNGER, isHungry, hasHungerPenalty, applyRandomActionCost, getMaxHunger, getCityHungerBonus,
+  getPassiveTravelDiscount,
 } from "../lib/gameData";
 
 // Données des biomes
@@ -212,8 +213,13 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
     const isMaritime = roadType === "maritime";
     const baseMinutes = isMaritime ? baseTravelMinutes * 5 : baseTravelMinutes;
-    // ── Réduction durée voyage (encre/parchemin/contrat_artisan) ──
-    const travelDiscount = profile.travel_discount || 0;
+    // ── Réduction durée voyage (REFONTE v5) ──
+    // - Sac de voyage T4 = passif PERMANENT -50% (lu depuis l'inventaire via helper)
+    // - travel_discount résiduel sur le profil (legacy : encre/parchemin/contrat_artisan)
+    //   → conservé pour rétro-compat, on prend le meilleur des deux
+    const passiveTravelDiscount = getPassiveTravelDiscount(profile);
+    const legacyTravelDiscount = profile.travel_discount || 0;
+    const travelDiscount = Math.max(passiveTravelDiscount, legacyTravelDiscount);
     const actualMinutes = travelDiscount > 0
       ? Math.max(1, Math.round(baseMinutes * (1 - travelDiscount)))
       : baseMinutes;
@@ -227,6 +233,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       is_traveling: true,
       travel_destination_id: destinationId,
       travel_arrival_time: arrivalTime,
+      // Le legacy travel_discount est consommé à chaque voyage. Le passif (besace) reste tant qu'on a l'item.
       travel_discount: 0,
       last_travel_route_id: routeId,
       hunger:  costResult.newHunger,
@@ -251,7 +258,11 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
     const costMsg = travelCost > 0 ? ` (−${travelCost} 💰 frais de route)` : "";
     const maritimeMsg = isMaritime ? " ⛵ Route maritime" : "";
-    const discountMsg = travelDiscount > 0 ? ` 🗺️ −${Math.round(travelDiscount * 100)}% durée` : "";
+    const discountMsg = travelDiscount > 0
+      ? (passiveTravelDiscount > 0
+          ? ` 🎒 −${Math.round(travelDiscount * 100)}% durée (Sac de voyage)`
+          : ` 🗺️ −${Math.round(travelDiscount * 100)}% durée`)
+      : "";
     toast.success(`🐴 En selle ! Votre monture prend la route — arrivée dans ${actualMinutes} min.${costMsg}${maritimeMsg}${discountMsg}`);
     completingRef.current = false;
     setTraveling(false);
@@ -313,9 +324,14 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     <div className="space-y-6 pb-20 md:pb-0">
       <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
 
+      {getPassiveTravelDiscount(profile) > 0 && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-sm font-body text-emerald-800">
+          🎒 <strong>Sac de voyage</strong> : −50% sur la durée de tous vos voyages (passif permanent tant que le sac est en stock).
+        </div>
+      )}
       {(profile.travel_discount || 0) > 0 && (
         <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-sm font-body text-indigo-800">
-          🗺️ <strong>Réduction voyage active</strong> : −{Math.round((profile.travel_discount || 0) * 100)}% sur la durée du prochain voyage (usage unique).
+          🗺️ <strong>Réduction voyage active</strong> : −{Math.round((profile.travel_discount || 0) * 100)}% sur la durée du prochain voyage (usage unique, héritage).
         </div>
       )}
 
@@ -603,7 +619,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
               <div className="mt-8 border-t border-border pt-6">
               <h3 className="font-heading text-lg font-semibold mb-3">🌍 Biomes explorables</h3>
               <p className="text-sm text-muted-foreground font-body mb-4">
-              Explorez les biomes pour affronter des monstres et gagner des ressources rares. 5 combats par jour, gratuit et sans impôt.
+              Explorez les biomes pour vivre une épopée quotidienne (5 vagues enchaînées) et récolter des ressources rares. Une seule épopée par jour, gratuite et sans impôt.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {Object.entries(BIOMES).map(([key, biome]) => (

@@ -1,5 +1,5 @@
 /**
- * AtelierCommande — Permet à un client de commander une production
+ * AtelierCommande : Permet à un client de commander une production
  * auprès d'un autre joueur dont l'atelier est ouvert.
  * Affiché dans l'onglet Habitants de CityView quand on clique sur un joueur.
  */
@@ -12,10 +12,12 @@ import {
   PROFESSION_PRODUCTION,
   CRAFTING_RECIPES,
   ITEMS,
+  EQUIPMENT_KEYS,
+  EQUIPMENT_DURABILITY,
 } from "../lib/craftingData";
 import {
   MAX_HUNGER, HUNGER_WARNING_THRESHOLD, applyRandomActionCost,
-  getMaxFatigue, TIER_ACTION_COST,
+  getMaxFatigue, TIER_ACTION_COST, EQUIPMENT_MAX_DURABILITY,
 } from "../lib/gameData";
 import { getPlayerLevelBonuses } from "../lib/playerLevelSystem";
 
@@ -49,7 +51,7 @@ function formatCd(s) {
 export default function AtelierCommande({ producer, clientProfile, onClose, onRefresh }) {
   const [ordering, setOrdering] = useState(null);
   const vitrine = producer.atelier_vitrine || {};
-  // Note (avril 2026) : on n'exit plus si pas de vitrine — d'autres services
+  // Note (avril 2026) : on n'exit plus si pas de vitrine : d'autres services
   // peuvent être disponibles (ex: amélioration combat pour Bûcheron/Mineur).
   // Si pas de vitrine active ET aucune autre raison d'afficher, on rend null à la fin.
   if (!vitrine.active) return null;
@@ -60,7 +62,7 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
   // Recettes T1 du producteur (récolte)
   const t1Recipes = PROFESSION_PRODUCTION[producer.profession] || [];
 
-  // Recettes T2-T5 du producteur (craft) — filtrées par la PROFESSION DU PRODUCTEUR.
+  // Recettes T2-T5 du producteur (craft) : filtrées par la PROFESSION DU PRODUCTEUR.
   // Un client qui passe par l'atelier d'un Bûcheron ne peut commander que des recettes Bûcheron.
   const craftRecipes = CRAFTING_RECIPES.filter(r =>
     r.output?.key &&
@@ -110,6 +112,30 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       }
     }
 
+    // ── REFONTE ITEMS v5 : Anti-doublon items combat (épée + 4 armures) ──
+    // Règle : 1 seul exemplaire par type, équipé OU en inventaire, toutes dura confondues.
+    // Si l'item est brisé (dura=0), le joueur doit le réparer (1 pierre = +1 dura
+    // pour l'épée, 1 laine_brute pour les armures) plutôt que d'en commander un nouveau.
+    const outputKeyToCheck = isT1 ? recipe.outputKey : recipe.output?.key;
+    if (outputKeyToCheck && EQUIPMENT_KEYS.includes(outputKeyToCheck)) {
+      // 1. Vérifier l'inventaire (tous les exemplaires, même cassés)
+      const inInventory = (clientProfile.inventory || []).some(i =>
+        i.item_key === outputKeyToCheck
+      );
+      // 2. Vérifier l'équipement (tous slots, même item brisé équipé)
+      const eq = clientProfile.equipment || {};
+      const inEquipment = Object.values(eq).some(slotItem =>
+        slotItem && slotItem.item_key === outputKeyToCheck
+      );
+      if (inInventory || inEquipment) {
+        const itemName = ITEMS[outputKeyToCheck]?.name || outputKeyToCheck;
+        const repairKey = outputKeyToCheck === "epee" ? "pierre" : "laine_brute";
+        const repairName = ITEMS[repairKey]?.name || repairKey;
+        toast.error(`Vous possédez déjà un(e) ${itemName}. S'il/elle est brisé(e), réparez-le/la avec une ${repairName} (onglet Combat) plutôt que d'en commander un(e) nouveau/nouvelle.`);
+        return;
+      }
+    }
+
     setOrdering(recipeId);
     try {
       // ── Lire profils frais ──
@@ -156,16 +182,39 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
 
       const outputQty = baseQty + biomeBonusQty + doubleBonus;
       const outputItem = ITEMS[outputKey];
-      const existing   = clientInv.find(i => i.item_key === outputKey || i.item_name === outputItem?.name);
-      if (existing) {
-        existing.quantity += outputQty;
-      } else {
+
+      // ── REFONTE COMBAT v4 : items équipables = grade 0 + durability + pas de stack ──
+      // Pour les épées, heaumes, cuirasses, brassards, jambières et autres items à durabilité,
+      // on crée systématiquement une nouvelle ligne avec grade=0 et la durability max de l'item.
+      // On nettoie aussi les anciennes lignes du même item à dura=0 (déchets après destruction).
+      // Cohérent avec Production.jsx (handleCraft) qui fait pareil.
+      const isEquipmentOutput = EQUIPMENT_KEYS.includes(outputKey);
+      if (isEquipmentOutput) {
+        // Retirer les anciennes lignes du même item à dura ≤ 0 (déchets de destruction)
+        clientInv = clientInv.filter(i =>
+          !(i.item_key === outputKey && (i.durability ?? EQUIPMENT_MAX_DURABILITY) <= 0)
+        );
+        const dura = EQUIPMENT_DURABILITY[outputKey] ?? EQUIPMENT_MAX_DURABILITY;
         clientInv.push({
           item_key:      outputKey,
           item_name:     outputItem?.name || outputKey,
-          item_category: outputItem?.category || "ressources",
-          quantity:      outputQty,
+          item_category: outputItem?.category || "armes_combat",
+          quantity:      1,
+          grade:         0,
+          durability:    dura,
         });
+      } else {
+        const existing = clientInv.find(i => i.item_key === outputKey || i.item_name === outputItem?.name);
+        if (existing) {
+          existing.quantity += outputQty;
+        } else {
+          clientInv.push({
+            item_key:      outputKey,
+            item_name:     outputItem?.name || outputKey,
+            item_category: outputItem?.category || "ressources",
+            quantity:      outputQty,
+          });
+        }
       }
 
       // ── Cooldown + faim/énergie aléatoire (système unifié) ──
@@ -210,15 +259,31 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       }
 
       // Log transaction (côté client = paiement)
-      await base44.entities.GoldTransaction.create({
-        player_email: clientProfile.user_email,
-        player_name:  clientProfile.character_name || "",
-        city_id:      clientProfile.city_id || "",
-        city_name:    "",
-        amount:       -price,
-        type:         "service_atelier",
-        description:  `Service d'atelier : ${outputItem?.name || outputKey} par ${producer.character_name} (${artisanShare}💰 artisan, ${cityShare}💰 ville)`,
-      }).catch(() => {});
+      // V6.1.6 — On log AUSSI côté producteur. Avant, seul le client avait une
+      // ligne dans gold_transactions, ce qui donnait l'impression au producteur
+      // que l'or n'arrivait pas (alors qu'il était bien crédité sur son profil).
+      // Le dashboard se basant sur gold_transactions, le producteur ne voyait
+      // rien et soupçonnait un vol. Ces deux create() en parallèle règlent ça.
+      await Promise.all([
+        base44.entities.GoldTransaction.create({
+          player_email: clientProfile.user_email,
+          player_name:  clientProfile.character_name || "",
+          city_id:      clientProfile.city_id || "",
+          city_name:    "",
+          amount:       -price,
+          type:         "service_atelier",
+          description:  `Service d'atelier : ${outputItem?.name || outputKey} par ${producer.character_name} (${artisanShare}💰 artisan, ${cityShare}💰 ville)`,
+        }).catch(() => {}),
+        base44.entities.GoldTransaction.create({
+          player_email: producer.user_email,
+          player_name:  producer.character_name || "",
+          city_id:      producer.city_id || "",
+          city_name:    "",
+          amount:       artisanShare,
+          type:         "service_atelier",
+          description:  `Service d'atelier rendu à ${clientProfile.character_name || "un client"} : ${outputItem?.name || outputKey}`,
+        }).catch(() => {}),
+      ]);
 
       const itemName = isT1 ? (outputItem?.name || outputKey) : (outputItem?.name || recipe.output.key);
       toast.success(`✅ ${outputQty}× ${itemName} produit${outputQty > 1 ? "s" : ""} par ${producer.character_name} ! −${price} 💰`);
@@ -247,7 +312,7 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
         Vous fournissez vos ingrédients, {producer.character_name} produit. Cooldown, faim et fatigue sont les vôtres.
       </p>
 
-      {/* T1 — récolte du producteur */}
+      {/* T1 : récolte du producteur */}
       {t1Recipes.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs font-body font-semibold text-muted-foreground uppercase tracking-wide">Récolte T1</p>
@@ -280,7 +345,7 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
         </div>
       )}
 
-      {/* T2-T5 — craft */}
+      {/* T2-T5 : craft */}
       {craftRecipes.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs font-body font-semibold text-muted-foreground uppercase tracking-wide">Craft (vous fournissez les ingrédients)</p>
@@ -297,7 +362,7 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
                   <div className="font-semibold">{ITEMS[recipe.output.key]?.name || recipe.output.key}</div>
                   <div className="text-xs text-muted-foreground">
                     {recipe.inputs.map(i => `${i.quantity}× ${ITEMS[i.key]?.name || i.key}`).join(", ")}
-                    {!hasIngr && <span className="text-red-500 ml-1">— ingrédients manquants</span>}
+                    {!hasIngr && <span className="text-red-500 ml-1">· ingrédients manquants</span>}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">

@@ -28,7 +28,7 @@ function EditableRow({ record, fields, onSave, onDelete }) {
             ) : f.key === "tier" ? (
               <Badge variant="outline">T{record[f.key]}</Badge>
             ) : (
-              <span>{record[f.key] !== undefined ? String(record[f.key]) : "—"}</span>
+              <span>{record[f.key] !== undefined ? String(record[f.key]) : "-"}</span>
             )}
           </td>
         ))}
@@ -188,7 +188,7 @@ function RecipeEditor({ recipe, onSave, onDelete }) {
           {(recipe.inputs || []).map(i => `${i.key}×${i.quantity}`).join(", ")}
         </td>
         <td className="px-3 py-2">{recipe.cost_gold || 0} 💰</td>
-        <td className="px-3 py-2">{recipe.requires_building || "—"}</td>
+        <td className="px-3 py-2">{recipe.requires_building || "-"}</td>
         <td className="px-3 py-2">
           <Badge variant={recipe.is_active ? "default" : "secondary"}>{recipe.is_active ? "Actif" : "Inactif"}</Badge>
         </td>

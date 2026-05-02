@@ -112,15 +112,15 @@ export const ITEMS = {
 
   bois_brut: {
     name: "Bois brut", icon: "🪵", category: "bois", tier: 1,
-    trigger: "consumed", effect: "cooldown_bonus", value: 0.10, duration_h: 1,
+    trigger: "consumed", effect: "biome_buff_only",
     biome_profession: "Bûcheron", biome_key: "foret",
-    use: "−10% cooldown 1h. Buff biome → +1 récolte T1 (5min).",
+    use: "Buff biome → +1 récolte T1 (5min). Sinon ressource de craft.",
   },
   minerai_fer: {
     name: "Minerai de fer", icon: "🪨", category: "fer", tier: 1,
-    trigger: "consumed", effect: "energy_max_bonus", value: 2, duration_h: 1,
+    trigger: "consumed", effect: "biome_buff_only",
     biome_profession: "Mineur", biome_key: "mine",
-    use: "+2 énergie max 1h. Buff biome → +1 récolte T1 (5min).",
+    use: "Buff biome → +1 récolte T1 (5min). Sinon ressource de craft.",
   },
   ble: {
     name: "Blé", icon: "🌾", category: "nourriture", tier: 1,
@@ -130,9 +130,9 @@ export const ITEMS = {
   },
   laine_brute: {
     name: "Laine brute", icon: "🧶", category: "tissu", tier: 1,
-    trigger: "consumed", effect: "biome_buff_only",
+    trigger: "consumed", effect: "repair_armor", value: 1,
     biome_profession: "Tisserand", biome_key: "atelier",
-    use: "Buff biome → +1 récolte T1 (5min). Sinon aucun effet.",
+    use: "Restaure +1 durabilité à une armure équipée. Buff biome → +1 récolte T1 (5min).",
   },
   herbes: {
     name: "Herbes", icon: "🌿", category: "potions", tier: 1,
@@ -148,15 +148,16 @@ export const ITEMS = {
   },
   pierre: {
     name: "Pierre", icon: "🧱", category: "pierre", tier: 1,
-    trigger: "consumed", effect: "biome_buff_only",
+    trigger: "consumed", effect: "repair_weapon", value: 1,
     biome_profession: "Forgeron", biome_key: "forge",
-    use: "Buff biome → +1 récolte T1 (5min). Sinon aucun effet.",
+    use: "Restaure +1 durabilité à votre épée équipée. Buff biome → +1 récolte T1 (5min).",
   },
 
   // ════════════════════════════════
   // T1 COMBAT — items équipables (Forgeron + Tisserand)
-  // Au craft, grade 0 (effet 0). Améliorables jusqu'au grade 5.
-  // Casse aléatoire selon grade (5%, 4%, 3%, 2%, 1.5%, 1%).
+  // Au craft, grade 0 (effet +1). Améliorables jusqu'au grade 5 (effet +6) depuis l'onglet Combat.
+  // REFONTE v4 : plus de casse aléatoire au combat. La durabilité (max 10) baisse de -1/jour
+  // au reset 6h UTC. Réparation via 1 Pierre (arme) ou 1 Laine brute (armure) = +1 dura.
   // ════════════════════════════════
   // ── ARME (Forgeron) — 1 seule épée universelle (Phase 3 - Option B) ──
   // Avant : 4 items zonés (casque-arme, plastron-arme, épée, pic). Migration des
@@ -168,7 +169,19 @@ export const ITEMS = {
     combat_slot: "weapon",
     trigger: "equipped", effect: "combat_attack", base_value: 1,
     steal_pct: 0.10,
-    use: "Arme principale. Vol 10–20% selon grade (max 100💰). Améliorable chez le Bûcheron.",
+    use: "Arme principale. Vol 10–25% selon grade (max 100💰). Améliorable depuis l'onglet Combat (Bois, Fer, Quartz). Réparable avec 1 Pierre 🧱 = +1 dura.",
+  },
+
+  // ── BOUCLIER (Forgeron) — défense additionnelle (V2) ──
+  // En combat de biome, permet de défendre une 2e zone en plus de la zone principale.
+  // La 2e zone reçoit (1 + grade bouclier) de défense additive en plus de l'armure équipée.
+  // Pas d'effet en combat PvP zoné (V1) — réservé au PvE biome pour l'instant.
+  bouclier: {
+    name: "Bouclier", icon: "🛡️", category: "armes_combat", tier: 1,
+    profession: "Forgeron",
+    combat_slot: "shield",
+    trigger: "equipped", effect: "combat_shield", base_value: 1,
+    use: "Permet de défendre une 2e zone en combat biome. Bonus de défense égal à 1+grade. Améliorable depuis l'onglet Combat. Réparable avec 1 Pierre 🧱 = +1 dura.",
   },
 
   // ── DÉFENSE (Tisserand) — 4 zones ──
@@ -177,28 +190,28 @@ export const ITEMS = {
     profession: "Tisserand",
     combat_slot: "head_def",
     trigger: "equipped", effect: "combat_defense_zone", zone: "head", base_value: 1,
-    use: "Armure tête. Améliorable chez le Mineur.",
+    use: "Armure tête. Améliorable depuis l'onglet Combat. Réparable avec 1 Laine brute 🧶 = +1 dura.",
   },
   cuirasse: {
     name: "Cuirasse", icon: "🛡️", category: "armures_combat", tier: 1,
     profession: "Tisserand",
     combat_slot: "torso_def",
     trigger: "equipped", effect: "combat_defense_zone", zone: "torso", base_value: 1,
-    use: "Armure torse. Améliorable chez le Mineur.",
+    use: "Armure torse. Améliorable depuis l'onglet Combat. Réparable avec 1 Laine brute 🧶 = +1 dura.",
   },
   brassard: {
     name: "Brassard", icon: "🛡️", category: "armures_combat", tier: 1,
     profession: "Tisserand",
     combat_slot: "arms_def",
     trigger: "equipped", effect: "combat_defense_zone", zone: "arms", base_value: 1,
-    use: "Armure bras. Améliorable chez le Mineur.",
+    use: "Armure bras. Améliorable depuis l'onglet Combat. Réparable avec 1 Laine brute 🧶 = +1 dura.",
   },
   jambiere: {
     name: "Jambière", icon: "🦵", category: "armures_combat", tier: 1,
     profession: "Tisserand",
     combat_slot: "legs_def",
     trigger: "equipped", effect: "combat_defense_zone", zone: "legs", base_value: 1,
-    use: "Armure jambes. Améliorable chez le Mineur.",
+    use: "Armure jambes. Améliorable depuis l'onglet Combat. Réparable avec 1 Laine brute 🧶 = +1 dura.",
   },
 
   // ════════════════════════════════
@@ -211,9 +224,9 @@ export const ITEMS = {
     use: "Passif : −20% cooldown production.",
   },
   pierre_brute: {
-    name: "Pierre brute", icon: "🗿", category: "pierre", tier: 2,
-    trigger: "passive", effect: "energy_max_bonus", value: 2,
-    use: "Passif : +2 énergie max.",
+    name: "Pierre taillée", icon: "🗿", category: "pierre", tier: 2,
+    trigger: "passive", effect: "energy_max_bonus", value: 3,
+    use: "Passif : +3 énergie max.",
   },
   fil: {
     name: "Fil", icon: "🧵", category: "tissu", tier: 2,
@@ -222,13 +235,18 @@ export const ITEMS = {
   },
   charbon: {
     name: "Charbon", icon: "⚫", category: "fer", tier: 2,
-    trigger: "consumed", effect: "double_prod_bonus", value: 0.10, duration_h: 1, xp_reward: 50,
-    use: "+10% chance double prod 1h (cumulable) + 50 XP.",
+    trigger: "passive", effect: "double_prod_bonus", value: 0.05,
+    use: "Passif : +5% chance double prod (s'ajoute aux bonus biome et niveau).",
   },
   extrait: {
     name: "Extrait", icon: "🫗", category: "potions", tier: 2,
-    trigger: "consumed", effect: "fatigue_restore", value: 5, xp_reward: 50,
-    use: "+5⚡ + 50 XP.",
+    trigger: "consumed", effect: "fatigue_restore", value: 5,
+    use: "+5⚡ instant.",
+  },
+  cataplasme: {
+    name: "Cataplasme", icon: "🩹", category: "potions", tier: 2,
+    trigger: "consumed", effect: "hp_restore", value: 5,
+    use: "+5❤️ instant. Utilisable hors combat ou avant un combat de biome.",
   },
   quartz_poli: {
     name: "Quartz poli", icon: "💠", category: "or", tier: 2,
@@ -237,14 +255,13 @@ export const ITEMS = {
   },
   encre: {
     name: "Encre", icon: "🖋️", category: "parchemins", tier: 2,
-    trigger: "consumed", effect: "travel_and_gamble", value: 0.20, gamble_max: 60, xp_reward: 50,
-    next_t2_gives_t1: true,
-    use: "Consommée : −20% voyage + 0–60💰 + 50 XP. Le prochain craft T2 donne un T1 bonus.",
+    trigger: "consumed", effect: "gamble", value: 0, gamble_max: 80,
+    use: "Consommée : gamble 0–80💰 (gain moyen ~40💰).",
   },
   farine: {
     name: "Farine", icon: "🧺", category: "nourriture", tier: 2,
-    trigger: "consumed", effect: "hunger_restore", value: 5, xp_reward: 50,
-    use: "+5🍞 + 50 XP.",
+    trigger: "consumed", effect: "hunger_restore", value: 5,
+    use: "+5🍞 instant.",
   },
 
   // ════════════════════════════════
@@ -269,15 +286,13 @@ export const ITEMS = {
   epee_courte: {
     name: "Outil multifonction", icon: "🛠️", category: "outils", tier: 3,
     trigger: "durability", effect: "craft_tool", value: 0, durability: 10,
-    craft_unlock_tier: 3,
-    use: "Requis pour craft T3 (1 charge / craft, 10 max).",
+    craft_unlock_tier: 4,
+    use: "Requis pour craft T4 (1 charge / craft, 10 max).",
   },
   potion_soin: {
     name: "Potion de soin", icon: "🧪", category: "potions", tier: 3,
-    trigger: "consumed", effect: "fatigue_and_regen", value: 10, duration_h: 2,
-    regen_interval_min: 5, regen_value: 1, xp_reward: 50,
-    hp_restore: 5,
-    use: "+10⚡ + regen +1⚡/5min (2h) + 5 PV + 50 XP.",
+    trigger: "consumed", effect: "fatigue_restore", value: 20,
+    use: "+20⚡ instant.",
   },
   lingots_or: {
     name: "Lingot d'or", icon: "🪙", category: "or", tier: 3,
@@ -286,14 +301,13 @@ export const ITEMS = {
   },
   parchemin: {
     name: "Parchemin", icon: "📜", category: "parchemins", tier: 3,
-    trigger: "consumed", effect: "travel_and_gamble", value: 0.35, gamble_max: 100, xp_reward: 50,
-    use: "−35% voyage + gamble 0–100💰 + 50 XP.",
+    trigger: "consumed", effect: "xp_reward", value: 100,
+    use: "Consommé : +100 XP.",
   },
   pain: {
     name: "Pain", icon: "🍞", category: "nourriture", tier: 3,
-    trigger: "consumed", effect: "hunger_and_regen", value: 10, duration_h: 2,
-    regen_interval_min: 5, regen_value: 1, xp_reward: 50,
-    use: "+10🍞 + regen +1🍞/5min (2h) + 50 XP.",
+    trigger: "consumed", effect: "hunger_restore", value: 20,
+    use: "+20🍞 instant.",
   },
   contrat_artisan: {
     name: "Contrat artisan", icon: "📋", category: "parchemins", tier: 3,
@@ -312,21 +326,18 @@ export const ITEMS = {
   },
   outils: {
     name: "Outils", icon: "🔧", category: "outils", tier: 4,
-    trigger: "durability", effect: "cooldown_reduction", value: 0.30, durability: 4,
-    craft_tier_bonus: 4, craft_bonus_output_tier: 3, cooldown_reduction: 0.30,
-    use: "Passif : −30% CD prod + bonus T3 sur craft T4 (durabilité 4).",
+    trigger: "durability", effect: "craft_bonus_random_t3", value: 1, durability: 4,
+    use: "À chaque craft T4 : donne 1 T3 aléatoire bonus (4 charges).",
   },
   ragout: {
     name: "Ragoût", icon: "🍲", category: "nourriture", tier: 4,
-    trigger: "consumed", effect: "hunger_and_regen", value: 20, duration_h: 2,
-    regen_interval_min: 5, regen_value: 1, xp_reward: 100,
-    use: "+20🍞 + regen +1🍞/5min (2h) + 100 XP + 50 nourriture armée.",
+    trigger: "consumed", effect: "army_food", value: 80,
+    use: "Consommé par le maire : +80 nourriture armée à la ville.",
   },
   besace: {
     name: "Sac de voyage", icon: "🎒", category: "outils", tier: 4,
-    trigger: "durability", effect: "craft_tool", value: 0, durability: 10,
-    craft_unlock_tier: 4, inventory_bonus: 50,
-    use: "Requis pour craft T4 (1 charge / craft, 10 max). Passif : +50 inventaire.",
+    trigger: "passive", effect: "travel_speed_bonus", value: 0.50,
+    use: "Passif : −50% durée des voyages.",
   },
   epee_longue: {
     name: "Outil multifonction renforcé", icon: "⚒️", category: "outils", tier: 4,
@@ -336,10 +347,8 @@ export const ITEMS = {
   },
   potion_endur: {
     name: "Potion d'endurance", icon: "💪", category: "potions", tier: 4,
-    trigger: "consumed", effect: "fatigue_and_regen", value: 20, duration_h: 2,
-    regen_interval_min: 5, regen_value: 1, xp_reward: 100,
-    hp_restore: 10,
-    use: "+20⚡ + regen +1⚡/5min (2h) + 10 PV + 100 XP + 50 énergie armée.",
+    trigger: "consumed", effect: "army_energy", value: 80,
+    use: "Consommée par le maire : +80 énergie armée à la ville.",
   },
   lingot_raffine: {
     name: "Lingot raffiné", icon: "🏅", category: "or", tier: 4,
@@ -363,8 +372,8 @@ export const ITEMS = {
   },
   bourse_protection: {
     name: "Bourse de protection", icon: "👜", category: "parchemins", tier: 1.5,
-    trigger: "passive", effect: "theft_cap", value: 10, break_chance: 0.10,
-    use: "Passif : plafonne le vol subi à 10💰. Casse 10% par attaque.",
+    trigger: "passive", effect: "theft_cap", value: 10, max_uses: 5,
+    use: "Passif : plafonne le vol subi à 10💰. Casse définitive après 5 attaques subies.",
   },
 
   // ════════════════════════════════
@@ -418,8 +427,8 @@ export const ITEMS = {
 
   lingot_royal: {
     name: "Lingot royal", icon: "👑", category: "or", tier: 5,
-    trigger: "sellable", effect: "sellable", value: 156,
-    use: "Vendable mairie : 156💰. Compte pour le prestige.",
+    trigger: "sellable", effect: "sellable", value: 800,
+    use: "Vendable mairie : 800💰ref (prix décidé par le maire entre 1 et 5000). Compte pour le prestige.",
   },
   autorisation_marche: {
     name: "Autorisation de marché", icon: "📜", category: "parchemins", tier: 1,

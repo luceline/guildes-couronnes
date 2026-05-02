@@ -29,7 +29,7 @@ const WAREHOUSE_ITEMS = {
   quartz_brut:  { name: "Quartz brut",    icon: "🔮", tier: 1 },
   pierre:       { name: "Pierre",         icon: "🪨", tier: 1 },
   planches:     { name: "Planches",       icon: "🪵", tier: 2 },
-  pierre_brute: { name: "Pierre brute",   icon: "🗿", tier: 2 },
+  pierre_brute: { name: "Pierre taillée",   icon: "🗿", tier: 2 },
   fil:          { name: "Fil",            icon: "🧵", tier: 2 },
   charbon:      { name: "Charbon",        icon: "⚫", tier: 2 },
   extrait:      { name: "Extrait",        icon: "🫗", tier: 2 },
@@ -58,7 +58,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
     try {
       const hours = period === "24h" ? 24 : period === "48h" ? 48 : 168;
       const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
-      // Transactions or — on ne garde QUE celles qui affectent la trésorerie de la ville
+      // Transactions or : on ne garde QUE celles qui affectent la trésorerie de la ville
       // (flux joueur-joueur comme vente/achat/vols/quêtes/banque sont exclus)
       const txs = await base44.entities.GoldTransaction.filter({ city_id: city.id }, "-created", 200);
       const filtered = txs
@@ -125,6 +125,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
     }
   }
   // ── Coût entretien bâtiments (calculé depuis city.buildings comme dans dailyReset) ──
+  // REFONTE : entretien additif (×level) au lieu de doublé (×2^(level-1)), cohérent avec le coût de construction.
   const buildings = city?.buildings || [];
   const maintMultiplier = 1 + 0.2 * Math.max(0, residents.length - 1);
   for (const building of buildings) {
@@ -132,7 +133,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
     if (!bType?.maintenance) continue;
     const level = building.level || 1;
     const levelMultiplier = (bType.category === "production" || bType.category === "bien_etre")
-      ? Math.pow(2, level - 1) : 1;
+      ? level : 1;
     for (const [res, qty] of Object.entries(bType.maintenance)) {
       if (res === "or") continue; // l'or vient de la trésorerie, pas de l'entrepôt
       const realCost = Math.ceil(qty * maintMultiplier * levelMultiplier);
@@ -313,7 +314,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
                 return (
                   <div key={tier}>
                     <div className="text-xs font-heading text-muted-foreground mb-1.5">
-                      Tier {tier} — {tier === 1 ? "Ressources brutes" : tier === 2 ? "Transformées" : "Rares"}
+                      Tier {tier} : {tier === 1 ? "Ressources brutes" : tier === 2 ? "Transformées" : "Rares"}
                     </div>
                     <div className="space-y-1.5">
                       {tierItems.map(([key, qty]) => {
@@ -383,9 +384,9 @@ export default function MaireDashboard({ city, profile, players = [] }) {
                 const isDeposit = log.action === "deposit";
                 const sourceLabel = {
                   player: log.player_name || "Joueur",
-                  maintenance: `Entretien — ${log.player_name || ""}`,
-                  population: `Population — ${log.player_name || ""}`,
-                  population_penalty: `Pénurie — ${log.player_name || ""}`,
+                  maintenance: `Entretien : ${log.player_name || ""}`,
+                  population: `Population : ${log.player_name || ""}`,
+                  population_penalty: `Pénurie : ${log.player_name || ""}`,
                   reset: "Reset quotidien",
                 }[log.source] || log.source;
                 return (
@@ -433,7 +434,7 @@ export default function MaireDashboard({ city, profile, players = [] }) {
                 <div key={r.id} className="flex items-center gap-2 text-xs font-body bg-muted/30 rounded px-2 py-1">
                   <span>{r.profession ? PROFESSION_EMOJIS[r.profession] || "👤" : "👤"}</span>
                   <span className="flex-1 font-semibold">{r.character_name || r.user_email}</span>
-                  <span className="text-muted-foreground">{r.profession || "—"}</span>
+                  <span className="text-muted-foreground">{r.profession || "-"}</span>
                   <span className="text-amber-600 font-semibold">{r.gold || 0} 💰</span>
                 </div>
               ))}

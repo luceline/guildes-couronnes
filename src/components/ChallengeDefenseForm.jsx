@@ -1,13 +1,19 @@
 /**
- * ChallengeDefenseForm — Modal pour défendre contre un défi PvP reçu.
+ * ChallengeDefenseForm : Modal pour défendre contre un défi PvP reçu.
  *
- * Le défenseur choisit sa zone de défense (head/torso/arms/legs).
- * Si la zone choisie correspond à celle attaquée → parade réussie, riposte ouverte 12h.
- * Sinon → combat normal (résolution score atk vs score def sur la zone visée).
+ * REFONTE V6 :
+ *   - Affiche pour chaque zone : armure équipée, durabilité, et taux de
+ *     parade/blocage (basé sur la dura).
+ *   - Affiche le taux d'absorption du bouclier (basé sur sa dura).
+ *   - Gère le nouveau résultat "attack_missed" (l'épée de l'attaquant a raté son jet).
+ *   - Messages taverne et toasts adaptés à chaque issue (parry réussi/raté, blocage,
+ *     attaque ratée).
  *
- * Phase 3 Option B : la zone défendue est purement tactique (pas besoin d'armure).
- * Si une armure est équipée sur la zone visée par l'attaquant, elle compte dans
- * le score de défense (sauf en cas de parade où le coup est annulé).
+ * Conservé V5 :
+ *   - Le défenseur choisit sa zone de parade (head/torso/arms/legs).
+ *   - Si la zone parée correspond à celle attaquée → tentative de parade.
+ *   - Le bouclier optionnel se place sur une zone DIFFÉRENTE de la parade.
+ *   - Si ce défi est lui-même une riposte, pas de nouvelle fenêtre de riposte ouverte.
  */
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
@@ -19,27 +25,51 @@ import { Shield, X, ChevronRight } from "lucide-react";
 import {
   COMBAT_ZONES,
   COMBAT_PARRY_TIMER_HOURS,
-  getDefenseScoreByZone,
+  EQUIPMENT_MAX_DURABILITY,
   getEquippedItem,
 } from "@/lib/gameData";
-import { resolveCombat } from "@/lib/combatPvP";
+import { resolveCombat, getEquippedShield, getAvailableDefenseOptions } from "@/lib/combatPvP";
+import { claimBountiesIfApplicable } from "@/lib/bountyResolver";
 import { ITEMS } from "@/lib/craftingData";
 
 const ZONE_LABELS = { head: "Tête", torso: "Torse", arms: "Bras", legs: "Jambes" };
 const ZONE_ICONS  = { head: "🪖",   torso: "🛡️",   arms: "💪",   legs: "🦵" };
 
+// Couleur selon le taux (0-100)
+function pctColor(pct) {
+  if (pct === 0) return "text-red-700 font-semibold";
+  if (pct <= 30) return "text-orange-700";
+  if (pct <= 60) return "text-amber-700";
+  return "text-emerald-700";
+}
+
 export default function ChallengeDefenseForm({ challenge, defender, onClose, onResolved }) {
   const [selectedZone, setSelectedZone] = useState(null);
+  const [shieldZone, setShieldZone] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   if (!challenge || !defender) return null;
 
+  // V6 — bouclier équipé enrichi avec block_chance
+  const equippedShield = getEquippedShield(defender);
+  const hasShield = !!equippedShield;
+  const shieldBroken = hasShield && (equippedShield.durability ?? 0) <= 0;
+  const shieldPct = hasShield ? Math.round(equippedShield.block_chance * 100) : 0;
+
+  // V6 — options de défense par zone (incluent defense_chance basé sur dura)
+  const defenseOptions = getAvailableDefenseOptions(defender);
+  const optionsByZone = {};
+  for (const opt of defenseOptions) optionsByZone[opt.zone] = opt;
+
   const handleSubmit = async () => {
     if (!selectedZone) { toast.error("Choisissez une zone de défense."); return; }
+    if (shieldZone && shieldZone === selectedZone) {
+      toast.error("Le bouclier doit être placé sur une zone différente de votre parade.");
+      return;
+    }
     setSubmitting(true);
 
     try {
-      // Récupère les profils frais des deux côtés (l'attaquant a pu changer entre-temps)
       const freshAttacker = await base44.entities.PlayerProfile.filter({
         user_email: challenge.attacker_email
       }).then(r => r[0]);
@@ -49,7 +79,6 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
       }
       const freshDefender = await base44.entities.PlayerProfile.get(defender.id);
 
-      // Résolution
       const { resolution, attackerUpdates, defenderUpdates } = resolveCombat(
         freshAttacker,
         freshDefender,
@@ -57,10 +86,10 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
           attack_zone: challenge.attack_zone,
           attack_weapon_key: challenge.attack_weapon_key,
           defense_zone: selectedZone,
+          shield_zone: shieldZone,
         }
       );
 
-      // Applique les updates atomiques
       const ops = [];
       if (Object.keys(attackerUpdates).length > 0) {
         ops.push(base44.entities.PlayerProfile.update(freshAttacker.id, attackerUpdates));
@@ -69,15 +98,13 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
         ops.push(base44.entities.PlayerProfile.update(freshDefender.id, defenderUpdates));
       }
 
-      // Met à jour le défi
-      // Si ce défi est LUI-MÊME une riposte (parent_challenge_id présent), on n'ouvre
-      // pas de nouvelle fenêtre de riposte même en cas de parade : le cycle de
-      // riposte s'arrête après la 1re passe d'arme. (Pas de boucle infinie.)
       const isRiposte = !!(challenge.parent_challenge_id && challenge.parent_challenge_id !== "");
       const ripostWindow = isRiposte ? null : resolution.riposte_window_until;
 
       ops.push(base44.entities.CombatChallenge.update(challenge.id, {
         defense_zone: selectedZone,
+        shield_zone: shieldZone || "",
+        shield_used: !!resolution.shield_used,
         status: "resolved",
         result: resolution.result,
         attack_score: resolution.attack_score,
@@ -87,11 +114,20 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
         attacker_break_item: resolution.attacker_break_item || "",
         defender_break_item: resolution.defender_break_item || "",
         bourse_broke: !!resolution.bourse_broke,
+        // V6 — on log les détails de jets pour debug / analytics
+        parry_attempted: !!resolution.parry_attempted,
+        parry_succeeded: !!resolution.parry_succeeded,
+        attack_roll_succeeded: resolution.attack_roll_succeeded,
+        defense_roll_succeeded: resolution.defense_roll_succeeded,
+        shield_attempted: !!resolution.shield_attempted,
+        shield_succeeded: !!resolution.shield_succeeded,
+        // V6.1 — jet de sauvegarde basé sur le niveau du défenseur
+        save_attempted: !!resolution.save_attempted,
+        save_succeeded: !!resolution.save_succeeded,
         riposte_window_until: ripostWindow,
         resolved_at: new Date().toISOString(),
       }));
 
-      // Log gold transaction si vol effectif
       if (resolution.gold_stolen > 0) {
         ops.push(
           base44.entities.GoldTransaction.create({
@@ -117,15 +153,37 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
 
       await Promise.all(ops);
 
-      // Annonce taverne
+      let bountyResult = { claimed: 0, totalGold: 0 };
+      if (resolution.result === "attacker_won") {
+        try {
+          bountyResult = await claimBountiesIfApplicable(base44, {
+            attacker: freshAttacker,
+            defender: freshDefender,
+            combatResult: resolution.result,
+            cityId: challenge.city_id || "",
+            cityName: challenge.city_name || "",
+          });
+        } catch (e) {
+          console.error("Bounty claim error:", e);
+        }
+      }
+
+      // ── V6 — Annonce taverne adaptée à chaque issue ──
       try {
         let msg;
+        const attackerName = freshAttacker.character_name || "L'attaquant";
+        const defenderName = freshDefender.character_name || "Le défenseur";
+
         if (resolution.result === "parried") {
-          msg = `🛡️ ${freshDefender.character_name || "Le défenseur"} a paré l'attaque de ${freshAttacker.character_name || "l'attaquant"} ! Riposte possible.`;
+          msg = `🛡️ ${defenderName} a paré l'attaque de ${attackerName} ! Riposte possible.`;
+        } else if (resolution.result === "attack_missed") {
+          msg = `💨 La lame de ${attackerName} s'est dérobée — l'attaque contre ${defenderName} n'a pas porté.`;
         } else if (resolution.result === "attacker_won") {
-          msg = `⚔️ ${freshAttacker.character_name || "L'attaquant"} l'emporte sur ${freshDefender.character_name || "sa cible"} ${resolution.gold_stolen > 0 ? `et lui dérobe ${resolution.gold_stolen}💰` : ""}.`;
+          msg = `⚔️ ${attackerName} l'emporte sur ${defenderName} ${resolution.gold_stolen > 0 ? `et lui dérobe ${resolution.gold_stolen}💰` : ""}.`;
+        } else if (resolution.shield_used) {
+          msg = `🛡️ Le bouclier de ${defenderName} a absorbé l'attaque de ${attackerName} !`;
         } else {
-          msg = `🛡️ ${freshDefender.character_name || "Le défenseur"} a repoussé l'attaque de ${freshAttacker.character_name || "son agresseur"} !`;
+          msg = `🛡️ ${defenderName} a repoussé l'attaque de ${attackerName} !`;
         }
         await base44.entities.TavernMessage.create({
           author_email: freshDefender.user_email,
@@ -136,13 +194,23 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
         });
       } catch (e) { /* silent */ }
 
-      // Toast adapté
+      // ── V6 — Toast adapté ──
       if (resolution.result === "parried") {
         toast.success(`🛡️ Parade réussie ! Vous avez ${COMBAT_PARRY_TIMER_HOURS}h pour riposter.`);
+      } else if (resolution.result === "attack_missed") {
+        toast.success(`💨 La lame adverse s'est dérobée ! Aucun dégât.`);
       } else if (resolution.result === "defender_won") {
-        toast.success(`🛡️ Vous avez repoussé l'attaque !`);
+        if (resolution.shield_used) {
+          toast.success(`🛡️ Votre bouclier a absorbé l'attaque ! (Pas de riposte)`);
+        } else {
+          toast.success(`🛡️ Vous avez repoussé l'attaque !`);
+        }
       } else {
-        toast.error(`💔 Vous avez subi le coup. -${resolution.damage_dealt} PV${resolution.gold_stolen > 0 ? `, -${resolution.gold_stolen}💰` : ""}.`);
+        // attacker_won
+        const bountyMsg = bountyResult.totalGold > 0
+          ? ` (mais l'attaquant a touché ${bountyResult.totalGold}💰 de prime sur votre tête !)`
+          : "";
+        toast.error(`💔 Vous avez subi le coup. -${resolution.damage_dealt} PV${resolution.gold_stolen > 0 ? `, -${resolution.gold_stolen}💰` : ""}${bountyMsg}.`);
       }
 
       onResolved?.();
@@ -155,19 +223,9 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
     }
   };
 
-  // Affiche les armures équipées du défenseur (visible côté défenseur, normal)
-  const armorByZone = {};
-  for (const zone of COMBAT_ZONES) {
-    const eq = getEquippedItem(defender, `${zone}_def`);
-    armorByZone[zone] = {
-      hasArmor: !!eq,
-      itemKey: eq?.item_key || null,
-      grade: eq?.grade ?? null,
-      score: getDefenseScoreByZone(defender, zone),
-    };
-  }
-
-  const selectedArmor = selectedZone ? armorByZone[selectedZone] : null;
+  const selectedOption = selectedZone ? optionsByZone[selectedZone] : null;
+  const selectedParryPct = selectedOption ? Math.round(selectedOption.defense_chance * 100) : 0;
+  const selectedBlockPct = selectedZone === challenge.attack_zone ? null : selectedParryPct;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -191,18 +249,25 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
               <strong>{challenge.attacker_name}</strong> vous a défié en combat zoné. Vous ne savez pas quelle zone il vise.
             </p>
             <p className="text-xs font-body text-muted-foreground italic">
-              Choisissez la zone que vous défendez. Si vous devinez juste, le coup est paré (zéro dégât) et vous pourrez riposter dans les {COMBAT_PARRY_TIMER_HOURS}h. Sinon, l'attaquant frappera la zone qu'il a visée et votre score de défense sur CETTE zone sera comparé à son score d'attaque.
+              Choisissez la zone que vous défendez. Si vous devinez juste, votre armure tente une <strong>parade</strong> (taux selon sa durabilité). Sinon, l'attaquant frappe la zone qu'il vise et c'est votre armure de cette zone qui tente de <strong>bloquer</strong>.
+            </p>
+            <p className="text-[11px] font-body text-muted-foreground italic pt-1 border-t border-amber-200/60">
+              ✨ Si tout échoue, votre expérience vous offre une <strong>dernière sauvegarde</strong> qui peut amortir le coup d'un point de vie (10% à 50% selon votre écart de niveau).
             </p>
           </div>
 
-          {/* Choix de la zone */}
+          {/* V6 — Choix de la zone avec armure + dura + % */}
           <div className="space-y-2">
             <p className="text-xs font-heading font-semibold">🛡️ Quelle zone défendez-vous ?</p>
             <div className="grid grid-cols-2 gap-2">
               {COMBAT_ZONES.map(zone => {
                 const isSelected = selectedZone === zone;
-                const armor = armorByZone[zone];
-                const armorDef = armor.itemKey ? ITEMS[armor.itemKey] : null;
+                const opt = optionsByZone[zone];
+                const armorDef = opt.item_key ? ITEMS[opt.item_key] : null;
+                const pct = Math.round(opt.defense_chance * 100);
+                const dura = opt.durability ?? 0;
+                const broken = !!opt.item_key && dura <= 0;
+
                 return (
                   <button
                     key={zone}
@@ -219,15 +284,35 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
                       <span>{ZONE_LABELS[zone]}</span>
                       {isSelected && <ChevronRight className="h-4 w-4 ml-auto text-blue-600" />}
                     </div>
-                    {armor.hasArmor && armorDef ? (
-                      <div className="text-xs font-body text-muted-foreground mt-1.5 flex flex-wrap items-center gap-1">
-                        <span>{armorDef.icon}</span>
-                        <span>{armorDef.name}</span>
-                        <Badge variant="outline" className="text-xs h-4 px-1 font-body">G{armor.grade}</Badge>
-                        <Badge variant="secondary" className="text-xs h-4 px-1 font-body">+{armor.score} def</Badge>
+                    {armorDef ? (
+                      <div className="mt-1.5 space-y-1">
+                        <div className="text-xs font-body text-muted-foreground flex flex-wrap items-center gap-1">
+                          <span>{armorDef.icon}</span>
+                          <span>{armorDef.name}</span>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 font-body">G{opt.grade}</Badge>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[11px] font-body">
+                          <span className={broken ? "text-red-700 font-semibold" : "text-slate-600"}>
+                            dura {dura}/{EQUIPMENT_MAX_DURABILITY}
+                          </span>
+                          <div className="flex-1 bg-slate-200 rounded-full h-1 overflow-hidden max-w-[60px]">
+                            <div
+                              className={`h-full ${broken ? "bg-red-500" : dura <= 3 ? "bg-orange-400" : "bg-emerald-500"}`}
+                              style={{ width: `${(dura / EQUIPMENT_MAX_DURABILITY) * 100}%` }}
+                            />
+                          </div>
+                          <span className={`ml-auto ${pctColor(pct)}`}>
+                            🎲 {pct}%
+                          </span>
+                        </div>
+                        {broken && (
+                          <p className="text-[10px] font-body text-red-700 italic">⚠️ Armure cassée (inopérante)</p>
+                        )}
                       </div>
                     ) : (
-                      <p className="text-xs font-body text-muted-foreground/70 italic mt-1.5">Aucune armure</p>
+                      <p className="text-xs font-body text-muted-foreground/70 italic mt-1.5">
+                        Aucune armure (0% de défense sur cette zone)
+                      </p>
                     )}
                   </button>
                 );
@@ -235,20 +320,99 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
             </div>
           </div>
 
-          {/* Récap */}
-          {selectedZone && (
+          {/* V6 BOUCLIER : sélecteur de zone bouclier (avec taux d'absorption) */}
+          {hasShield && (
+            <div className="space-y-2 border-2 border-sky-300 bg-sky-50/50 rounded-lg p-3">
+              <p className="text-xs font-heading font-semibold flex items-center gap-1.5 text-sky-900">
+                🛡️ Placer votre bouclier
+                <span className="text-sky-700 font-body">
+                  G{equippedShield.grade} (+{equippedShield.score} def · dura {equippedShield.durability}/{EQUIPMENT_MAX_DURABILITY})
+                </span>
+                <span className={`ml-auto ${pctColor(shieldPct)}`}>
+                  🎲 {shieldPct}% absorption
+                </span>
+              </p>
+              {shieldBroken ? (
+                <p className="text-xs font-body text-red-800 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+                  ⚠️ Bouclier cassé (dura 0). Il ne pourra pas absorber l'attaque tant qu'il n'est pas réparé.
+                </p>
+              ) : (
+                <p className="text-xs font-body text-sky-800 italic">
+                  Optionnel : votre bouclier renforce une autre zone (différente de votre parade). Si l'attaquant frappe la zone bouclier <em>et</em> que le bouclier réussit son jet, son grade s'ajoute au tie-break défensif.
+                </p>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {COMBAT_ZONES.map(zone => {
+                  const disabled = zone === selectedZone || shieldBroken;
+                  const isSelected = shieldZone === zone;
+                  return (
+                    <button
+                      key={`shield-${zone}`}
+                      type="button"
+                      onClick={() => setShieldZone(isSelected ? null : zone)}
+                      disabled={disabled}
+                      className={`text-left rounded border-2 p-1.5 text-xs transition-colors ${
+                        disabled
+                          ? "border-border bg-muted/30 opacity-50 cursor-not-allowed"
+                          : isSelected
+                            ? "border-sky-500 bg-sky-100"
+                            : "border-border bg-card hover:border-sky-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1 font-heading">
+                        <span>{ZONE_ICONS[zone]}</span>
+                        <span>{ZONE_LABELS[zone]}</span>
+                      </div>
+                      {disabled && zone === selectedZone && (
+                        <p className="text-[10px] font-body text-muted-foreground mt-0.5">(votre parade)</p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {shieldZone && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShieldZone(null)}
+                  className="text-xs h-7 px-2 text-sky-700"
+                >
+                  ✕ Ne pas utiliser le bouclier
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* V6 — Récap final */}
+          {selectedZone && selectedOption && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
               <p className="text-xs font-heading font-semibold text-blue-900">📜 Récapitulatif</p>
               <p className="text-xs font-body text-blue-900">
-                Vous défendez <strong>{ZONE_LABELS[selectedZone]}</strong>.
+                Vous défendez <strong>{ZONE_LABELS[selectedZone]}</strong>
+                {selectedOption.item_key ? (
+                  <> avec votre <strong>{ITEMS[selectedOption.item_key]?.icon} {ITEMS[selectedOption.item_key]?.name}</strong> (G{selectedOption.grade}).</>
+                ) : (
+                  <> à mains nues (aucune armure).</>
+                )}
               </p>
-              <p className="text-xs font-body text-blue-900">
-                Si l'attaquant vise la même zone, le coup est paré et vous pourrez riposter sous {COMBAT_PARRY_TIMER_HOURS}h.
-              </p>
-              <p className="text-xs font-body text-blue-900">
-                Sinon, votre score de défense sur la zone qu'il vise sera comparé à son score d'attaque.
-                {selectedArmor && !selectedArmor.hasArmor && " Sur cette zone vous n'avez aucune armure."}
-              </p>
+              {shieldZone && (
+                <p className="text-xs font-body text-sky-800">
+                  Votre bouclier protège <strong>{ZONE_LABELS[shieldZone]}</strong> ({shieldPct}% d'absorption).
+                </p>
+              )}
+              <div className="text-xs font-body text-blue-900 bg-blue-100/50 rounded px-2 py-1.5 space-y-0.5">
+                <p>
+                  <strong>Si l'attaquant vise {ZONE_LABELS[selectedZone]}</strong> → tentative de parade : <strong className={pctColor(selectedParryPct)}>{selectedParryPct}%</strong>. Si réussie, riposte ouverte {COMBAT_PARRY_TIMER_HOURS}h.
+                </p>
+                {shieldZone && (
+                  <p>
+                    <strong>Si l'attaquant vise {ZONE_LABELS[shieldZone]}</strong> → blocage par votre {ITEMS[optionsByZone[shieldZone].item_key]?.name || "armure (manquante)"} ({Math.round(optionsByZone[shieldZone].defense_chance * 100)}%) renforcé par bouclier ({shieldPct}%).
+                  </p>
+                )}
+                <p>
+                  <strong>Sur les autres zones</strong> → comparaison classique armure (taux selon dura) vs épée adverse (taux selon dura).
+                </p>
+              </div>
             </div>
           )}
 

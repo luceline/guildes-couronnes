@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +63,16 @@ export default function CityArmyPanel({ city, profile, isMayor, onRefresh }) {
         inventory: filteredInventory,
         gold: (profile.gold || 0) - goldNeeded,
       });
+
+      // V6.1.7 — Trace dans le journal d'or (or détruit, side: none)
+      if (goldNeeded > 0) {
+        await logGold(
+          profile.user_email, profile.character_name,
+          city.id, city.name,
+          -goldNeeded, "recrutement",
+          `Recrutement de ${quantity} ${UNIT_TYPES[unitType]?.name || unitType}`
+        );
+      }
 
       // Ajouter les unités à l'armée de la ville
       const currentUnits = army?.units || {};
@@ -191,7 +202,7 @@ export default function CityArmyPanel({ city, profile, isMayor, onRefresh }) {
 
                   {!available ? (
                     <p className="text-xs text-muted-foreground font-body">
-                      🔒 Nécessite palier {["", "Hameau", "Village", "Bourg", "Cité", "Capitale", "Empire"][u.palierRequired]} — ville actuelle : {tier.label}
+                      🔒 Nécessite palier {["", "Hameau", "Village", "Bourg", "Cité", "Capitale", "Empire"][u.palierRequired]} : ville actuelle : {tier.label}
                     </p>
                   ) : (
                     <div className="flex items-center gap-2 flex-wrap">

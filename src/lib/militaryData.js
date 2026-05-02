@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────
-// SYSTÈME MILITAIRE — Données et logique de combat
+// SYSTÈME MILITAIRE : Données et logique de combat
 // ─────────────────────────────────────────────
 
 import { getCityTier } from "./gameData";
@@ -9,18 +9,22 @@ import { getCityTier } from "./gameData";
 export const WAR_DECLARATION_COST = 75; // or détruit sur la trésorerie
 export const WAR_CONTRIBUTION_WINDOW_MIN = 30;
 
-// ── Jauges ravitaillement armée ──
+// ── Jauges ravitaillement armée (REFONTE ITEMS v5) ──
+// T3 et T4 sont désormais spécialisés :
+//   T3 perso = +20 faim/énergie INSTANT pour le joueur (handlers Production/Inventory)
+//   T4 armée = +80 nourriture/énergie pour la ville (déposé par le maire)
+// Les valeurs ci-dessous sont utilisées quand le maire dépose l'item en entrepôt.
 export const FOOD_VALUES = {
-  ble:          1,   // T1
-  farine:       5,   // T2
-  pain:         10,  // T3
-  ragout:       50,  // T4
+  ble:          1,    // T1
+  farine:       5,    // T2
+  pain:         20,   // T3 (refonte v5 : 10 → 20, cohérent avec effet perso)
+  ragout:       80,   // T4 (refonte v5 : 50 → 80, spécialisation militaire)
 };
 export const ENERGY_VALUES = {
-  herbes:       1,   // T1
-  extrait:      5,   // T2
-  potion_soin:  15,  // T3
-  potion_endur: 50,  // T4
+  herbes:       1,    // T1
+  extrait:      5,    // T2
+  potion_soin:  20,   // T3 (refonte v5 : 15 → 20, cohérent avec effet perso)
+  potion_endur: 80,   // T4 (refonte v5 : 50 → 80, spécialisation militaire)
 }; // minutes pour contribuer des unités
 
 export const UNIT_TYPES = {
@@ -191,7 +195,7 @@ export function getCombatResult(atkScore, defScore) {
   if (ratio < 1.0)  return { outcome: "short_victory",   lossAtk: 0.30, lossDef: 0.50, lootPct: 0.10, lingots: 0, label: "La brèche fut courte mais fructueuse" };
   if (ratio < 1.5)  return { outcome: "victory",         lossAtk: 0.20, lossDef: 0.70, lootPct: 0.15, lingots: 1, label: "La ville fut prise d'assaut" };
   if (ratio < 2.0)  return { outcome: "net_victory",     lossAtk: 0.10, lossDef: 0.90, lootPct: 0.20, lingots: 2, label: "La garnison ennemie fut balayée" };
-  return              { outcome: "crushing_victory",  lossAtk: 0.05, lossDef: 1.00, lootPct: 0.25, lingots: 3, label: "Victoire écrasante — la ville est à genoux" };
+  return              { outcome: "crushing_victory",  lossAtk: 0.05, lossDef: 1.00, lootPct: 0.25, lingots: 3, label: "Victoire écrasante : la ville est à genoux" };
 }
 
 // ── Appliquer les pertes ──────────────────────────────────────────────────

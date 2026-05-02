@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { PROFESSIONS, HOUSING, getInventoryWeight, getMaxWeight, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, getCityFatigueBonus, getFestinHungerDrain, getRegenInterval, getVendeurRank, getContributeurRank, getPvpRank, getPassiveEnergyMaxBonus, getPassiveInventoryBonus, getBestPassiveCooldownSource, HUNGER_FOOD_ITEMS } from "../lib/gameData";
+import { PROFESSIONS, HOUSING, getInventoryWeight, getMaxWeight, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, getCityFatigueBonus, getFestinHungerDrain, getRegenInterval, getRegenCap, getVendeurRank, getContributeurRank, getPvpRank, getPassiveEnergyMaxBonus, getPassiveInventoryBonus, getBestPassiveCooldownSource, getPassiveCharbonDoubleProdBonus, getPassiveTravelDiscount, HUNGER_FOOD_ITEMS } from "../lib/gameData";
 import { computeFatigueWithDailyReset, ITEMS, FOOD_ITEMS_WITH_FATIGUE } from "../lib/craftingData";
 import HelpTooltip from "./HelpTooltip";
 import { getTotalDebt } from "../lib/debtRepayment";
@@ -84,21 +84,29 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
   const currentWeight = getInventoryWeight(profile);
   const maxWeight = getMaxWeight(profile) + grandePlaceBonus + bibliothequeBonus;
 
-  // Countdown faim
-  let hungerRegenLabel = null;
-  if (hunger < maxHungerVal) {
-    const lastRegen = profile.hunger_regen_at ? new Date(profile.hunger_regen_at).getTime() : Date.now();
-    const msLeft = lastRegen + 3600000 - now;
-    hungerRegenLabel = `+1🍞 dans ${formatDuration(msLeft)}`;
-  }
+  // Plafond de la régen passive (5 par défaut, +1 par niveau d'Hospice).
+  // Au-delà de ce plafond, la régen automatique s'arrête : il faut consommer ou dormir.
+  const regenCap = getRegenCap(homeCityBuildings);
+  const regenInterval = getRegenInterval(profile.housing_level || "tente", homeCityBuildings);
 
-  // Countdown énergie
-  let fatigueRegenLabel = null;
-  if (fatigue < maxFatigue) {
-    const regenInterval = getRegenInterval(profile.housing_level || "tente", homeCityBuildings);
+  // Countdown faim : ne s'affiche que si on est sous le plafond de régen passive
+  let hungerRegenLabel = null;
+  if (hunger < regenCap && regenInterval) {
     const lastRegen = profile.fatigue_regen_at ? new Date(profile.fatigue_regen_at).getTime() : Date.now();
     const msLeft = lastRegen + regenInterval - now;
-    fatigueRegenLabel = `+1⚡ dans ${formatDuration(msLeft)}`;
+    hungerRegenLabel = `+1 dans ${formatDuration(msLeft)}`;
+  } else if (hunger >= regenCap && hunger < maxHungerVal) {
+    hungerRegenLabel = `🔝 Plafond regen ${regenCap}/${maxHungerVal} : mangez pour aller plus haut`;
+  }
+
+  // Countdown énergie : idem, ne s'affiche que sous le plafond de régen
+  let fatigueRegenLabel = null;
+  if (fatigue < regenCap && regenInterval) {
+    const lastRegen = profile.fatigue_regen_at ? new Date(profile.fatigue_regen_at).getTime() : Date.now();
+    const msLeft = lastRegen + regenInterval - now;
+    fatigueRegenLabel = `+1 dans ${formatDuration(msLeft)}`;
+  } else if (fatigue >= regenCap && fatigue < maxFatigue) {
+    fatigueRegenLabel = `🔝 Plafond regen ${regenCap}/${maxFatigue} : reposez-vous pour aller plus haut`;
   }
 
   // Or pending tax
@@ -203,13 +211,33 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
   }
   const passiveEnergyBonus = getPassiveEnergyMaxBonus(profile);
   if (passiveEnergyBonus > 0) {
-    const src = inv.some(i => i.item_key === "lingots_fer" && (i.quantity || 0) > 0) ? "Lingots de fer" : "Pierre brute";
+    const src = inv.some(i => i.item_key === "lingots_fer" && (i.quantity || 0) > 0) ? "Lingots de fer" : "Pierre taillée";
     buffs.push({ icon: "🗿", label: `+${passiveEnergyBonus} énergie max`, detail: "passif", tooltip: `${src} en inventaire : +${passiveEnergyBonus} énergie maximum.`, color: "text-blue-700 bg-blue-50 border-blue-200" });
   }
   const passiveInvBonus = getPassiveInventoryBonus(profile);
   if (passiveInvBonus > 0) {
     const src = inv.some(i => i.item_key === "tissu" && (i.quantity || 0) > 0) ? "Tissu" : "Fil";
     buffs.push({ icon: "🧶", label: `+${passiveInvBonus} inventaire`, detail: "passif", tooltip: `${src} en inventaire : +${passiveInvBonus} capacité.`, color: "text-purple-700 bg-purple-50 border-purple-200" });
+  }
+  const passiveCharbonBonus = getPassiveCharbonDoubleProdBonus(profile);
+  if (passiveCharbonBonus > 0) {
+    buffs.push({
+      icon: "⚫",
+      label: `+${Math.round(passiveCharbonBonus * 100)}% dbl prod`,
+      detail: "passif",
+      tooltip: `Charbon en inventaire : +${Math.round(passiveCharbonBonus * 100)}% chance de doubler vos productions et récoltes. S'ajoute aux bonus biome et niveau.`,
+      color: "text-stone-700 bg-stone-100 border-stone-300",
+    });
+  }
+  const passiveTravelDiscount = getPassiveTravelDiscount(profile);
+  if (passiveTravelDiscount > 0) {
+    buffs.push({
+      icon: "🎒",
+      label: `−${Math.round(passiveTravelDiscount * 100)}% voyage`,
+      detail: "passif",
+      tooltip: `Sac de voyage (besace) en inventaire : −${Math.round(passiveTravelDiscount * 100)}% sur la durée de tous vos voyages. Effet permanent tant que la besace reste dans votre sac.`,
+      color: "text-indigo-700 bg-indigo-50 border-indigo-200",
+    });
   }
   const TAX_ITEMS = [
     { key: "lingot_raffine", label: "Lingot raffiné", value: 0.04 },
@@ -224,11 +252,12 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
   const bourseInInv = inv.find(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
   if (bourseInInv) {
     const qty = bourseInInv.quantity || 1;
+    const usesLeft = profile.bourse_uses_left ?? 5;
     buffs.push({
       icon: "👜",
       label: "Bourse active",
-      detail: qty > 1 ? `×${qty}` : "passif",
-      tooltip: `Bourse de protection : plafonne le vol subi à 10💰. 10% de chance de casse à chaque attaque subie.`,
+      detail: qty > 1 ? `×${qty} (${usesLeft}/5)` : `${usesLeft}/5`,
+      tooltip: `Bourse de protection : plafonne le vol PvP subi à 10💰 par attaque. Encaisse exactement 5 attaques avant de se briser (compteur déterministe). Il vous reste ${usesLeft}/5 utilisation${usesLeft > 1 ? "s" : ""} sur la bourse en cours.`,
       color: "text-yellow-700 bg-yellow-50 border-yellow-200",
     });
   }

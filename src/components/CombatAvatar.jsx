@@ -1,11 +1,11 @@
 /**
- * CombatAvatar.jsx — Silhouette SVG du combattant.
+ * CombatAvatar.jsx : Silhouette SVG du combattant.
  *
- * Représente le joueur de face avec 5 zones d'équipement qui s'illuminent quand un item
+ * Représente le joueur de face avec 6 zones d'équipement qui s'illuminent quand un item
  * est porté. Style "papier médiéval" : contours sombres, fond crème, couleurs sobres.
  *
  * Props:
- *   - equipment : { weapon?, head_def?, torso_def?, arms_def?, legs_def? }
+ *   - equipment : { weapon?, shield?, head_def?, torso_def?, arms_def?, legs_def? }
  *                 Chaque slot = { item_key, grade } ou absent
  *   - hp        : points de vie actuels (1..10)
  *   - maxHp     : points de vie max (10)
@@ -15,12 +15,12 @@
  */
 
 const GRADE_COLORS = [
-  "#a8a29e", // G0 — gris (commun)
-  "#84cc16", // G1 — vert
-  "#0ea5e9", // G2 — bleu
-  "#a855f7", // G3 — violet
-  "#f59e0b", // G4 — or
-  "#ef4444", // G5 — rouge écarlate
+  "#a8a29e", // G0 : gris (commun)
+  "#84cc16", // G1 : vert
+  "#0ea5e9", // G2 : bleu
+  "#a855f7", // G3 : violet
+  "#f59e0b", // G4 : or
+  "#ef4444", // G5 : rouge écarlate
 ];
 
 function gradeColor(grade) {
@@ -40,12 +40,14 @@ export default function CombatAvatar({
   const hasTorso  = !!equipment.torso_def;
   const hasArms   = !!equipment.arms_def;
   const hasLegs   = !!equipment.legs_def;
+  const hasShield = !!equipment.shield;
 
   const colWeapon = hasWeapon ? gradeColor(equipment.weapon.grade) : "#e7e5e4";
   const colHead   = hasHead   ? gradeColor(equipment.head_def.grade)   : "#e7e5e4";
   const colTorso  = hasTorso  ? gradeColor(equipment.torso_def.grade)  : "#e7e5e4";
   const colArms   = hasArms   ? gradeColor(equipment.arms_def.grade)   : "#e7e5e4";
   const colLegs   = hasLegs   ? gradeColor(equipment.legs_def.grade)   : "#e7e5e4";
+  const colShield = hasShield ? gradeColor(equipment.shield.grade)     : "#e7e5e4";
 
   const skinColor   = "#fde7c8";   // teinte peau neutre
   const outlineCol  = "#3f2a14";   // brun foncé pour les contours
@@ -119,7 +121,7 @@ export default function CombatAvatar({
             <circle cx="129" cy="54" r="2" fill={outlineCol} />
             {/* Bouche */}
             <path d="M 113 68 Q 120 72 127 68" fill="none" stroke={outlineCol} strokeWidth="1.5" strokeLinecap="round" />
-            {/* Cheveux (toujours présents — bruns) */}
+            {/* Cheveux (toujours présents : bruns) */}
             <path d="M 96 42 Q 120 22 144 42 L 144 56 Q 132 38 120 38 Q 108 38 96 56 Z" fill="#5a3920" stroke={outlineCol} strokeWidth="1.5" />
 
             {/* Heaume si équipé */}
@@ -151,7 +153,7 @@ export default function CombatAvatar({
               <>
                 <path d="M 76 96 L 164 96 L 170 188 L 70 188 Z"
                       fill={colTorso} stroke={outlineCol} strokeWidth="2" />
-                {/* Détails plastron — ligne centrale + boutons */}
+                {/* Détails plastron : ligne centrale + boutons */}
                 <line x1="120" y1="100" x2="120" y2="184" stroke={outlineCol} strokeWidth="1.5" />
                 <circle cx="120" cy="115" r="3" fill={outlineCol} />
                 <circle cx="120" cy="140" r="3" fill={outlineCol} />
@@ -244,6 +246,31 @@ export default function CombatAvatar({
             )}
           </g>
 
+          {/* ── Bouclier (main gauche) ── */}
+          <g
+            onClick={() => onSlotClick?.("shield")}
+            style={slotStyle("shield")}
+          >
+            {hasShield && (
+              <>
+                {/* Corps du bouclier : forme heater (en goutte tronquée), main gauche */}
+                <path d="M 30 160 L 90 160 L 88 200 Q 60 230 32 200 Z"
+                      fill={colShield} stroke={outlineCol} strokeWidth="2" />
+                {/* Renforts métalliques (croix) */}
+                <line x1="60" y1="160" x2="60" y2="220" stroke={outlineCol} strokeWidth="1.5" opacity="0.7" />
+                <line x1="32" y1="180" x2="88" y2="180" stroke={outlineCol} strokeWidth="1.5" opacity="0.7" />
+                {/* Boss central (rivet) */}
+                <circle cx="60" cy="185" r="4" fill={outlineCol} />
+                <circle cx="60" cy="185" r="2" fill={colShield} />
+                {/* Badge grade */}
+                <circle cx="22" cy="195" r="9" fill="white" stroke={outlineCol} strokeWidth="1.5" />
+                <text x="22" y="199" textAnchor="middle" fontSize="11" fontWeight="bold" fill={outlineCol}>
+                  {equipment.shield.grade}
+                </text>
+              </>
+            )}
+          </g>
+
           {/* ── Indicateurs de slots vides (cercles pointillés discrets) ── */}
           {!hasHead && (
             <g style={slotStyle("head_def")} onClick={() => onSlotClick?.("head_def")}>
@@ -273,6 +300,12 @@ export default function CombatAvatar({
             <g style={slotStyle("weapon")} onClick={() => onSlotClick?.("weapon")}>
               <circle cx="200" cy="240" r="14" fill="none" stroke="#bdb5a3" strokeWidth="1.5" strokeDasharray="3,3" />
               <text x="200" y="246" textAnchor="middle" fontSize="16" opacity="0.5">⚔️</text>
+            </g>
+          )}
+          {!hasShield && (
+            <g style={slotStyle("shield")} onClick={() => onSlotClick?.("shield")}>
+              <circle cx="40" cy="240" r="14" fill="none" stroke="#bdb5a3" strokeWidth="1.5" strokeDasharray="3,3" />
+              <text x="40" y="246" textAnchor="middle" fontSize="16" opacity="0.5">🛡️</text>
             </g>
           )}
         </g>

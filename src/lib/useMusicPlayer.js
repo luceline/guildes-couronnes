@@ -1,4 +1,4 @@
-// ── Global music player — persiste entre les pages via localStorage ──
+// ── Global music player : persiste entre les pages via localStorage ──
 import { useState, useEffect, useRef, useCallback } from "react";
 
 export const TRACKS = [

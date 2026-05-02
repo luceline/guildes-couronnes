@@ -62,7 +62,7 @@ export default function PlayerLevelBadge({ profile, variant = "compact" }) {
                   </p>
                 )}
                 {levelInfo.bonuses.dropRareBonus === 0 && levelInfo.bonuses.cooldownBonus === 0 && levelInfo.bonuses.doubleProductionBonus === 0 && (
-                  <p className="text-xs text-muted-foreground">Accomplissez vos premières quêtes pour gravir les échelons — dès le rang 2, votre labeur s'accélère et votre chance de doubler votre récolte s'éveille.</p>
+                  <p className="text-xs text-muted-foreground">Accomplissez vos premières quêtes pour gravir les échelons : dès le rang 2, votre labeur s'accélère et votre chance de doubler votre récolte s'éveille.</p>
                 )}
               </div>
             )}
@@ -117,7 +117,7 @@ export default function PlayerLevelBadge({ profile, variant = "compact" }) {
           )}
           {levelInfo.bonuses.dropRareBonus === 0 && levelInfo.bonuses.cooldownBonus === 0 && levelInfo.bonuses.doubleProductionBonus === 0 && (
             <p className="text-sm text-muted-foreground italic">
-              Accomplissez vos premières quêtes pour gravir les échelons — dès le rang 2, votre labeur s'accélère et votre chance de doubler votre récolte s'éveille.
+              Accomplissez vos premières quêtes pour gravir les échelons : dès le rang 2, votre labeur s'accélère et votre chance de doubler votre récolte s'éveille.
             </p>
           )}
         </div>

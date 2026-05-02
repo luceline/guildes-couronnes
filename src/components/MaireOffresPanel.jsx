@@ -14,7 +14,7 @@ const T1_ITEMS = [
 
 const T2T3_ITEMS = [
   { key: "planches",    name: "Planches",       icon: "🪵", tier: 2 },
-  { key: "pierre_brute",name: "Pierre brute",   icon: "🗿", tier: 2 },
+  { key: "pierre_brute",name: "Pierre taillée",   icon: "🗿", tier: 2 },
   { key: "fil",         name: "Fil",            icon: "🧵", tier: 2 },
   { key: "charbon",     name: "Charbon",        icon: "⚫", tier: 2 },
   { key: "extrait",     name: "Extrait",        icon: "🫗", tier: 2 },
@@ -70,7 +70,8 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                       const newOffers = { ...current, [item.key]: { ...(current[item.key] || {}), price: val } };
                       await base44.entities.City.update(city.id, { rachat_t1_offers: newOffers });
                       onRefresh?.();
-                    }} />
+                    }}
+                    onFocus={e => e.target.select()} />
                   <span className="text-amber-700">💰 · Qté:</span>
                   <Input type="number" min={0} max={9999} step={10}
                     key={`t1-qty-${item.key}-${city.id}`}
@@ -83,7 +84,8 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                       const newOffers = { ...current, [item.key]: { ...(current[item.key] || {}), qty_max: val } };
                       await base44.entities.City.update(city.id, { rachat_t1_offers: newOffers });
                       onRefresh?.();
-                    }} />
+                    }}
+                    onFocus={e => e.target.select()} />
                   {offer.qty_max > 0 && <span className="text-amber-500">{bought}/{offer.qty_max}</span>}
                 </div>
               );
@@ -117,7 +119,8 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                     const newOffers = { ...current, [item.key]: { ...(current[item.key] || {}), price: val } };
                     await base44.entities.City.update(city.id, { rachat_t2t3_offers: newOffers });
                     onRefresh?.();
-                  }} />
+                  }}
+                  onFocus={e => e.target.select()} />
                 <span className="text-indigo-700">💰 · Qté:</span>
                 <Input type="number" min={0} max={999} step={1}
                   key={`t23-qty-${item.key}-${city.id}`}
@@ -130,7 +133,8 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                     const newOffers = { ...current, [item.key]: { ...(current[item.key] || {}), qty_max: val } };
                     await base44.entities.City.update(city.id, { rachat_t2t3_offers: newOffers });
                     onRefresh?.();
-                  }} />
+                  }}
+                  onFocus={e => e.target.select()} />
                 {offer.qty_max > 0 && <span className="text-indigo-500">{bought}/{offer.qty_max} achetés</span>}
               </div>
             );

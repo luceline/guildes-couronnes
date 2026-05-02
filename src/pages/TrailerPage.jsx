@@ -44,7 +44,7 @@ export default function TrailerPage() {
       <div className="relative py-20 px-4 bg-gradient-to-b from-primary/10 to-background">
         <div className="max-w-4xl mx-auto text-center space-y-6">
           <h1 className="text-5xl font-bold font-heading text-foreground">
-            🏰 Reinos — L'épopée économique
+            🏰 Reinos : L'épopée économique
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Un jeu de stratégie où chaque métier compte, où chaque ville rivalisée, et où vos choix façonnent le monde.

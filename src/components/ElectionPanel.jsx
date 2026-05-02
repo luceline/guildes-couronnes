@@ -102,8 +102,8 @@ export default function ElectionPanel({ city, profile, mayorActive, onRefresh })
         </h3>
         <span className="text-xs font-body text-muted-foreground">
           Fin du mandat dans <strong>{daysLeft} jour{daysLeft > 1 ? "s" : ""}</strong>
-          {electionPhase === "candidature" && " — Candidatures ouvertes"}
-          {electionPhase === "vote" && " — Vote ouvert"}
+          {electionPhase === "candidature" && " : Candidatures ouvertes"}
+          {electionPhase === "vote" && " : Vote ouvert"}
         </span>
       </div>
 

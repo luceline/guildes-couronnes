@@ -209,7 +209,7 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
                   {canUpgrade && !upgrading && (
                     <>
                       <Button size="sm" className="mt-2 text-xs" onClick={() => handleUpgradeHousing(key)}>
-                        {`Améliorer — ${h.cost} 💰`}
+                        {`Améliorer : ${h.cost} 💰`}
                       </Button>
                       {h.cost > 0 && (
                         <p className="text-xs text-orange-600 font-body mt-1">⚠️ Ces {h.cost} 💰 sont définitivement détruits</p>

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 
 /**
- * CoupDeMaitreModal — Bannière animée affichée lors d'un coup de maître
+ * CoupDeMaitreModal : Bannière animée affichée lors d'un coup de maître
  * Props :
  *   show     : boolean
- *   itemName : string  — nom de l'item produit en bonus
- *   qty      : number  — quantité bonus
- *   sources  : string  — sources du bonus (ex: "biome + charbon")
- *   onClose  : fn      — appelé après la durée d'affichage
+ *   itemName : string  : nom de l'item produit en bonus
+ *   qty      : number  : quantité bonus
+ *   sources  : string  : sources du bonus (ex: "biome + charbon")
+ *   onClose  : fn      : appelé après la durée d'affichage
  */
 export default function CoupDeMaitreModal({ show, itemName, qty, sources, onClose }) {
   const [visible, setVisible] = useState(false);

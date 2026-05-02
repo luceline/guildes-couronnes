@@ -154,7 +154,7 @@ class EntityProxy {
   }
 
   subscribe(callback) {
-    // SSE désactivé — PocketBase v0.23 incompatible avec ce client
+    // SSE désactivé : PocketBase v0.23 incompatible avec ce client
     console.warn('[PocketBase] subscribe désactivé:', this.col);
     return () => {};
   }

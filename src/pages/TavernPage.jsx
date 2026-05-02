@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -167,6 +168,16 @@ export default function TavernPage() {
       fatigue_last_reset: today,
       tavern_sleep_date: today,
     });
+
+    // V6.1.7 — Trace dans le journal d'or (or détruit, side: none)
+    if (sleepPrice.price > 0) {
+      await logGold(
+        profile.user_email, profile.character_name,
+        profile.city_id, "",
+        -sleepPrice.price, "taverne_repos",
+        `Repos à la taverne (+${fatigueRestored}⚡)`
+      );
+    }
     toast.success(`🛌 Bonne nuit ! +${fatigueRestored}⚡ énergie (${newFatigue}/${maxFatigue})`);
     await refresh();
     setSleeping(false);
@@ -242,7 +253,7 @@ export default function TavernPage() {
         <div>
           <h2 className="font-heading text-2xl font-bold heading-medieval">🍺 La Taverne</h2>
           <p className="text-muted-foreground font-body text-sm">
-            {city ? `La taverne de ${city.name} — Échangez vos bons plans !` : "Taverne locale"}
+            {city ? `La taverne de ${city.name} : Échangez vos bons plans !` : "Taverne locale"}
           </p>
         </div>
         {hasTavern && <Badge className="bg-amber-100 text-amber-800 border-amber-200">Ouverte</Badge>}
@@ -265,7 +276,7 @@ export default function TavernPage() {
             <CardHeader className="pb-2">
               <CardTitle className="font-heading text-base flex items-center gap-2">
                 🛌 Dormir à la taverne
-                <span className="text-xs font-normal font-body text-muted-foreground">— récupère de l'énergie</span>
+                <span className="text-xs font-normal font-body text-muted-foreground">· récupère de l'énergie</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -282,7 +293,7 @@ export default function TavernPage() {
 
               {foodOnMarket.length > 0 && (
                 <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-sm font-body text-orange-800">
-                  🍞 <strong>Nourriture disponible sur le marché</strong> — Achetez-en plutôt pour récupérer de l'énergie.
+                  🍞 <strong>Nourriture disponible sur le marché</strong> : Achetez-en plutôt pour récupérer de l'énergie.
                   <div className="text-xs mt-1 text-orange-600">
                     En vente : {foodOnMarket.map(f => `${f.item_name} (${f.price_per_unit} or/u.)`).join(" · ")}
                   </div>
@@ -344,7 +355,7 @@ export default function TavernPage() {
               <Card className="flex flex-col" style={{ height: "55vh", minHeight: 360 }}>
                 <CardHeader className="pb-2 border-b border-border">
                   <CardTitle className="font-heading text-base flex items-center gap-2">
-                    🍺 Grande Salle — {city?.name}
+                    🍺 Grande Salle : {city?.name}
                     <span className="text-xs text-muted-foreground font-body font-normal">Résidents & Visiteurs</span>
                   </CardTitle>
                 </CardHeader>
@@ -377,7 +388,7 @@ export default function TavernPage() {
                   <CardTitle className="font-heading text-base flex items-center gap-2">
                     <Lock className="h-4 w-4 text-amber-700" />
                     Salle des Résidents
-                    <span className="text-xs text-amber-700 font-body font-normal">— habitants de {city?.name} uniquement</span>
+                    <span className="text-xs text-amber-700 font-body font-normal">· habitants de {city?.name} uniquement</span>
                   </CardTitle>
                 </CardHeader>
                 {!isResident ? (
@@ -433,7 +444,7 @@ export default function TavernPage() {
           <ul className="text-xs text-muted-foreground font-body space-y-1">
             <li>• Partagez les prix du marché, vos stratégies de farming et de crafting.</li>
             <li>• Signalez les bonnes affaires et les ressources rares en stock.</li>
-            <li>• Le langage respectueux est de rigueur — les grossièretés sont filtrées automatiquement.</li>
+            <li>• Le langage respectueux est de rigueur : les grossièretés sont filtrées automatiquement.</li>
             <li>• La taverne est locale à votre ville actuelle.</li>
             <li>• 🔒 La Salle des Résidents est réservée aux habitants permanents de la ville.</li>
             <li>• 🛌 Dormir à la taverne récupère de l'énergie, mais seulement si aucune nourriture n'est dispo sur le marché.</li>

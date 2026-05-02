@@ -1,5 +1,5 @@
 /**
- * questRewards.js — Fonction centrale pour valider et récompenser les quêtes
+ * questRewards.js : Fonction centrale pour valider et récompenser les quêtes
  *
  * Usage :
  *   import { checkAndAwardObjective, isTodayQuest } from '@/lib/questRewards';
@@ -17,6 +17,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { getQuestNarration } from './questNarration';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -93,7 +94,7 @@ export async function checkAndAwardObjective({ obj, addedQty, profile, city = nu
       });
     } catch (_) {}
 
-    toast.success(`🎉 Quête accomplie : ${obj.title || ''}  +${reward} 💰 !`);
+    toast.success(getQuestNarration(obj.type, reward, obj.id), { duration: 8000 });
   } else {
     toast.success(`🎉 Quête accomplie : ${obj.title || ''} !`);
   }

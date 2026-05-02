@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getInventoryWeight, getEffectiveMaxWeight, wouldExceedCapacity, getMarketTaxDiscount } from "../lib/gameData";
-import { ITEMS } from "../lib/craftingData";
-import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice } from "../lib/pricingData";
+import { ITEMS, EQUIPMENT_KEYS } from "../lib/craftingData";
+import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice, calculateDynamicPrices } from "../lib/pricingData";
+import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -66,9 +67,11 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   const [buying, setBuying] = useState(null);
   const [buyQtys, setBuyQtys] = useState({});
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterCity, setFilterCity] = useState("all"); // "all" = marché unifié, "local" = ville actuelle
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
   const [dynamicPrices, setDynamicPrices] = useState({});
   const [worldEvents, setWorldEvents] = useState(null);
+  const [allCities, setAllCities] = useState([]); // toutes les villes (pour tax_rate par city_id du listing)
 
   useEffect(() => {
     base44.entities.EconomySettings.filter({ setting_key: "global" }).then(res => {
@@ -87,38 +90,59 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
   async function loadAll() {
     setLoading(true);
-    const [cityListings, allMyListings] = await Promise.all([
-      // Uniquement les annonces de la ville où le joueur se trouve physiquement
+    const [allListings, allMyListings, citiesData] = await Promise.all([
+      // MARCHÉ UNIFIÉ : toutes les annonces actives, toutes villes confondues
       base44.entities.MarketListing.filter(
-        { city_id: profile.city_id, status: "active" },
+        { status: "active" },
         "-created_date",
-        200
+        500
       ),
       // Toutes mes annonces actives (annulables depuis n'importe où)
       base44.entities.MarketListing.filter(
         { seller_email: profile.user_email, status: "active" }
       ),
+      // Toutes les villes (pour tax_rate par city_id du listing)
+      base44.entities.City.list().catch(() => []),
     ]);
     const today = new Date().toISOString().split("T")[0];
-    setListings(cityListings.filter(l =>
+    setListings(allListings.filter(l =>
       l.seller_email !== profile.user_email &&
       (!l.expires_at || l.expires_at >= today)
     ));
     setMyListings(allMyListings);
+    setAllCities(citiesData);
+
+    // Recalcule les prix dynamiques T2-T5 frontend, basé sur les vrais prix T1 du marché
+    // Si pas encore d'annonces T1, fallback sur SUGGESTED_PRICES_T1 (médians)
+    try {
+      const calc = calculateDynamicPrices(allListings || [], CRAFTING_RECIPES_REFACTORED);
+      setDynamicPrices(calc);
+    } catch (e) {
+      console.warn("[Market] dynamic prices calc failed:", e);
+    }
+
     setLoading(false);
   }
 
-  // Taux de taxe de la ville actuelle
-  function getTaxRate(cityBuildings) {
-    if (!city) return 0;
-    if (!city) return 0;
-    const baseTaxRate = city.tax_rate || 10;
-    const cum = city.treasury_cumulative || 0;
+  // Taux de taxe pour une ville donnée (utilisé pour la ville du vendeur lors d'un achat)
+  // MARCHÉ UNIFIÉ : la taxe appliquée est celle de la ville où l'objet est physiquement.
+  function getTaxRateForCity(cityId) {
+    if (!cityId) return 0;
+    const c = allCities.find(x => x.id === cityId);
+    if (!c) return 0;
+    const baseTaxRate = c.tax_rate || 10;
+    const cum = c.treasury_cumulative || 0;
     let discount = 0;
     if (cum >= 35000) discount = 15;
     else if (cum >= 15000) discount = 10;
     else if (cum >= 6000) discount = 5;
-      return Math.max(0, baseTaxRate - discount);
+    return Math.max(0, baseTaxRate - discount);
+  }
+
+  // Taux de taxe de la ville actuelle (pour l'affichage, et pour la pose de listing par le vendeur)
+  function getTaxRate(cityBuildings) {
+    if (!city) return 0;
+    return getTaxRateForCity(city.id);
   }
 
   // Charger les bâtiments pour les bonus marché
@@ -147,19 +171,41 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
   const handleSell = async () => {
     const idx = parseInt(sellForm.item_index);
-    const rawItem = (profile.inventory || []).filter(i => i.quantity > 0)[idx];
+    const filteredInv = (profile.inventory || []).filter(i => i.quantity > 0);
+    const rawItem = filteredInv[idx];
     if (!rawItem || sellForm.quantity <= 0 || sellForm.quantity > rawItem.quantity) {
-      toast.error("La quantité indiquée n'est pas valide — vérifiez votre saisie.");
+      toast.error("La quantité indiquée n'est pas valide : vérifiez votre saisie.");
       return;
     }
     // Résoudre item_key manquant depuis ITEMS par item_name
     const resolvedKey = rawItem.item_key ||
       Object.entries(ITEMS).find(([, def]) => def.name === rawItem.item_name)?.[0] || "";
     const item = { ...rawItem, item_key: resolvedKey };
+    const itemDef = ITEMS[item.item_key];
+
+    // ── REFONTE v5 : Items avec compteur (charges/durabilité) doivent être full pour être vendus ──
+    // Bourse : doit avoir ses 5 charges intactes
+    if (item.item_key === "bourse_protection") {
+      const usesLeft = profile.bourse_uses_left ?? 5;
+      if (usesLeft < 5) {
+        toast.error(`👜 Cette bourse a déjà servi (${usesLeft}/5 attaques restantes). Seules les bourses neuves (5/5) peuvent être mises en vente.`);
+        return;
+      }
+    }
+    // Tous les items à durabilité (épée, armures, bouclier, outils utilitaires) :
+    // l'instance vendue doit avoir sa durabilité au max.
+    if (itemDef?.durability !== undefined || item.durability !== undefined) {
+      const currentDura = item.durability ?? itemDef?.durability ?? 0;
+      const maxDura = itemDef?.durability ?? 10;
+      if (currentDura < maxDura) {
+        toast.error(`🛡️ Cet objet a déjà servi (${currentDura}/${maxDura}). Seuls les objets neufs (au maximum de leur durabilité) peuvent être mis en vente. Réparez-le d'abord ou craftez-en un neuf.`);
+        return;
+      }
+    }
 
     // Vérifier le bon d'autorisation (sauf pour l'Autorisation elle-même)
     if (!getHasPermitForItem(item.item_key)) {
-      toast.error("📜 Les gardes du marché vous barrent la route — il vous faut une Autorisation de mise sur le marché pour exposer vos marchandises !");
+      toast.error("📜 Les gardes du marché vous barrent la route : il vous faut une Autorisation de mise sur le marché pour exposer vos marchandises !");
       return;
     }
     // Consommer l'autorisation SAUF si c'est l'Autorisation qu'on vend
@@ -171,7 +217,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       inventoryAfterPermit = newInventoryWithPermit.filter(i => i.quantity > 0);
     }
 
-    await base44.entities.MarketListing.create({
+    // Construction du listing : on capture grade et durability si présents,
+    // pour qu'ils soient transmis fidèlement à l'acheteur (REFONTE v5).
+    const listingData = {
       seller_email:     profile.user_email,
       seller_name:      profile.character_name,
       city_id:          profile.city_id,
@@ -185,16 +233,36 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       status:           "active",
       created_date:     new Date().toISOString().split("T")[0],
       expires_at:       new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
-    });
-    // Déduire depuis l'inventaire par item_key (ou item_name en fallback)
-    const newInventory = inventoryAfterPermit.map(i => {
-      if (item.item_key && i.item_key === item.item_key) return { ...i, quantity: i.quantity - sellForm.quantity };
-      if (!item.item_key && i.item_name === item.item_name) return { ...i, quantity: i.quantity - sellForm.quantity };
-      return i;
-    }).filter(i => i.quantity > 0);
+    };
+    if (item.grade !== undefined) listingData.item_grade = item.grade;
+    if (item.durability !== undefined) listingData.item_durability = item.durability;
+
+    await base44.entities.MarketListing.create(listingData);
+    // Déduire depuis l'inventaire en ciblant l'INSTANCE EXACTE (par index dans la liste filtrée).
+    // Pour les équipements, chaque instance est une ligne distincte avec son grade/durability.
+    // On ne peut donc pas se contenter de matcher par item_key (sinon on retire la mauvaise instance
+    // si le joueur a plusieurs lignes du même type avec des grades/dura différents).
+    const targetInInventory = inventoryAfterPermit.findIndex(i =>
+      i.item_key === item.item_key &&
+      (i.grade ?? 0) === (item.grade ?? 0) &&
+      (i.durability ?? null) === (item.durability ?? null)
+    );
+    let newInventory;
+    if (targetInInventory >= 0) {
+      newInventory = inventoryAfterPermit.map((i, j) =>
+        j === targetInInventory ? { ...i, quantity: i.quantity - sellForm.quantity } : i
+      ).filter(i => i.quantity > 0);
+    } else {
+      // Fallback (ne devrait pas arriver) : ancien comportement par item_key
+      newInventory = inventoryAfterPermit.map(i => {
+        if (item.item_key && i.item_key === item.item_key) return { ...i, quantity: i.quantity - sellForm.quantity };
+        if (!item.item_key && i.item_name === item.item_name) return { ...i, quantity: i.quantity - sellForm.quantity };
+        return i;
+      }).filter(i => i.quantity > 0);
+    }
 
     await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
-    toast.success(`🏷️ Votre étale est dressée sur le marché de ${city?.name} — que les acheteurs affluent !`);
+    toast.success(`🏷️ Votre étale est dressée sur le marché de ${city?.name} : que les acheteurs affluent !`);
     setSellOpen(false);
     setSellForm({ item_index: "", quantity: 1, price: 1, itemKey: "" });
 
@@ -221,12 +289,16 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   };
 
   // ── BUY : taxes accumulées par ville sur le profil, versées au reset ──
+  // MARCHÉ UNIFIÉ : la taxe appliquée est celle de la ville du listing (= ville du vendeur),
+  // pas celle de la ville où l'acheteur se trouve actuellement.
   const handleBuy = async (listing) => {
     const qty = buyQtys[listing.id] || listing.quantity;
     const totalBase = listing.price_per_unit * qty;
+    // Taux de taxe = taux de la ville du listing (et non de la ville actuelle de l'acheteur)
+    const listingTaxRate = getTaxRateForCity(listing.city_id);
     // Taxe calculée pour affichage uniquement — prélevée au reset
     // Taxe exacte sans arrondi — on cumule les centimes, arrondi au reset uniquement
-    const taxAmount = taxRate > 0 ? totalBase * taxRate / 100 : 0;
+    const taxAmount = listingTaxRate > 0 ? totalBase * listingTaxRate / 100 : 0;
     const totalCost = totalBase; // l'acheteur ne paie QUE le prix de base
 
     // ── Sceau royal system : règles spéciales ──
@@ -248,10 +320,13 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       return;
     }
     if (qty <= 0 || qty > listing.quantity) {
-      toast.error("La quantité indiquée n'est pas valide — vérifiez votre saisie.");
+      toast.error("La quantité indiquée n'est pas valide : vérifiez votre saisie.");
       return;
     }
-    if (wouldExceedCapacity(profile, qty)) {
+    // MARCHÉ UNIFIÉ v2 : la vérification du poids n'a lieu qu'à l'achat LOCAL.
+    // Pour les achats à distance, le poids est vérifié au moment du retrait du colis.
+    const isRemote = listing.city_id && listing.city_id !== profile.city_id;
+    if (!isRemote && wouldExceedCapacity(profile, qty)) {
       const w = getInventoryWeight(profile);
       const max = getEffectiveMaxWeight(profile);
       toast.error(`📦 Votre besace déborde ! (${w}/${max}) Allégez votre charge avant d'acheter davantage.`);
@@ -290,23 +365,116 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       const found = Object.entries(ITEMS).find(([, item]) => item.name === listing.item_name);
       resolvedItemKey = found?.[0] || "";
     }
+    const itemDef = ITEMS[resolvedItemKey];
 
-    // Normaliser les item_key manquants dans l'inventaire existant
-    const newInventory = (profile.inventory || []).map(i => {
+    // ── MARCHÉ UNIFIÉ v2 : livraison physique ──
+    // Si l'acheteur N'EST PAS dans la ville du listing, on crée un "colis en attente" :
+    //   - L'or est immédiatement débité (et le vendeur crédité, voir plus bas)
+    //   - L'item ne va PAS dans l'inventaire, mais dans pending_packages[]
+    //   - Le poids n'est PAS vérifié à l'achat (seulement au retrait)
+    //   - L'acheteur devra voyager dans la bonne ville pour retirer son colis
+    // Si l'acheteur EST dans la ville du listing, livraison directe à l'inventaire.
+    const isRemotePurchase = listing.city_id && listing.city_id !== profile.city_id;
+    const listingCity = allCities.find(c => c.id === listing.city_id);
+
+    // Détection des items à instance unique (équipement/bourse/outils)
+    const isInstanceItem = itemDef && (
+      itemDef.durability !== undefined ||
+      itemDef.category === "armes_combat" ||
+      itemDef.category === "armures_combat" ||
+      resolvedItemKey === "bourse_protection"
+    );
+
+    // Normaliser les item_key manquants dans l'inventaire existant (pour les achats locaux)
+    let newInventory = (profile.inventory || []).map(i => {
       if (i.item_key) return i;
       const found = Object.entries(ITEMS).find(([, def]) => def.name === i.item_name);
       return found ? { ...i, item_key: found[0] } : i;
     });
-    const existing = newInventory.find(i =>
-      i.item_key === resolvedItemKey && i.item_category === listing.item_category
-    );
-    if (existing) existing.quantity += qty;
-    else newInventory.push({
-      item_name:     listing.item_name,
-      item_key:      resolvedItemKey,
-      item_category: listing.item_category,
-      quantity:      qty,
-    });
+    // Si achat à distance : on prépare la liste des colis (un colis par instance pour items à instance,
+    // sinon un seul colis avec quantity=qty)
+    let newPendingPackages = Array.isArray(profile.pending_packages) ? [...profile.pending_packages] : [];
+
+    if (isRemotePurchase) {
+      // Créer le(s) colis selon le type d'item
+      if (isInstanceItem) {
+        for (let n = 0; n < qty; n++) {
+          const pkg = {
+            package_id:    `pkg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}_${n}`,
+            listing_id:    listing.id,
+            city_id:       listing.city_id,
+            city_name:     listingCity?.name || "",
+            item_name:     listing.item_name,
+            item_key:      resolvedItemKey,
+            item_category: itemDef?.category || listing.item_category,
+            quantity:      1,
+            purchased_at:  new Date().toISOString(),
+          };
+          if (listing.item_grade !== undefined && listing.item_grade > 0) {
+            pkg.item_grade = listing.item_grade;
+          } else {
+            pkg.item_grade = 0;
+          }
+          if (listing.item_durability !== undefined && listing.item_durability > 0) {
+            pkg.item_durability = listing.item_durability;
+          } else if (itemDef?.durability !== undefined) {
+            pkg.item_durability = itemDef.durability;
+          }
+          newPendingPackages.push(pkg);
+        }
+      } else {
+        // Item normal : un seul colis stackable
+        newPendingPackages.push({
+          package_id:    `pkg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          listing_id:    listing.id,
+          city_id:       listing.city_id,
+          city_name:     listingCity?.name || "",
+          item_name:     listing.item_name,
+          item_key:      resolvedItemKey,
+          item_category: itemDef?.category || listing.item_category,
+          quantity:      qty,
+          purchased_at:  new Date().toISOString(),
+        });
+      }
+    } else {
+      // Achat local : livraison directe à l'inventaire (comportement identique à avant)
+      if (isInstanceItem) {
+        for (let n = 0; n < qty; n++) {
+          const newLine = {
+            item_name:     listing.item_name,
+            item_key:      resolvedItemKey,
+            item_category: itemDef?.category || listing.item_category,
+            quantity:      1,
+          };
+          if (listing.item_grade !== undefined && listing.item_grade > 0) {
+            newLine.grade = listing.item_grade;
+          } else {
+            newLine.grade = 0;
+          }
+          if (listing.item_durability !== undefined && listing.item_durability > 0) {
+            newLine.durability = listing.item_durability;
+          } else if (itemDef?.durability !== undefined) {
+            newLine.durability = itemDef.durability;
+          }
+          newInventory.push(newLine);
+        }
+      } else {
+        const existing = newInventory.find(i => i.item_key === resolvedItemKey);
+        if (existing) {
+          existing.quantity += qty;
+          if (itemDef?.category && existing.item_category !== itemDef.category) {
+            existing.item_category = itemDef.category;
+          }
+        } else {
+          newInventory.push({
+            item_name:     listing.item_name,
+            item_key:      resolvedItemKey,
+            item_category: itemDef?.category || listing.item_category,
+            quantity:      qty,
+          });
+        }
+      }
+    }
 
     let finalInventory = newInventory;
     if (hasParchemin) {
@@ -317,9 +485,11 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     }
 
     // ── Accumuler la taxe par ville (city_id → montant) ──
+    // MARCHÉ UNIFIÉ : taxe versée à la trésorerie de la ville du listing (= ville du vendeur),
+    // car c'est elle qui "héberge" l'objet vendu.
     const pendingTax = { ...(profile.pending_market_tax || {}) };
-    if (taxToAccumulate > 0 && city?.id) {
-      pendingTax[city.id] = (pendingTax[city.id] || 0) + taxToAccumulate;
+    if (taxToAccumulate > 0 && listing.city_id) {
+      pendingTax[listing.city_id] = (pendingTax[listing.city_id] || 0) + taxToAccumulate;
     }
 
     // ── Sceau royal system : or détruit (sink), sceau_balance crédité, pas de vendeur ──
@@ -342,12 +512,25 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       return;
     }
 
-    await base44.entities.PlayerProfile.update(profile.id, {
+    // REFONTE v5 : si l'acheteur reçoit une bourse de protection neuve et n'en a pas déjà une,
+    // on initialise bourse_uses_left = 5 (sinon le fallback null→5 fait l'affaire, mais on est explicite).
+    // MARCHÉ UNIFIÉ v2 : pending_packages est persisté (livraison physique différée).
+    const buyerUpdates = {
       inventory:          finalInventory,
       gold:               (profile.gold || 0) - totalBase,  // prix pur seulement
       sceau_balance:      newSceauBalance,
       pending_market_tax: pendingTax,
-    });
+      pending_packages:   newPendingPackages,
+    };
+    // Pour la bourse : seulement si livraison locale (sinon on initialisera au retrait)
+    const isBuyingBourse = listing.item_key === "bourse_protection";
+    const hadBourseBefore = (profile.inventory || []).some(
+      i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0
+    );
+    if (!isRemotePurchase && isBuyingBourse && !hadBourseBefore) {
+      buyerUpdates.bourse_uses_left = 5;
+    }
+    await base44.entities.PlayerProfile.update(profile.id, buyerUpdates);
 
     // ── Vendeur : reçoit totalBase + bonus Marchand + bonus Caravane ──
     const sellers = await base44.entities.PlayerProfile.filter({ user_email: listing.seller_email });
@@ -405,18 +588,144 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     });
 
     const taxMsg = hasParchemin
-      ? " (📜 Parchemin — exonéré de taxe !)"
+      ? " (📜 Parchemin : exonéré de taxe !)"
       : taxFromSceau > 0 && taxToAccumulate === 0
         ? ` (🏵️ taxe couverte par le Sceau royal)`
         : taxToAccumulate > 0
           ? ` (taxe ${taxToAccumulate}💰 due au reset${taxDiscountRate > 0 ? ` −${Math.round(taxDiscountRate*100)}%` : ""})`
           : "";
-    toast.success(`🤝 Affaire conclue ! ${qty}× ${listing.item_name} acquis pour ${totalBase} 💰${taxMsg}`);
+    if (isRemotePurchase) {
+      toast.success(`📦 Commande passée ! ${qty}× ${listing.item_name} vous attend à ${listingCity?.name || "destination"}${taxMsg}. Voyagez sur place pour récupérer votre colis.`);
+    } else {
+      toast.success(`🤝 Affaire conclue ! ${qty}× ${listing.item_name} acquis pour ${totalBase} 💰${taxMsg}`);
+    }
 
     setBuying(null);
     setBuyQtys(prev => ({ ...prev, [listing.id]: 1 }));
     onRefresh?.();
     loadAll();
+  };
+
+  // ── PICKUP : récupérer un colis en attente (achat à distance) ──
+  // L'acheteur doit être physiquement dans la ville du colis (sauf via relais postal de la ville actuelle).
+  const [pickingUp, setPickingUp] = useState(null);
+  const RELAIS_FEE = 5; // or détruit (sink) pour livraison à distance via Relais postal
+  const handlePickup = async (pkg, options = {}) => {
+    const viaRelais = !!options.viaRelais;
+    if (pickingUp) return;
+
+    // Cas livraison "physique" : il faut être dans la ville du colis
+    if (!viaRelais && pkg.city_id !== profile.city_id) {
+      toast.error(`📦 Vous devez être à ${pkg.city_name || "la ville de livraison"} pour récupérer ce colis.`);
+      return;
+    }
+
+    // Cas relais postal : la ville actuelle doit avoir un relais ET on doit avoir 5💰
+    if (viaRelais) {
+      const hasRelais = (city?.buildings || []).some(b => b.building_type === "relais");
+      if (!hasRelais) {
+        toast.error("📮 Cette ville n'a pas de Relais postal pour la livraison à distance.");
+        return;
+      }
+      if ((profile.gold || 0) < RELAIS_FEE) {
+        toast.error(`📮 Le Relais postal coûte ${RELAIS_FEE}💰 mais vous n'en avez que ${profile.gold || 0}💰.`);
+        return;
+      }
+    }
+
+    // Vérification du poids au moment du retrait (toujours)
+    if (wouldExceedCapacity(profile, pkg.quantity || 1)) {
+      const w = getInventoryWeight(profile);
+      const max = getEffectiveMaxWeight(profile);
+      toast.error(`🎒 Inventaire trop chargé pour récupérer ce colis (${w}/${max}). Allégez-vous d'abord.`);
+      return;
+    }
+    setPickingUp(pkg.package_id);
+    try {
+      const itemDef = ITEMS[pkg.item_key];
+      // Construit la nouvelle inventaire en intégrant le colis
+      let newInventory = (profile.inventory || []).map(i => {
+        if (i.item_key) return i;
+        const found = Object.entries(ITEMS).find(([, def]) => def.name === i.item_name);
+        return found ? { ...i, item_key: found[0] } : i;
+      });
+      const isInstanceItem = itemDef && (
+        itemDef.durability !== undefined ||
+        itemDef.category === "armes_combat" ||
+        itemDef.category === "armures_combat" ||
+        pkg.item_key === "bourse_protection"
+      );
+      if (isInstanceItem) {
+        // Pour les items à instance, le colis est toujours quantity:1 (un colis par exemplaire)
+        const newLine = {
+          item_name:     pkg.item_name,
+          item_key:      pkg.item_key,
+          item_category: itemDef?.category || pkg.item_category,
+          quantity:      1,
+        };
+        if (pkg.item_grade !== undefined && pkg.item_grade > 0) newLine.grade = pkg.item_grade;
+        else newLine.grade = 0;
+        if (pkg.item_durability !== undefined && pkg.item_durability > 0) newLine.durability = pkg.item_durability;
+        else if (itemDef?.durability !== undefined) newLine.durability = itemDef.durability;
+        newInventory.push(newLine);
+      } else {
+        const existing = newInventory.find(i => i.item_key === pkg.item_key);
+        if (existing) {
+          existing.quantity += (pkg.quantity || 1);
+          if (itemDef?.category && existing.item_category !== itemDef.category) {
+            existing.item_category = itemDef.category;
+          }
+        } else {
+          newInventory.push({
+            item_name:     pkg.item_name,
+            item_key:      pkg.item_key,
+            item_category: itemDef?.category || pkg.item_category,
+            quantity:      pkg.quantity || 1,
+          });
+        }
+      }
+      // Retire ce colis de pending_packages
+      const newPendingPackages = (profile.pending_packages || []).filter(p => p.package_id !== pkg.package_id);
+
+      // Init bourse_uses_left si on retire une bourse neuve et qu'on n'en avait pas
+      const updates = {
+        inventory:        newInventory,
+        pending_packages: newPendingPackages,
+      };
+      // Cas relais : débite 5💰 (or détruit, sink)
+      if (viaRelais) {
+        updates.gold = (profile.gold || 0) - RELAIS_FEE;
+      }
+      if (pkg.item_key === "bourse_protection") {
+        const hadBourseBefore = (profile.inventory || []).some(
+          i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0
+        );
+        if (!hadBourseBefore && (profile.bourse_uses_left ?? null) === null) {
+          updates.bourse_uses_left = 5;
+        }
+      }
+      await base44.entities.PlayerProfile.update(profile.id, updates);
+
+      // Log la dépense relais
+      if (viaRelais) {
+        await logGold(profile.user_email, profile.character_name, city?.id, city?.name,
+          -RELAIS_FEE, "service_atelier",
+          `Relais postal : livraison ${pkg.quantity || 1}× ${pkg.item_name} depuis ${pkg.city_name || "ville inconnue"}`
+        ).catch(() => {});
+      }
+
+      const successMsg = viaRelais
+        ? `📮 Livraison express ! ${pkg.quantity || 1}× ${pkg.item_name} reçu via Relais postal (−${RELAIS_FEE}💰).`
+        : `📦 Colis récupéré : ${pkg.quantity || 1}× ${pkg.item_name} ajouté à votre inventaire !`;
+      toast.success(successMsg);
+      onRefresh?.();
+      loadAll();
+    } catch (e) {
+      console.error("Pickup error:", e);
+      toast.error("Erreur lors de la récupération du colis.");
+    } finally {
+      setPickingUp(null);
+    }
   };
 
   // ── CANCEL listing ──
@@ -450,9 +759,14 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   if (!profile || !city) return null;
 
   // Filtre catégorie
-  const filteredListings = filterCategory === "all"
+  const categoryFiltered = filterCategory === "all"
     ? listings
     : listings.filter(l => l.item_category === filterCategory);
+
+  // Filtre ville : "all" = marché unifié (toutes villes), "local" = ville actuelle uniquement
+  const filteredListings = filterCity === "local"
+    ? categoryFiltered.filter(l => l.city_id === profile.city_id)
+    : categoryFiltered;
 
   const listingsByItem = {};
   for (const l of filteredListings) {
@@ -489,13 +803,16 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="font-heading text-2xl font-bold heading-medieval">🏪 Marché de {city.name}</h2>
+          <h2 className="font-heading text-2xl font-bold heading-medieval">🌍 Marché unifié</h2>
           <p className="text-muted-foreground text-sm font-body">
-            💰 Taxe aujourd'hui : {taxRate}%
+            💰 Taxe en vendant à <strong>{city.name}</strong> : {taxRate}%
             {city.tax_rate_next !== undefined && city.tax_rate_next !== null && (
               <span className="ml-2 text-amber-600">→ {city.tax_rate_next}% demain</span>
             )}
-            {" — "}Maire : {city.mayor_name || "Aucun"}
+            {" · "}Maire : {city.mayor_name || "Aucun"}
+          </p>
+          <p className="text-xs text-muted-foreground font-body italic">
+            Toutes les annonces de toutes les villes sont visibles : la taxe appliquée est celle de la ville du vendeur.
           </p>
           {(city.daily_tax_collected || 0) > 0 && (
             <p className="text-xs text-muted-foreground font-body mt-0.5">
@@ -586,6 +903,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 <Input
                   type="number" min={1} value={sellForm.price}
                   onChange={e => setSellForm({ ...sellForm, price: parseInt(e.target.value) || 1 })}
+                  onFocus={e => e.target.select()}
                 />
                 {sellForm.itemKey && sellForm.price > 0 && (() => {
                   const hint = getPriceHint(sellForm.itemKey, sellForm.price, priceMultiplier, dynamicPrices);
@@ -609,31 +927,42 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
         </Dialog>
       </div>
 
-      <MarketInsights cityId={city?.id} />
+      <MarketInsights />
 
       <Tabs defaultValue="buy">
         <TabsList className="font-heading flex-wrap h-auto gap-1">
           <TabsTrigger value="buy">🛒 Acheter ({listings.length})</TabsTrigger>
           <TabsTrigger value="mine">📦 Mes annonces ({myListings.length})</TabsTrigger>
+          <TabsTrigger value="orders">🚚 Mes commandes ({(profile.pending_packages || []).length})</TabsTrigger>
         </TabsList>
 
         {/* ── BUY TAB ── */}
         <TabsContent value="buy" className="space-y-3 mt-4">
 
-          {categoriesInListings.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            {categoriesInListings.length > 1 && (
+              <select
+                value={filterCategory}
+                onChange={e => setFilterCategory(e.target.value)}
+                className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
+              >
+                <option value="all">📦 Toutes catégories</option>
+                {categoriesInListings.map(cat => (
+                  <option key={cat} value={cat}>
+                    {ITEM_CATEGORIES[cat]?.icon} {cat}
+                  </option>
+                ))}
+              </select>
+            )}
             <select
-              value={filterCategory}
-              onChange={e => setFilterCategory(e.target.value)}
+              value={filterCity}
+              onChange={e => setFilterCity(e.target.value)}
               className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
             >
-              <option value="all">📦 Toutes catégories</option>
-              {categoriesInListings.map(cat => (
-                <option key={cat} value={cat}>
-                  {ITEM_CATEGORIES[cat]?.icon} {cat}
-                </option>
-              ))}
+              <option value="all">🌍 Marché unifié (toutes villes)</option>
+              <option value="local">📍 Ma ville uniquement ({city?.name || "—"})</option>
             </select>
-          )}
+          </div>
 
           {loading ? (
             <div className="flex justify-center py-8">
@@ -642,7 +971,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           ) : Object.keys(listingsByItem).length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground font-body">
-                Les étales de {city.name} sont désertes — revenez quand les artisans auront sorti leurs marchandises.
+                {filterCity === "local"
+                  ? `Les étales de ${city?.name || "cette ville"} sont désertes : essayez le marché unifié pour voir d'autres villes.`
+                  : "Aucune annonce en cours sur le marché unifié — revenez quand les artisans auront sorti leurs marchandises."}
               </CardContent>
             </Card>
           ) : (
@@ -678,8 +1009,10 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                       .map(listing => {
                         const qty = buyQtys[listing.id] ?? listing.quantity;
                         const totalBase = listing.price_per_unit * qty;
+                        // MARCHÉ UNIFIÉ : taxe selon la ville du listing (pas celle de l'acheteur)
+                        const listingTaxRate = getTaxRateForCity(listing.city_id);
                         // Taxe exacte sans arrondi — on cumule les centimes, arrondi au reset uniquement
-    const taxAmount = taxRate > 0 ? totalBase * taxRate / 100 : 0;
+                        const taxAmount = listingTaxRate > 0 ? totalBase * listingTaxRate / 100 : 0;
                         const canAfford = (profile.gold || 0) >= totalBase;
 
                         const isBestDeal = bestDeals.includes(listing.id);
@@ -693,11 +1026,36 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                               <span className="text-muted-foreground">
                                 par {listing.seller_name}
                                 {(() => {
+                                  // MARCHÉ UNIFIÉ : indiquer la ville du listing avec son taux de taxe
+                                  const listingCity = allCities.find(c => c.id === listing.city_id);
+                                  if (!listingCity) return null;
+                                  const isLocal = listing.city_id === profile.city_id;
+                                  return (
+                                    <span className={`ml-2 inline-block text-xs font-semibold px-1.5 py-0.5 rounded border ${
+                                      isLocal
+                                        ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                        : "bg-sky-100 text-sky-800 border-sky-300"
+                                    }`} title={`Taxe : ${listingTaxRate}% (versée à ${listingCity.name})`}>
+                                      📍 {listingCity.name}{listingTaxRate > 0 ? ` · ${listingTaxRate}%` : " · 0%"}
+                                    </span>
+                                  );
+                                })()}
+                                {(() => {
                                   const d = getDaysLeft(listing.expires_at);
                                   if (d === null) return null;
                                   if (d <= 1) return <span className="ml-1 text-red-500 font-semibold text-xs">⏳ expire demain</span>;
                                   return <span className="ml-1 text-muted-foreground text-xs">{d}j restants</span>;
                                 })()}
+                                {listing.item_grade !== undefined && listing.item_grade > 0 && (
+                                  <span className="ml-2 inline-block bg-violet-100 text-violet-800 text-xs font-semibold px-1.5 py-0.5 rounded border border-violet-300">
+                                    Grade {listing.item_grade}
+                                  </span>
+                                )}
+                                {listing.item_durability !== undefined && (
+                                  <span className="ml-1 inline-block bg-slate-100 text-slate-700 text-xs px-1.5 py-0.5 rounded border border-slate-300">
+                                    🛡️ {listing.item_durability}/{listing.item_durability}
+                                  </span>
+                                )}
                               </span>
                               <span className="font-semibold">
                                 {listing.price_per_unit} 💰/u · {listing.quantity} dispo
@@ -729,6 +1087,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                                   [listing.id]: Math.max(1, Math.min(listing.quantity, Number(e.target.value))),
                                 }))}
                                 className="w-16 h-7 text-xs text-center"
+                                onFocus={e => e.target.select()}
                               />
                             </div>
 
@@ -738,6 +1097,11 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                                 {taxAmount > 0
                                   ? <span className="text-amber-600"> · taxe ~{Math.ceil(taxAmount)}💰 due au reset</span>
                                   : <span className="text-green-600"> · sans taxe</span>}
+                                {listing.city_id !== profile.city_id && (
+                                  <span className="block text-sky-700 italic mt-0.5">
+                                    📦 Achat à distance : voyage requis pour récupérer le colis
+                                  </span>
+                                )}
                               </span>
                               <Button
                                 size="sm" className="font-heading"
@@ -745,7 +1109,13 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                                 disabled={buying === listing.id || !canAfford}
                                 variant={canAfford ? "default" : "outline"}
                               >
-                                {buying === listing.id ? "..." : canAfford ? `Acheter ×${qty}` : "Pas assez d'or"}
+                                {buying === listing.id
+                                  ? "..."
+                                  : !canAfford
+                                    ? "Pas assez d'or"
+                                    : listing.city_id !== profile.city_id
+                                      ? `📦 Commander ×${qty}`
+                                      : `Acheter ×${qty}`}
                               </Button>
                             </div>
                           </div>
@@ -811,6 +1181,99 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* ── ORDERS TAB : colis en attente de récupération physique ── */}
+        <TabsContent value="orders" className="space-y-3 mt-4">
+          <Card>
+            <CardContent className="py-3 px-4 bg-amber-50 border-amber-200">
+              <p className="text-sm font-body text-amber-900">
+                📦 <strong>Vos commandes en attente.</strong> Pour récupérer un colis, voyagez à la ville où il est entreposé. Si la ville où vous êtes a un <strong>📮 Relais postal</strong>, vous pouvez vous faire livrer directement contre {RELAIS_FEE}💰.
+              </p>
+            </CardContent>
+          </Card>
+          {(() => {
+            const packages = profile.pending_packages || [];
+            if (packages.length === 0) {
+              return (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground font-body">
+                    Aucune commande en attente. Achetez sur le marché unifié pour commander à distance !
+                  </CardContent>
+                </Card>
+              );
+            }
+            // La ville actuelle a-t-elle un Relais postal ?
+            const hasRelaisHere = (city?.buildings || []).some(b => b.building_type === "relais");
+            // Regrouper par ville pour rendre la lecture plus lisible
+            const byCity = {};
+            for (const p of packages) {
+              const cid = p.city_id || "?";
+              if (!byCity[cid]) byCity[cid] = [];
+              byCity[cid].push(p);
+            }
+            return Object.entries(byCity).map(([cid, pkgs]) => {
+              const cityName = pkgs[0].city_name || "Ville inconnue";
+              const isHere = cid === profile.city_id;
+              return (
+                <Card key={cid} className={isHere ? "border-emerald-300 bg-emerald-50" : ""}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="font-heading text-base flex items-center gap-2">
+                      📍 {cityName}
+                      {isHere
+                        ? <span className="text-xs font-body text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300">Vous y êtes !</span>
+                        : <span className="text-xs font-body text-muted-foreground">(voyagez sur place ou utilisez un Relais)</span>
+                      }
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {pkgs.map(pkg => (
+                      <div key={pkg.package_id} className="flex items-center justify-between gap-2 border border-border rounded-lg p-2 bg-card">
+                        <div className="text-sm font-body">
+                          <span className="font-semibold">{pkg.quantity}× {pkg.item_name}</span>
+                          {pkg.item_grade !== undefined && pkg.item_grade > 0 && (
+                            <span className="ml-2 inline-block bg-violet-100 text-violet-800 text-xs font-semibold px-1.5 py-0.5 rounded border border-violet-300">
+                              Grade {pkg.item_grade}
+                            </span>
+                          )}
+                          {pkg.item_durability !== undefined && (
+                            <span className="ml-1 inline-block bg-slate-100 text-slate-700 text-xs px-1.5 py-0.5 rounded border border-slate-300">
+                              🛡️ {pkg.item_durability}/{pkg.item_durability}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          {/* Bouton récupération physique : actif uniquement si on est dans la bonne ville */}
+                          <Button
+                            size="sm"
+                            variant={isHere ? "default" : "outline"}
+                            disabled={!isHere || pickingUp === pkg.package_id}
+                            onClick={() => handlePickup(pkg, { viaRelais: false })}
+                            className="font-heading"
+                          >
+                            {pickingUp === pkg.package_id ? "..." : isHere ? "📦 Récupérer" : "🐴 Voyagez"}
+                          </Button>
+                          {/* Bouton relais postal : visible uniquement si on est ailleurs ET la ville actuelle a un relais */}
+                          {!isHere && hasRelaisHere && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={pickingUp === pkg.package_id || (profile.gold || 0) < RELAIS_FEE}
+                              onClick={() => handlePickup(pkg, { viaRelais: true })}
+                              className="font-heading"
+                              title={`Livraison express via Relais postal (${RELAIS_FEE}💰)`}
+                            >
+                              📮 Livrer ({RELAIS_FEE}💰)
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              );
+            });
+          })()}
         </TabsContent>
       </Tabs>
     </div>

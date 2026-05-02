@@ -6,7 +6,7 @@
 //   repaid        : montant total remboursé
 //   debtByCity    : nouvel objet debt_by_city mis à jour
 //   goldAfterDebt : or net reçu par le joueur
-//   cityPayments  : { [city_id]: montant } — versements à faire aux trésoreries
+//   cityPayments  : { [city_id]: montant } : versements à faire aux trésoreries
 
 export function computeDebtRepayment(debtByCity, goldEarned) {
   const debt = debtByCity || {};

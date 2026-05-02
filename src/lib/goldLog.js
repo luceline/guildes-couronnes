@@ -1,5 +1,5 @@
 /**
- * goldLog.js — Fonction centralisée pour logger les transactions or.
+ * goldLog.js : Fonction centralisée pour logger les transactions or.
  *
  * Remplace les 6 définitions locales identiques dans :
  *   CityView, Market, Production, Travel, Profile, ProfessionChangePanel

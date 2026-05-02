@@ -454,12 +454,12 @@ export default function MapView({ profile }) {
                   </div>
                   <div className="bg-[#ffffff08] rounded p-1.5">
                     <div className="text-[#8a9a78]">Maire</div>
-                    <div className="font-bold truncate">{selectedCity.mayor_name || "—"}</div>
+                    <div className="font-bold truncate">{selectedCity.mayor_name || "-"}</div>
                   </div>
                   <div className="bg-[#ffffff08] rounded p-1.5">
                     <div className="text-[#8a9a78]">Voyageurs</div>
                     <div className="font-bold">
-                      {cityTravelers.length > 0 ? `🐴 ${cityTravelers.length}` : "—"}
+                      {cityTravelers.length > 0 ? `🐴 ${cityTravelers.length}` : "-"}
                     </div>
                   </div>
                 </div>

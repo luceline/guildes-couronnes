@@ -94,7 +94,7 @@ export default function T5AttackPanel({ profile, city, onRefresh }) {
         }
       }
 
-      // Créer l'effet en pending_effects — sera résolu par le dailyReset à 6h UTC
+      // Créer l'effet en pending_effects : sera résolu par le dailyReset à 6h UTC
       const pending = { ...(targetCityData.pending_effects || {}) };
       const effectKey = `attack_${profile.id}_${item.item_key}_${Date.now()}`;
       const eff = EFFECT_MAP[item.item_key];

@@ -1,5 +1,5 @@
 /**
- * MilitaryHelpModal — Documentation complète du système de combat d'unités.
+ * MilitaryHelpModal : Documentation complète du système de combat d'unités.
  *
  * Affiche les unités, formules d'attaque/défense, table des résultats,
  * et bonus de bâtiments. À ouvrir depuis MilitaryCampaignPanel ou la nav Aide.
@@ -134,7 +134,7 @@ export default function MilitaryHelpModal({ onClose }) {
                 <tbody>
                   <tr className="border-t border-border bg-red-50/40">
                     <td className="px-2 py-1.5 text-center font-mono">&lt; 0.5</td>
-                    <td className="px-2 py-1.5">💀 Désastre — l'armée s'est brisée sur les murailles</td>
+                    <td className="px-2 py-1.5">💀 Désastre : l'armée s'est brisée sur les murailles</td>
                     <td className="px-2 py-1.5 text-center font-mono text-red-700">−80%</td>
                     <td className="px-2 py-1.5 text-center font-mono">−10%</td>
                     <td className="px-2 py-1.5 text-center font-mono">0%</td>
@@ -142,7 +142,7 @@ export default function MilitaryHelpModal({ onClose }) {
                   </tr>
                   <tr className="border-t border-border bg-orange-50/40">
                     <td className="px-2 py-1.5 text-center font-mono">0.5 – 0.8</td>
-                    <td className="px-2 py-1.5">⚠️ Défaite — les soldats ont battu en retraite</td>
+                    <td className="px-2 py-1.5">⚠️ Défaite : les soldats ont battu en retraite</td>
                     <td className="px-2 py-1.5 text-center font-mono text-orange-700">−50%</td>
                     <td className="px-2 py-1.5 text-center font-mono">−20%</td>
                     <td className="px-2 py-1.5 text-center font-mono">0%</td>
@@ -150,7 +150,7 @@ export default function MilitaryHelpModal({ onClose }) {
                   </tr>
                   <tr className="border-t border-border bg-amber-50/40">
                     <td className="px-2 py-1.5 text-center font-mono">0.8 – 1.0</td>
-                    <td className="px-2 py-1.5">🟡 Victoire courte — la brèche fut courte mais fructueuse</td>
+                    <td className="px-2 py-1.5">🟡 Victoire courte : la brèche fut courte mais fructueuse</td>
                     <td className="px-2 py-1.5 text-center font-mono">−30%</td>
                     <td className="px-2 py-1.5 text-center font-mono">−50%</td>
                     <td className="px-2 py-1.5 text-center font-mono">10%</td>
@@ -158,7 +158,7 @@ export default function MilitaryHelpModal({ onClose }) {
                   </tr>
                   <tr className="border-t border-border bg-green-50/40">
                     <td className="px-2 py-1.5 text-center font-mono">1.0 – 1.5</td>
-                    <td className="px-2 py-1.5">✅ Victoire — la ville fut prise d'assaut</td>
+                    <td className="px-2 py-1.5">✅ Victoire : la ville fut prise d'assaut</td>
                     <td className="px-2 py-1.5 text-center font-mono">−20%</td>
                     <td className="px-2 py-1.5 text-center font-mono">−70%</td>
                     <td className="px-2 py-1.5 text-center font-mono">15%</td>
@@ -166,7 +166,7 @@ export default function MilitaryHelpModal({ onClose }) {
                   </tr>
                   <tr className="border-t border-border bg-green-100/60">
                     <td className="px-2 py-1.5 text-center font-mono">1.5 – 2.0</td>
-                    <td className="px-2 py-1.5">⭐ Victoire nette — la garnison fut balayée</td>
+                    <td className="px-2 py-1.5">⭐ Victoire nette : la garnison fut balayée</td>
                     <td className="px-2 py-1.5 text-center font-mono">−10%</td>
                     <td className="px-2 py-1.5 text-center font-mono">−90%</td>
                     <td className="px-2 py-1.5 text-center font-mono">20%</td>
@@ -174,7 +174,7 @@ export default function MilitaryHelpModal({ onClose }) {
                   </tr>
                   <tr className="border-t border-border bg-emerald-100/70">
                     <td className="px-2 py-1.5 text-center font-mono">≥ 2.0</td>
-                    <td className="px-2 py-1.5">👑 Victoire écrasante — la ville est à genoux</td>
+                    <td className="px-2 py-1.5">👑 Victoire écrasante : la ville est à genoux</td>
                     <td className="px-2 py-1.5 text-center font-mono text-green-700">−5%</td>
                     <td className="px-2 py-1.5 text-center font-mono">−100%</td>
                     <td className="px-2 py-1.5 text-center font-mono">25%</td>
@@ -237,17 +237,17 @@ export default function MilitaryHelpModal({ onClose }) {
             <h4 className="font-heading text-sm font-semibold mt-3 mb-1.5">🏰 Pour la ville attaquante</h4>
             <ul className="text-xs space-y-1 ml-3 list-disc list-outside">
               <li>
-                <strong>Butin sur l'entrepôt ennemi</strong> — % des ressources (bois, fer, pain, etc.) volées
+                <strong>Butin sur l'entrepôt ennemi</strong> : % des ressources (bois, fer, pain, etc.) volées
                 et déposées dans votre entrepôt.{" "}
                 <span className="text-muted-foreground italic">Les lingots royaux ne sont pas concernés.</span>
               </li>
               <li>
-                <strong>Lingots royaux pillés</strong> — transférés directement de la ville ennemie vers la
+                <strong>Lingots royaux pillés</strong> : transférés directement de la ville ennemie vers la
                 vôtre. Ils font monter votre <strong>palier de cité</strong> (bonus permanents ATK/DEF) et
                 peuvent même <strong>faire redescendre</strong> l'ennemie d'un palier.
               </li>
               <li>
-                <strong>Affaiblissement durable de l'ennemi</strong> — sa garnison subit jusqu'à −100% de
+                <strong>Affaiblissement durable de l'ennemi</strong> : sa garnison subit jusqu'à −100% de
                 pertes selon l'ampleur de votre victoire.
               </li>
             </ul>
@@ -340,7 +340,7 @@ export default function MilitaryHelpModal({ onClose }) {
             </div>
 
             <p className="text-xs text-muted-foreground mt-2 italic">
-              💡 Le vrai trésor, ce sont les <strong>lingots royaux</strong> — c'est le moyen le plus rapide
+              💡 Le vrai trésor, ce sont les <strong>lingots royaux</strong> : c'est le moyen le plus rapide
               de monter votre cité de palier (l'autre voie étant l'Orfèvre, beaucoup plus longue).
             </p>
           </section>
@@ -350,9 +350,9 @@ export default function MilitaryHelpModal({ onClose }) {
             <h3 className="font-heading text-base font-semibold mb-2">📜 Conseils du vieil Aldebert</h3>
             <ul className="text-xs space-y-1 ml-3 list-disc list-outside text-muted-foreground">
               <li>Ne déclarez la guerre qu'avec un <strong>ratio ATK/DEF supérieur à 1.5</strong> pour minimiser les pertes.</li>
-              <li>Une <strong>Catapulte</strong> change la donne face à une ville fortifiée — −30% sur la défense ennemie.</li>
+              <li>Une <strong>Catapulte</strong> change la donne face à une ville fortifiée : −30% sur la défense ennemie.</li>
               <li>Les <strong>Archers</strong> brillent en défense, surtout si l'ennemi mise sur la cavalerie (×1.5).</li>
-              <li>Le <strong>Cavalier</strong> a la meilleure attaque pure (30) mais peu de défense (10) — bon pour les raids éclairs.</li>
+              <li>Le <strong>Cavalier</strong> a la meilleure attaque pure (30) mais peu de défense (10) : bon pour les raids éclairs.</li>
               <li>Les <strong>Chevaliers</strong> sont l'élite, mais leur palier élevé en limite l'accès aux jeunes villes.</li>
               <li>Faire monter votre ville de <strong>palier</strong> donne un bonus permanent +5%/palier en attaque ET en défense.</li>
             </ul>

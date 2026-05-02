@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// pricingData.js — Système de pricing DYNAMIQUE basé sur recettes
+// pricingData.js : Système de pricing DYNAMIQUE basé sur recettes
 // ═══════════════════════════════════════════════════════════════════════════
 // PRINCIPES :
 // • T1 : prix fixes (référence marché)
@@ -8,14 +8,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ── PRIX CONSEILLÉS T1 (références pour nouvelles ventes) ──
+// Fourchettes calibrées selon la DEMANDE relative dans le jeu :
+//   • laine_brute : #1 craft (25% des inputs cumulés) + répare 4 armures
+//   • pierre      : peu en craft mais ultra-demandée pour bâtiments + répare arme/bouclier
+//   • minerai_fer : craft + upgrades combat (200/200/60 par upgrade haut grade)
+//   • bois_brut   : bâtiments + craft + upgrades
+//   • quartz_brut : upgrades combat (matière "rare" mais peu d'usages alternatifs)
+//   • herbes      : surtout alimentaire (récolte rapide en biome)
+//   • ble         : nourriture de base (le plus disponible)
 export const SUGGESTED_PRICES_T1 = {
-  bois_brut:    { min: 1, max: 6 },
-  ble:          { min: 1, max: 3 },
-  laine_brute:  { min: 1, max: 6 },
-  herbes:       { min: 1, max: 3 },
-  minerai_fer:  { min: 1, max: 6 },
-  quartz_brut:  { min: 1, max: 6 },
-  pierre:       { min: 1, max: 6 },
+  laine_brute:  { min: 2, max: 7 },  // demande la plus large (craft + répa armures)
+  pierre:       { min: 2, max: 7 },  // bâtiments + répa arme/bouclier
+  minerai_fer:  { min: 2, max: 6 },  // craft + upgrades combat
+  bois_brut:    { min: 2, max: 6 },  // bâtiments + craft + upgrades
+  quartz_brut:  { min: 2, max: 6 },  // upgrades combat haut grade
+  herbes:       { min: 1, max: 5 },  // alimentaire (récolte rapide)
+  ble:          { min: 1, max: 4 },  // nourriture de base, le plus disponible
 };
 
 // ── PRIX SPÉCIAUX (items non-craftés, parchemins fixes) ──
@@ -166,8 +174,10 @@ export function calculateDynamicPrices(listings = [], recipes = []) {
     if (!recipe.output || !recipe.output.key) return;
 
     const { output, inputs, tier, costGold = 0 } = recipe;
-    
-    // Calculer prix moyen des ingrédients utilisés
+
+    // Calculer prix moyen des ingrédients (formule MOYENNE, pas SOMME)
+    // Rationnel : un T2 vaut "le tier d'un input moyen", peu importe combien il en faut.
+    // La SOMME compounderait à chaque tier et ferait exploser le T5 (cf. simulations).
     let ingredientSum = 0;
     if (inputs && inputs.length > 0) {
       ingredientSum = inputs.reduce((sum, ing) => {
@@ -175,19 +185,23 @@ export function calculateDynamicPrices(listings = [], recipes = []) {
         return sum + (ingPrice || 5);
       }, 0);
     }
-
     const avgIngredientPrice = inputs.length > 0 ? ingredientSum / inputs.length : 5;
-    const basePrice = Math.round(avgIngredientPrice * 1.1); // +10% effort
-    
-    // Appliquer multiplicateurs par tier
+
+    // Markup progressif par tier (rétrocompense l'investissement temps + matière)
     const tieredMultiplier = {
-      2: 1.3,  // T2 = +30% markup
-      3: 1.5,  // T3 = +50% markup
-      4: 1.8,  // T4 = +80% markup
-      5: 2.2,  // T5 = +120% markup
+      2: 2,  // T2 = ×2
+      3: 3,  // T3 = ×3
+      4: 4,  // T4 = ×4
+      5: 5,  // T5 = ×5
     };
 
-    const finalPrice = Math.round(basePrice * (tieredMultiplier[tier] || 1.0) + costGold);
+    // Taxe marché de 20% appliquée systématiquement (le crafteur doit la couvrir
+    // pour ne pas vendre à perte après commission marché).
+    const TAX_MARKET = 1.2;
+
+    const finalPrice = Math.round(
+      avgIngredientPrice * (tieredMultiplier[tier] || 1.0) * TAX_MARKET + costGold
+    );
     pricesByTier[tier][output.key] = finalPrice;
   });
 

@@ -49,12 +49,12 @@ export default function ProfessionChangePanel({ profile, city, onRefresh }) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-body text-muted-foreground">
-        🏛️ <strong>Changer de métier</strong> — {PROFESSION_CHANGE_COST} 💰 versés à la mairie
+        🏛️ <strong>Changer de métier</strong> : {PROFESSION_CHANGE_COST} 💰 versés à la mairie
       </p>
       <div className="flex items-center gap-2 flex-wrap">
         <select value={chosen} onChange={e => setChosen(e.target.value)}
           className="flex-1 border border-border rounded-md px-2 py-1 text-xs font-body bg-background">
-          <option value="">— Choisir un nouveau métier —</option>
+          <option value="">Choisir un nouveau métier</option>
           {PROFESSIONS.filter(p => p !== profile.profession).map(p => (
             <option key={p} value={p}>{p}</option>
           ))}
@@ -62,7 +62,7 @@ export default function ProfessionChangePanel({ profile, city, onRefresh }) {
         <Button size="sm" className="h-7 text-xs font-heading shrink-0"
           disabled={!chosen || changing || (profile.gold || 0) < PROFESSION_CHANGE_COST}
           onClick={handleChange}>
-          {changing ? "..." : `Changer — ${PROFESSION_CHANGE_COST} 💰`}
+          {changing ? "..." : `Changer : ${PROFESSION_CHANGE_COST} 💰`}
         </Button>
       </div>
       <p className="text-xs text-orange-600 font-body">

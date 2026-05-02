@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// pvpRecipes.js — Système de recettes PvP T1.5 dynamiques quotidiens
+// pvpRecipes.js : Système de recettes PvP T1.5 dynamiques quotidiens
 // Inputs T1/T2 aléatoires basés sur la date du jour (seed)
 // ═══════════════════════════════════════════════════════════════
 

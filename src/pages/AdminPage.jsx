@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { runMayorTick, mayerTryBuild, rotateResources, runWealthTax, runMaintenanceCosts, distributeTreasury, runBuildingMaintenance, runTreasuryInterests } from "../lib/mayorAI";
+import { runMayorTick, mayerTryBuild, rotateResources, runWealthTax, runMaintenanceCosts, distributeTreasury, runBuildingMaintenance } from "../lib/mayorAI";
 import { BUILDING_TYPES, generateDailyTax, getTodayDateStr, PROFESSIONS, ADMIN_EMAILS } from "../lib/gameData";
 const BUILDING_TYPE_MAP = BUILDING_TYPES;
 import { CRAFTING_RECIPES, ITEMS, PROFESSION_PRODUCTION } from "../lib/craftingData";
@@ -58,11 +58,11 @@ function MigrationPanel({ players, onRefresh }) {
           playersAffected++;
           totalPurged += obsolete.length;
           for (const obs of obsolete) {
-            addLog(`🗑️ ${profile.character_name} — retiré : "${obs.item_key || obs.item_name}" ×${obs.quantity}`);
+            addLog(`🗑️ ${profile.character_name} : retiré : "${obs.item_key || obs.item_name}" ×${obs.quantity}`);
           }
         }
         if (totalPurged === 0) addLog("✅ Aucun item obsolète trouvé dans les inventaires.");
-        else addLog(`✔ Purge terminée — ${totalPurged} entrée(s) retirée(s) chez ${playersAffected} joueur(s).`);
+        else addLog(`✔ Purge terminée : ${totalPurged} entrée(s) retirée(s) chez ${playersAffected} joueur(s).`);
       },
     },
     {
@@ -91,14 +91,14 @@ function MigrationPanel({ players, onRefresh }) {
               totalFound++;
               const key = item.item_key;
               unknown[key] = (unknown[key] || 0) + item.quantity;
-              addLog(`⚠️ ${profile.character_name} — "${key}" (${item.item_name}) ×${item.quantity}`);
+              addLog(`⚠️ ${profile.character_name} : "${key}" (${item.item_name}) ×${item.quantity}`);
             }
           }
         }
         if (totalFound === 0) {
           addLog("✅ Aucun item obsolète détecté.");
         } else {
-          addLog(`\n📊 Résumé — ${totalFound} entrée(s) obsolète(s) :`);
+          addLog(`\n📊 Résumé : ${totalFound} entrée(s) obsolète(s) :`);
           for (const [k, qty] of Object.entries(unknown)) {
             addLog(`  • "${k}" : ${qty} exemplaire(s) au total`);
           }
@@ -108,7 +108,7 @@ function MigrationPanel({ players, onRefresh }) {
     },
     {
       id: "fix_autorisation_item_key",
-      label: "Réparer item_key manquant — Autorisation de marché",
+      label: "Réparer item_key manquant : Autorisation de marché",
       description: "Corrige les inventaires où l'Autorisation de marché a été achetée sans item_key (apparaît dans l'inventaire mais ne débloque pas la vente).",
       run: async (profiles, addLog) => {
         let fixed = 0;
@@ -128,11 +128,11 @@ function MigrationPanel({ players, onRefresh }) {
           if (dirty) {
             await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
             fixed++;
-            addLog(`✅ ${profile.character_name} — item_key corrigé (×${newInventory.filter(i => i.item_key === "autorisation_marche").reduce((s, i) => s + i.quantity, 0)})`);
+            addLog(`✅ ${profile.character_name} : item_key corrigé (×${newInventory.filter(i => i.item_key === "autorisation_marche").reduce((s, i) => s + i.quantity, 0)})`);
           }
         }
         if (fixed === 0) addLog("ℹ️ Aucun profil à corriger.");
-        else addLog(`✔ Migration terminée — ${fixed} profil(s) mis à jour.`);
+        else addLog(`✔ Migration terminée : ${fixed} profil(s) mis à jour.`);
       },
     },
     {
@@ -146,7 +146,7 @@ function MigrationPanel({ players, onRefresh }) {
           "Herbes": "herbes", "Minerai de fer": "minerai_fer", "Quartz brut": "quartz_brut",
           "Pierre": "pierre", "Autorisation de marché": "autorisation_marche",
           "Autorisation de mise sur le marché": "autorisation_marche",
-          "Planches": "planches", "Pierre brute": "pierre_brute", "Fil": "fil",
+          "Planches": "planches", "Pierre taillée": "pierre_brute", "Fil": "fil",
           "Charbon": "charbon", "Extrait": "extrait", "Quartz poli": "quartz_poli",
           "Encre": "encre", "Farine": "farine",
           "Meuble": "meuble", "Lingots de fer": "lingots_fer", "Tissu": "tissu",
@@ -206,7 +206,7 @@ function MigrationPanel({ players, onRefresh }) {
           if (dirty) {
             await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
             profilesFixed++;
-            addLog(`✅ ${profile.character_name} — inventaire normalisé (${newInventory.length} items)`);
+            addLog(`✅ ${profile.character_name} : inventaire normalisé (${newInventory.length} items)`);
           }
         }
 
@@ -223,7 +223,7 @@ function MigrationPanel({ players, onRefresh }) {
                 listingsFixed++;
                 addLog(`  📋 Listing corrigé : "${listing.item_name}" → ${resolvedKey} (vendeur: ${listing.seller_name})`);
               } else {
-                addLog(`  ⚠️ Listing non résolu : "${listing.item_name}" — clé inconnue`);
+                addLog(`  ⚠️ Listing non résolu : "${listing.item_name}" : clé inconnue`);
               }
             }
           }
@@ -258,7 +258,7 @@ function MigrationPanel({ players, onRefresh }) {
       <Card>
         <CardHeader>
           <CardTitle className="font-heading text-lg">🔧 Migrations de données</CardTitle>
-          <p className="text-sm text-muted-foreground font-body">Corrections rétroactives sur les profils existants. Irréversible — vérifiez avant de lancer.</p>
+          <p className="text-sm text-muted-foreground font-body">Corrections rétroactives sur les profils existants. Irréversible : vérifiez avant de lancer.</p>
         </CardHeader>
         <CardContent className="space-y-4">
           {MIGRATIONS.map(m => (
@@ -355,7 +355,7 @@ export default function AdminPage() {
     setRunning(true);
     for (const city of cities) {
       const result = await runMayorTick(city);
-      if (result) toast.success(`${city.name} → Taxe: ${result.newTax}% — ${result.reason}`);
+      if (result) toast.success(`${city.name} → Taxe: ${result.newTax}% : ${result.reason}`);
     }
     await loadAll();
     setRunning(false);
@@ -383,20 +383,6 @@ export default function AdminPage() {
     setRunning(false);
   };
 
-  const runTreasuryInterestsAll = async () => {
-    setRunning(true);
-    const results = await runTreasuryInterests(cities, players);
-    if (results.length === 0) {
-      toast("Aucun intérêt à distribuer (trésoreries vides ou déjà distribués aujourd'hui).");
-    } else {
-      for (const r of results) {
-        toast.success(`🏦 ${r.city} : +${r.perPlayer} or/joueur (${r.players} hab., tréso ${r.treasury} or)`);
-      }
-    }
-    await loadAll();
-    setRunning(false);
-  };
-
   const runBuildingMaintenanceAll = async () => {
     setRunning(true);
     let totalDegraded = 0;
@@ -413,7 +399,7 @@ export default function AdminPage() {
       }
     }
     if (totalDegraded === 0 && totalDestroyed === 0) {
-      toast.success("✅ Entretien des bâtiments effectué — aucune dégradation.");
+      toast.success("✅ Entretien des bâtiments effectué : aucune dégradation.");
     }
     await loadAll();
     setRunning(false);
@@ -652,16 +638,13 @@ export default function AdminPage() {
               <Button onClick={runBuildingMaintenanceAll} disabled={running} variant="secondary" className="font-heading">
                 🏗️ Entretien bâtiments (entrepôts)
               </Button>
-              <Button onClick={runTreasuryInterestsAll} disabled={running} variant="secondary" className="font-heading">
-                🏦 Intérêts trésorerie (1%/jour)
-              </Button>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader><CardTitle className="font-heading text-lg">🏗️ Construction manuelle</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-muted-foreground font-body">Construire ou supprimer un bâtiment dans une ville sans coût de ressources — utile pour corriger un bug.</p>
+              <p className="text-xs text-muted-foreground font-body">Construire ou supprimer un bâtiment dans une ville sans coût de ressources : utile pour corriger un bug.</p>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                 <div className="space-y-1">
                   <Label className="font-body">Ville</Label>
@@ -776,7 +759,7 @@ export default function AdminPage() {
                     <Button size="sm" variant="secondary" className="font-body text-xs"
                       onClick={async () => {
                         const r = await runMayorTick({ ...city, tax_last_updated: "" });
-                        if (r) toast.success(`${city.name} → ${r.newTax}% — ${r.reason}`);
+                        if (r) toast.success(`${city.name} → ${r.newTax}% : ${r.reason}`);
                         await loadAll();
                       }}>
                       📅 Tick
@@ -1123,7 +1106,7 @@ export default function AdminPage() {
           <Card className="mt-4 border-amber-200">
             <CardHeader>
               <CardTitle className="font-heading text-lg flex items-center gap-2">
-                🏵️ Sceau royal — Événement monétaire
+                🏵️ Sceau royal : Événement monétaire
               </CardTitle>
               <p className="text-sm text-muted-foreground font-body">
                 Quand l'or moyen dépasse le seuil (~400💰/joueur), mettez des Sceaux en vente dans les mairies.
@@ -1144,7 +1127,7 @@ export default function AdminPage() {
                       <span className={`font-bold ${avg > threshold ? "text-red-700" : "text-green-700"}`}>{avg}💰</span>
                     </div>
                     {avg > threshold && (
-                      <p className="text-xs text-red-600 mt-1">⚠️ Seuil dépassé de {excess}💰/joueur — recommandé : lancer l'événement Sceau royal.</p>
+                      <p className="text-xs text-red-600 mt-1">⚠️ Seuil dépassé de {excess}💰/joueur : recommandé : lancer l'événement Sceau royal.</p>
                     )}
                     {avg <= threshold && (
                       <p className="text-xs text-green-600 mt-1">✅ Économie dans les limites normales.</p>
@@ -1185,7 +1168,7 @@ export default function AdminPage() {
                       for (const city of allCities.filter(c => !c.is_bot_city)) {
                         await base44.entities.City.update(city.id, { sceaux_en_vente: 0 }).catch(() => {});
                       }
-                      toast.success("Événement Sceau royal terminé — plus de sceaux en vente.");
+                      toast.success("Événement Sceau royal terminé : plus de sceaux en vente.");
                       loadAll();
                     }}>
                     Terminer l'événement
@@ -1308,7 +1291,7 @@ export default function AdminPage() {
                          {Object.entries(items).map(([itemKey, prices]) => (
                            <div key={itemKey} className="text-xs font-body bg-muted/50 rounded p-2">
                              <span className="font-semibold">{itemKey}</span>
-                             <span className="text-muted-foreground ml-2">Min: {prices.min}💰 — Max: {prices.max}💰</span>
+                             <span className="text-muted-foreground ml-2">Min: {prices.min}💰 : Max: {prices.max}💰</span>
                            </div>
                          ))}
                        </div>

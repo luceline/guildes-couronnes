@@ -11,7 +11,7 @@ export const PROFESSIONS = {
   Bûcheron:   { icon: "🪓", description: "Source principale de bois, chanvre et charbon. Fournit Forgeron, Orfèvre, Tisserand et Marchand en matières premières.",
     startItems: [{ item_key: "bois_brut",   item_name: "Bois brut",   item_category: "bois",      quantity: 20 }] },
   Mineur:     { icon: "⛏️", description: "Extrait pierre et minerai pour le Forgeron, et polit le quartz brut de l'Orfèvre — clé indispensable pour les lingots d'or.",
-    startItems: [{ item_key: "pierre_brute", item_name: "Pierre brute", item_category: "pierre",   quantity: 16 },
+    startItems: [{ item_key: "pierre_brute", item_name: "Pierre taillée", item_category: "pierre",   quantity: 16 },
                  { item_key: "minerai_fer",  item_name: "Minerai de fer", item_category: "fer",     quantity: 8 }] },
   Fermier:    { icon: "🐄", description: "Hub central. Produit la nourriture qui maintient la faim de tous les joueurs. Sans lui, personne ne peut agir longtemps.",
     startItems: [{ item_key: "ble",         item_name: "Blé",         item_category: "nourriture", quantity: 20 },
@@ -75,14 +75,17 @@ export const COMBAT_ZONE_LABELS = {
   legs:  { label: "Jambes", icon: "🦵" },
 };
 
-// 5 slots d'équipement de combat (Phase 3 — Option B) :
+// 6 slots d'équipement de combat (Phase 3 — Option B + Bouclier V2) :
 //   - 1 arme universelle (épée) : utilisée pour toutes les zones d'attaque
 //   - 4 armures, une par zone défendue (heaume/cuirasse/brassard/jambière)
+//   - 1 bouclier (universal) : permet de défendre une 2e zone en combat biome
+//     (ajoute son grade à la défense de la zone choisie)
 // Note : avant la simplification, on avait 8 slots (4 zones × atk/def). Une migration
 // existante (migration_combat_simplify.mjs) a converti les anciennes "armes par zone"
 // en épées génériques.
 export const COMBAT_SLOTS = [
   "weapon",
+  "shield",
   "head_def",
   "torso_def",
   "arms_def",
@@ -90,9 +93,10 @@ export const COMBAT_SLOTS = [
 ];
 
 // Mapping slot → { zone, type }
-// "weapon" n'a pas de zone (utilisable sur toutes), il est typé "atk".
+// "weapon" et "shield" n'ont pas de zone fixe (le shield est appliqué dynamiquement en combat).
 export const COMBAT_SLOT_INFO = {
   weapon:    { zone: null,    type: "atk" },
+  shield:    { zone: null,    type: "shield" },
   head_def:  { zone: "head",  type: "def" },
   torso_def: { zone: "torso", type: "def" },
   arms_def:  { zone: "arms",  type: "def" },
@@ -100,11 +104,17 @@ export const COMBAT_SLOT_INFO = {
 };
 
 export const COMBAT_MAX_GRADE = 5;
-export const COMBAT_BREAK_PCT_BY_GRADE = [0.05, 0.04, 0.03, 0.02, 0.015, 0.01]; // index = grade
+// REFONTE v4 : casse aléatoire au combat SUPPRIMÉE (anti-frustration).
+// REFONTE v5 : tick journalier de durabilité SUPPRIMÉ. L'usure provient désormais
+// uniquement des combats PvP (épée -1/attaque, défense -1 si touché).
+// L'ancien tableau COMBAT_BREAK_PCT_BY_GRADE est conservé en commentaire pour archivage.
+// export const COMBAT_BREAK_PCT_BY_GRADE = [0.05, 0.04, 0.03, 0.02, 0.015, 0.01];
 export const COMBAT_MAX_HP = 10;
 export const COMBAT_KO_DURATION_HOURS = 48;
 export const COMBAT_PARRY_TIMER_HOURS = 12;
 export const COMBAT_STEAL_MAX_GOLD = 100;
+/** @deprecated REFONTE ITEMS v5 — la bourse de protection casse désormais après 5 utilisations
+ * (système déterministe) au lieu d'un roll 10% par attaque. Voir consumeBourseUse(). */
 export const BOURSE_PROTECTION_BREAK_PCT = 0.10;
 
 // Effet d'un item équipé selon son grade : grade 0 = +1, grade 5 = +6 (base_value + grade)
@@ -116,43 +126,78 @@ export function getCombatItemValue(grade) {
   return 1 + (grade ?? 0);
 }
 
+/**
+ * @deprecated REFONTE v4 — la casse aléatoire au combat a été supprimée.
+ * Ce stub renvoie toujours 0 pour préserver la compatibilité avec combatPvP.js
+ * qui appelle encore cette fonction. À retirer définitivement quand combatPvP.js
+ * sera nettoyé de ses appels (Math.random() < 0).
+ */
+export function getCombatBreakPct() {
+  return 0;
+}
+
+/**
+ * @deprecated REFONTE v4 — la casse aléatoire au combat a été supprimée.
+ * Ce tableau est conservé pour rétro-compat avec combatPvP.js qui l'importe
+ * encore mais ne l'utilise plus de fait (getCombatBreakPct() retourne 0).
+ * À retirer quand combatPvP.js sera nettoyé.
+ */
+export const COMBAT_BREAK_PCT_BY_GRADE = [0, 0, 0, 0, 0, 0];
+
 // ─────────────────────────────────────────────
-// PHASE 2 — AMÉLIORATIONS (Bûcheron / Mineur)
+// REFONTE v4 — UPGRADES EN LIBRE-SERVICE (depuis l'onglet Combat)
+// Plus d'artisan intermédiaire. Le joueur consomme directement ses ressources T1.
+// 3 ressources requises à chaque upgrade : Bois, Minerai de fer, Quartz brut.
+// Blé et Herbes intentionnellement EXCLUS (gardent leur usage consommable).
+// Pierre et Laine brute dédiées à la RÉPARATION (cf. REPAIR_RESOURCES).
 // ─────────────────────────────────────────────
 
-// Items concernés par l'atelier Bûcheron (Phase 3 — Option B : 1 seule arme)
-// Avant : ["casque_arme", "plastron_arme", "epee", "pic"]. Migration les fusionne en "epee".
+// Items concernés par l'upgrade ATK (épée — slot weapon)
 export const COMBAT_UPGRADE_ATK_ITEMS = ["epee"];
-// Items concernés par l'atelier Mineur (4 armures par zone)
+// Items concernés par l'upgrade DEF (4 armures — slots head/torso/arms/legs_def)
 export const COMBAT_UPGRADE_DEF_ITEMS = ["heaume", "cuirasse", "brassard", "jambiere"];
 
 // Coûts d'amélioration par grade (g0→g1, g1→g2, ..., g4→g5)
-// Pour CHAQUE upgrade, le joueur paie : ressources fixes + or fixé par l'artisan.
-//   atk : ressource principale = bois_brut (T1) ou planches (T2)
-//   def : ressource principale = minerai_fer (T1) ou pierre_brute (T2)
-// + composant secondaire pour faire travailler les autres métiers.
+// Pour CHAQUE upgrade, le joueur paie 3 ressources T1 (pas d'or).
+// Progression x2 par palier (3/6/12/25/50). Quartz plus rare (1/2/4/8/15).
+// Ratio épée x4 vs armure pour l'équilibrage économique.
 export const COMBAT_UPGRADE_COSTS = {
-  atk: [
-    // index = grade actuel (g0 → g1 = index 0)
-    { primary: { key: "bois_brut",   qty: 5  } },
-    { primary: { key: "bois_brut",   qty: 10 }, secondary: { key: "farine",          qty: 1 } },
-    { primary: { key: "planches",    qty: 5  }, secondary: { key: "quartz_poli",     qty: 1 } },
-    { primary: { key: "planches",    qty: 10 }, secondary: { key: "potion_soin",     qty: 1 } },
-    { primary: { key: "planches",    qty: 10 }, secondary: { key: "lingot_royal",    qty: 1 }, tertiary: { key: "contrat_artisan", qty: 1 } },
-  ],
+  // ARMURES — 1 pièce
   def: [
-    { primary: { key: "minerai_fer", qty: 5  } },
-    { primary: { key: "minerai_fer", qty: 10 }, secondary: { key: "farine",          qty: 1 } },
-    { primary: { key: "pierre_brute",qty: 5  }, secondary: { key: "quartz_poli",     qty: 1 } },
-    { primary: { key: "pierre_brute",qty: 10 }, secondary: { key: "potion_soin",     qty: 1 } },
-    { primary: { key: "pierre_brute",qty: 10 }, secondary: { key: "lingot_royal",    qty: 1 }, tertiary: { key: "contrat_artisan", qty: 1 } },
+    // index = grade actuel (g0 → g1 = index 0)
+    { bois_brut: 3,  minerai_fer: 3,  quartz_brut: 1  },
+    { bois_brut: 6,  minerai_fer: 6,  quartz_brut: 2  },
+    { bois_brut: 12, minerai_fer: 12, quartz_brut: 4  },
+    { bois_brut: 25, minerai_fer: 25, quartz_brut: 8  },
+    { bois_brut: 50, minerai_fer: 50, quartz_brut: 15 },
+  ],
+  // ÉPÉE — x4 vs armure
+  atk: [
+    { bois_brut: 12,  minerai_fer: 12,  quartz_brut: 4  },
+    { bois_brut: 24,  minerai_fer: 24,  quartz_brut: 8  },
+    { bois_brut: 48,  minerai_fer: 48,  quartz_brut: 16 },
+    { bois_brut: 100, minerai_fer: 100, quartz_brut: 32 },
+    { bois_brut: 200, minerai_fer: 200, quartz_brut: 60 },
+  ],
+  // BOUCLIER — coûts identiques à l'épée (premium symétrique : objet d'élite)
+  shield: [
+    { bois_brut: 12,  minerai_fer: 12,  quartz_brut: 4  },
+    { bois_brut: 24,  minerai_fer: 24,  quartz_brut: 8  },
+    { bois_brut: 48,  minerai_fer: 48,  quartz_brut: 16 },
+    { bois_brut: 100, minerai_fer: 100, quartz_brut: 32 },
+    { bois_brut: 200, minerai_fer: 200, quartz_brut: 60 },
   ],
 };
 
-// Cooldowns d'amélioration (en secondes) par grade visé
+// Cooldowns d'amélioration (en secondes) par grade visé. PAR ITEM (pas global).
+// Si j'upgrade ma cuirasse, mon brassard reste disponible à upgrade en parallèle.
 export const COMBAT_UPGRADE_COOLDOWN_SEC = [60, 120, 240, 480, 960];
 
-// Plage de tarif autorisée pour le Bûcheron/Mineur
+// Plage de tarif autorisée pour le service d'amélioration proposé par un artisan
+// (Bûcheron pour épée / Mineur pour armures, depuis l'atelier d'amélioration).
+// Le client paie cette somme à l'artisan + 20% à la trésorerie de la ville.
+// Pré-refonte v4 ces tarifs étaient encore actifs ; depuis l'upgrade en libre-service
+// ils servent uniquement aux artisans qui acceptent encore de proposer le service.
 export const COMBAT_UPGRADE_PRICE_MIN = 0;
 export const COMBAT_UPGRADE_PRICE_MAX = 500;
 
@@ -160,19 +205,92 @@ export const COMBAT_UPGRADE_PRICE_MAX = 500;
 export const COMBAT_UPGRADE_ARTISAN_SHARE = 0.80;
 export const COMBAT_UPGRADE_CITY_SHARE = 0.20;
 
-// Renvoie le coût d'amélioration pour un grade donné et un type (atk/def)
+// Ressources de réparation : 1 pierre = +1 dura arme, 1 laine = +1 dura armure.
+// Réparation manuelle, panel dédié dans l'inventaire, pas de coût en or, pas de cooldown.
+export const REPAIR_RESOURCES = {
+  weapon: "pierre",       // épée → consomme 1 pierre par +1 dura
+  armor:  "laine_brute",  // armures → consomme 1 laine_brute par +1 dura
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// V6 — Quota journalier de réparation
+// ─────────────────────────────────────────────────────────────────────────────
+// Chaque joueur dispose de N points de réparation par jour. Une réparation +1
+// consomme 1 point. Le compteur se reset implicitement au changement de date
+// (pattern date-based, pas de reset serveur). Le hook getDailyRepairPoints
+// permet d'augmenter le quota plus tard via items, bâtiments, décrets, etc.
+
+export const DAILY_REPAIR_POINTS_BASE = 5;
+
+/** Renvoie le quota total de points de réparation pour un joueur ce jour.
+ *  Pour l'instant : base seule. Hook prévu pour extensions futures. */
+export function getDailyRepairPoints(profile) {
+  let total = DAILY_REPAIR_POINTS_BASE;
+  // FUTUR : ajouter ici les bonus selon items équipés (marteau_forgeron),
+  // bâtiments municipaux (forge_perfectionnee), décrets temporaires, etc.
+  return total;
+}
+
+/** Renvoie le nombre de points déjà utilisés aujourd'hui par le joueur.
+ *  Si la date stockée n'est pas celle du jour, renvoie 0 (rollover passif). */
+export function getRepairPointsUsedToday(profile) {
+  const today = new Date().toISOString().split("T")[0];
+  const storedDate = profile?.repair_points_date || "";
+  if (storedDate !== today) return 0;
+  return Number(profile?.repair_points_used_today || 0);
+}
+
+/** Vérifie qu'on a au moins `cost` points disponibles pour réparer. */
+export function canAffordRepair(profile, cost = 1) {
+  const used = getRepairPointsUsedToday(profile);
+  const total = getDailyRepairPoints(profile);
+  return (total - used) >= cost;
+}
+
+/** Construit le patch d'update à appliquer en plus de la réparation.
+ *  Renvoie un objet { repair_points_used_today, repair_points_date }
+ *  à merger dans le payload de PlayerProfile.update. */
+export function buildRepairQuotaUpdate(profile, cost = 1) {
+  const today = new Date().toISOString().split("T")[0];
+  const used = getRepairPointsUsedToday(profile);
+  return {
+    repair_points_used_today: used + cost,
+    repair_points_date: today,
+  };
+}
+
+// Renvoie le coût d'amélioration pour un grade donné et un type (atk/def).
+// Format de retour : objet { bois_brut, minerai_fer, quartz_brut } avec les quantités requises.
 export function getCombatUpgradeCost(type, currentGrade) {
   if (currentGrade < 0 || currentGrade >= COMBAT_MAX_GRADE) return null;
   const arr = COMBAT_UPGRADE_COSTS[type];
   return arr ? arr[currentGrade] : null;
 }
 
-// Renvoie le tarif "or" fixé par un artisan donné pour les améliorations.
-// Stocké dans profile.upgrade_price (number, 0-500).
-export function getArtisanUpgradePrice(artisanProfile) {
-  const v = artisanProfile?.upgrade_price;
-  if (v === undefined || v === null) return null; // pas configuré
-  return Math.max(COMBAT_UPGRADE_PRICE_MIN, Math.min(COMBAT_UPGRADE_PRICE_MAX, v));
+// Vérifie si le joueur a toutes les ressources nécessaires pour upgrader son item.
+// `inventory` est la liste d'items du joueur (chacun avec item_key et quantity).
+export function canUpgradeCombatItem(inventory, type, currentGrade) {
+  const cost = getCombatUpgradeCost(type, currentGrade);
+  if (!cost) return false;
+  for (const [resKey, qty] of Object.entries(cost)) {
+    const stock = (inventory || []).find(i => i.item_key === resKey)?.quantity || 0;
+    if (stock < qty) return false;
+  }
+  return true;
+}
+
+// Renvoie un objet décrivant les ressources manquantes pour un upgrade donné.
+// Utile pour afficher un tooltip "Manque X bois, Y fer, Z quartz".
+// Retourne {} si rien ne manque.
+export function getMissingUpgradeResources(inventory, type, currentGrade) {
+  const cost = getCombatUpgradeCost(type, currentGrade);
+  if (!cost) return {};
+  const missing = {};
+  for (const [resKey, qty] of Object.entries(cost)) {
+    const stock = (inventory || []).find(i => i.item_key === resKey)?.quantity || 0;
+    if (stock < qty) missing[resKey] = qty - stock;
+  }
+  return missing;
 }
 
 // Récupère l'item équipé sur un slot donné
@@ -202,16 +320,15 @@ export function getDefenseScoreByZone(profile, zone) {
   return getCombatItemValue(equipped.grade);
 }
 
-// % de casse pour un item à un grade donné
-export function getCombatBreakPct(grade) {
-  const idx = Math.max(0, Math.min(COMBAT_MAX_GRADE, grade ?? 0));
-  return COMBAT_BREAK_PCT_BY_GRADE[idx];
-}
+// REFONTE v4 : casse aléatoire au combat SUPPRIMÉE — getCombatBreakPct() est maintenant un
+// stub (toujours 0, défini plus haut). Toute logique appelant getCombatBreakPct dans
+// combatPvP.js a été retirée.
 
-// Progression du % de vol selon le grade de l'arme (Phase 3 Option A)
-// Index = grade (0 à 5). À chaque grade, +2% par rapport au précédent.
-// G0 = 10%, G5 = 20%. Capé à COMBAT_STEAL_MAX_GOLD (100💰) en valeur absolue.
-export const COMBAT_STEAL_PCT_BY_GRADE = [0.10, 0.12, 0.14, 0.16, 0.18, 0.20];
+// Progression du % de vol selon le grade de l'arme (REFONTE v4).
+// Index = grade (0 à 5). +3% par grade. G0 = 10%, G5 = 25%.
+// Plus incitatif que l'ancienne version (G5 = 20%) pour récompenser l'investissement.
+// Capé à COMBAT_STEAL_MAX_GOLD (100💰) en valeur absolue.
+export const COMBAT_STEAL_PCT_BY_GRADE = [0.10, 0.13, 0.16, 0.19, 0.22, 0.25];
 
 // % de vol d'or pour une arme donnée (item_key) à un grade donné.
 // Le steal_pct défini dans craftingData.js sert de base au G0 et est ignoré sinon
@@ -401,8 +518,8 @@ export const COMPETITIVE_ITEMS = {
     name: "Bourse de protection", icon: "👜", category: "parchemins",
     craftedBy: ["Bûcheron", "Mineur", "Fermier", "Tisserand", "Forgeron", "Alchimiste", "Orfèvre", "Marchand"], hungerCost: 0, mayorOnly: false,
     effect: "steal_cap",
-    effectValue: { max_stolen: 100, durability: 3 },
-    description: "👜 Durabilité 3 — vous ne pouvez pas perdre plus de 100 or lors d'un vol. Se dégrade à chaque vol subi (réussi).",
+    effectValue: { max_stolen: 10, max_uses: 5 },
+    description: "👜 Plafonne le vol subi à 10💰. Casse définitive après 5 attaques subies.",
     delay: false,
   },
   blocus: {
@@ -668,7 +785,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { pierre: 60, minerai_fer: 30, or: 15 },
     maintenance: { pierre_brute: 1, or: 3 },
-    effect: "+10 emplacements de population. Réduit l'impôt journalier de 1 💰 pour tous les habitants.",
+    effect: "+10 emplacements de population.",
     functionType: "population",
   },
 
@@ -677,59 +794,59 @@ export const BUILDING_TYPES = {
     name: "Scierie", icon: "🌲",
     category: "production",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { bois_brut: 30, pierre: 15, minerai_fer: 5 },
     maintenance: { planches: 1, or: 1 },
-    effect: "+2 bois brut par action au niveau 1, jusqu'à +5 au niveau 5. Coût et entretien doublent à chaque niveau.",
+    effect: "Bonus bois : +1 bois brut par action au niveau 1, jusqu'à +5 au niveau 5. Coût et entretien augmentent linéairement par niveau.",
     functionType: "production_bonus", functionValue: 25, targetProfession: "Bûcheron",
   },
   mine: {
     name: "Mine", icon: "⛏️",
     category: "production",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { pierre: 40, bois_brut: 15, minerai_fer: 10 },
     maintenance: { pierre_brute: 1, or: 1 },
-    effect: "+1 minerai de fer par action au niveau 1, jusqu'à +5 au niveau 5. Coût et entretien doublent.",
+    effect: "+1 minerai de fer par action au niveau 1, jusqu'à +5 au niveau 5. Coût et entretien augmentent linéairement par niveau.",
     functionType: "production_bonus", functionValue: 25, targetProfession: "Mineur",
   },
   moulin: {
     name: "Moulin", icon: "🌾",
     category: "production",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { bois_brut: 25, pierre: 10 },
     maintenance: { farine: 1, or: 1 },
-    effect: "−1 au coût d'action pour le Fermier (faim ou énergie). Bonus blé : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
+    effect: "Bonus blé : +1/action (niv.1) à +5/action (niv.5). Coût et entretien augmentent linéairement par niveau.",
     functionType: "production_bonus", functionValue: 50, targetProfession: "Fermier" },
   bergerie: {
     name: "Bergerie", icon: "🧶",
     category: "production",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { bois_brut: 20, ble: 15 },
     maintenance: { fil: 1, or: 1 },
-    effect: "+2 laine brute par tonte au niveau 1, jusqu'à +5 au niveau 5. Coût et entretien doublent.",
+    effect: "Bonus laine : +1 laine brute par tonte au niveau 1, jusqu'à +5 au niveau 5. Coût et entretien augmentent linéairement par niveau.",
     functionType: "production_bonus", functionValue: 25, targetProfession: "Fermier",
   },
   laboratoire: {
     name: "Laboratoire", icon: "⚗️",
     category: "production",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { pierre: 30, bois_brut: 15, herbes: 8 },
     maintenance: { extrait: 1, or: 1 },
-    effect: "−1 au coût d'action pour l'Alchimiste (faim ou énergie). Bonus herbes : +1/action (niv.1) à +5/action (niv.5). Coût et entretien doublent.",
+    effect: "Bonus herbes : +1/action (niv.1) à +5/action (niv.5). Coût et entretien augmentent linéairement par niveau.",
     functionType: "production_bonus", functionValue: 25, targetProfession: "Alchimiste",
   },
   fonderie: {
     name: "Fonderie", icon: "🏅",
     category: "production",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { pierre: 40, minerai_fer: 20, bois_brut: 15 },
     maintenance: { quartz_poli: 1, or: 2 },
-    effect: "Réduit le cooldown de craft du Forgeron de 5% (niv.1) à 25% (niv.5). Coût et entretien doublent.",
+    effect: "Bonus quartz : +1/action (niv.1) à +5/action (niv.5). Coût et entretien augmentent linéairement par niveau.",
     functionType: "production_bonus", functionValue: 1, targetProfession: "Forgeron",
   },
 
@@ -781,7 +898,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 25, ble: 8 },
     maintenance: { encre: 1, or: 1 },
-    effect: "Permet d'envoyer des ressources à des joueurs dans d'autres villes.",
+    effect: "Permet de récupérer ses commandes du marché à distance, sans voyager : 5 💰 (or détruit) par colis livré.",
     functionType: "relay",
   },
   comptoir: {
@@ -800,50 +917,50 @@ export const BUILDING_TYPES = {
     name: "Hospice", icon: "🏥",
     category: "bien_etre",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { laine_brute: 8, minerai_fer: 8, bois_brut: 8, quartz_brut: 6, ble: 6, herbes: 6, pierre: 6 },
     maintenance: { extrait: 1, or: 2 },
-    effect: "Augmente le plafond de la régénération automatique (faim et énergie) de +1 par niveau (6/15 au niv.1, 7/15 au niv.2, 8/15 au niv.3, 9/15 au niv.4, 10/15 au niv.5). Coût et entretien doublent.",
+    effect: "Augmente le plafond de la régénération automatique (faim et énergie) de +1 par niveau (6/15 au niv.1, 7/15 au niv.2, 8/15 au niv.3, 9/15 au niv.4, 10/15 au niv.5). Coût et entretien augmentent linéairement par niveau.",
     functionType: "regen_cap_bonus", functionValue: 1,
   },
   eglise: {
     name: "Église", icon: "⛪",
     category: "bien_etre",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { pierre: 60, bois_brut: 30, or: 10 },
     maintenance: { fil: 1, or: 2 },
-    effect: "Une action sur deux ne consomme aucun point (faim ou énergie). Coût et entretien doublent.",
+    effect: "10% de chance qu'une action ne consomme ni faim ni énergie. Coût et entretien augmentent linéairement par niveau.",
     functionType: "action_skip_alternate",
   },
   fontaine: {
     name: "Fontaine", icon: "💧",
     category: "bien_etre",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { pierre: 25, bois_brut: 8 },
     maintenance: { extrait: 1, or: 1 },
-    effect: "Double la vitesse de régénération automatique (faim et énergie). Toujours plafonné par l'Hospice si présent. Coût et entretien doublent à chaque tier.",
+    effect: "Double la vitesse de régénération automatique (faim et énergie). Toujours plafonné par l'Hospice si présent. Coût et entretien augmentent linéairement par niveau.",
     functionType: "regen_speed_x2",
   },
   bibliotheque: {
     name: "Bibliothèque", icon: "📚",
     category: "bien_etre",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { bois_brut: 40, ble: 15 },
     maintenance: { encre: 1, or: 2 },
-    effect: "+30 capacité inventaire (niveau 1), +31 (niv.2), +32 (niv.3), +33 (niv.4), +34 (niv.5).",
+    effect: "+30 capacité inventaire (niveau 1), +40 (niv.2), +50 (niv.3), +60 (niv.4), +70 (niv.5).",
     functionType: "inventory_bonus", functionValue: 30,
   },
   grenier: {
     name: "Grenier", icon: "🌾",
     category: "bien_etre",
     popBonus: 0,
-    stackable: true, unique: false,
+    stackable: false, unique: true,
     costBase: { bois_brut: 30, ble: 20, quartz_brut: 4 },
     maintenance: { farine: 1, or: 1 },
-    effect: "Distribue automatiquement 1 blé/jour aux résidents. Coût et entretien doublent à chaque tier.",
+    effect: "Distribue automatiquement 1 blé/jour aux résidents. Coût et entretien augmentent linéairement par niveau.",
     functionType: "bread_auto_distribution", functionValue: 1,
   },
 
@@ -855,7 +972,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "Bloque une attaque Lettre de désinformation. Se détruit après avoir absorbé l'attaque.",
+    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
     functionType: "alert",
     counters: "lettre_desinformation",
   },
@@ -877,7 +994,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "Bloque une attaque Huile inflammable et se détruit après l'avoir absorbée.",
+    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
     functionType: "guild_travel_defense",
     counters: "huile_inflammable",
   },
@@ -888,7 +1005,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "Bloque une attaque Clé forgée. Se détruit après avoir absorbé l'attaque.",
+    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
     functionType: "treasury_defense",
     counters: "cle_forgee",
   },
@@ -899,7 +1016,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "Bloque une attaque Élixir de discorde. Se détruit après avoir absorbé l'attaque.",
+    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
     functionType: "anti_propaganda_defense",
     counters: "elixir_discorde",
   },
@@ -910,7 +1027,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "Bloque une attaque Poudre corrosive. Se détruit après avoir absorbé l'attaque.",
+    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
     functionType: "warehouse_defense",
     counters: "poudre_corrosive",
   },
@@ -921,7 +1038,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "Bloque une attaque Faux contrat. Se détruit après avoir absorbé l'attaque.",
+    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
     functionType: "guild_defense",
     counters: "faux_contrat",
   },
@@ -944,7 +1061,7 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { pierre: 100, bois_brut: 60, or: 30, laine_brute: 20 },
     maintenance: { charbon: 1, tissu: 1, or: 4 },
-    effect: "+1 or distribué chaque jour à chaque résident de la ville (sans condition).",
+    effect: "+1 or distribué chaque jour à chaque résident de la ville (sans condition). +15 défense militaire pour la ville.",
     functionType: "daily_gold_per_resident", functionValue: 1,
   },
   grande_place: {
@@ -996,7 +1113,7 @@ export const RARE_RESOURCE_XP = 100;
 // Conservés ici pour rétrocompatibilité — se synchronisent avec craftingData.ITEMS
 export { EQUIPMENT_KEYS, EQUIPMENT_DURABILITY } from "./craftingData.js";
 // (ITEMS_DEF déjà importé en haut du fichier)
-export const EQUIPMENT_MAX_DURABILITY = 5;
+export const EQUIPMENT_MAX_DURABILITY = 10;
 
 // Score d'attaque (Phase 3 Option B : 1 seule arme universelle, plus de somme par zone)
 export function getAttackScore(profile) {
@@ -1064,6 +1181,69 @@ export function getMarketTaxDiscount(profile) {
   return 0;
 }
 
+// ─────────────────────────────────────────────
+// REFONTE ITEMS v5 — nouveaux helpers passifs
+// ─────────────────────────────────────────────
+
+// ── Sac de voyage T4 : passif PERMANENT -50% durée voyage ──
+// Renvoie 0.50 si la besace est dans l'inventaire, 0 sinon.
+// Branché dans Travel.jsx pour appliquer baseMinutes × (1 - discount).
+export function getPassiveTravelDiscount(profile) {
+  const inv = profile.inventory || [];
+  if (inv.some(i => i.item_key === "besace" && (i.quantity || 0) > 0)) {
+    return 0.50;
+  }
+  return 0;
+}
+
+// ── Charbon T2 : passif +5% double prod (s'AJOUTE aux bonus biome et niveau) ──
+// Non-cumulable avec lui-même : un charbon en stock = +5%, peu importe la quantité.
+// Renvoie 0.05 si charbon présent, 0 sinon.
+export function getPassiveCharbonDoubleProdBonus(profile) {
+  const inv = profile.inventory || [];
+  if (inv.some(i => i.item_key === "charbon" && (i.quantity || 0) > 0)) {
+    return 0.05;
+  }
+  return 0;
+}
+
+// ── Bourse de protection T1.5 : tracking max 5 utilisations ──
+// Le profil stocke `bourse_uses_left` (initialisé à 5 quand on craft une bourse).
+// Si non défini sur le profil, on retourne 5 par défaut (rétro-compat).
+// Quand on retombe à 0, la bourse se brise (à nettoyer côté combat).
+export function getBourseUsesLeft(profile) {
+  const inv = profile.inventory || [];
+  const hasBourse = inv.some(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
+  if (!hasBourse) return 0;
+  // Si pas encore défini, considère 5 par défaut (l'item a été crafté avant la refonte v5)
+  return profile.bourse_uses_left ?? 5;
+}
+
+// Calcule le nouvel état du profil après une attaque subie consommant 1 utilisation.
+// Retourne { updates, broken } : updates = champs PlayerProfile à patcher, broken = bool.
+// - Si la bourse a encore des charges après décrément → updates.bourse_uses_left mis à jour
+// - Si la bourse tombe à 0 → updates.inventory met le bourse_protection à 0 et le filtre,
+//   et updates.bourse_uses_left = null (reset pour la prochaine bourse craftée)
+export function consumeBourseUse(profile) {
+  const inv = profile.inventory || [];
+  const hasBourse = inv.some(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
+  if (!hasBourse) return { updates: {}, broken: false }; // pas de bourse, rien à faire
+  const usesLeft = profile.bourse_uses_left ?? 5;
+  // Cas 1 : compteur > 1 → on décrémente normalement
+  if (usesLeft > 1) {
+    return { updates: { bourse_uses_left: usesLeft - 1 }, broken: false };
+  }
+  // Cas 2 : compteur <= 1 (1 ou stuck à 0) → casser la bourse maintenant
+  // Cela inclut les bourses "stuck à 0" qui n'avaient pas été cassées correctement.
+  const newInv = inv
+    .map(i => i.item_key === "bourse_protection" ? { ...i, quantity: (i.quantity || 0) - 1 } : i)
+    .filter(i => (i.quantity || 0) > 0);
+  return {
+    updates: { inventory: newInv, bourse_uses_left: null },
+    broken: true,
+  };
+}
+
 // ── Niveaux de ville ──
 export const CITY_LEVELS = [
   { level: 1, threshold: 0,   label: "Hameau",   icon: "🏕️",
@@ -1090,35 +1270,53 @@ export const CITY_LEVELS = [
 
 // ── Utilitaires bâtiments ──
 
-/** Niveau actuel d'un type de bâtiment dans une ville (0 = pas construit) */
+/** Niveau actuel d'un bâtiment dans une ville (1-5).
+ * REFONTE : on lit le champ `level` du bâtiment au lieu de compter les exemplaires.
+ * Retourne 0 si le bâtiment n'existe pas. */
 export function getBuildingLevel(city, buildingType) {
   const buildings = city?.buildings || [];
-  const matching = buildings.filter(b => b.building_type === buildingType);
-  return matching.length; // chaque construction = +1 niveau
+  const found = buildings.find(b => b.building_type === buildingType);
+  if (!found) return 0;
+  return found.level || 1;
 }
 
-/** Nombre de bâtiments d'un type dans une ville */
+/** Nombre de bâtiments d'un type dans une ville (utile pour stackables : maison/quartier) */
 export function getBuildingCount(city, buildingType) {
   return (city?.buildings || []).filter(b => b.building_type === buildingType).length;
 }
 
-/** Peut-on construire un bâtiment supplémentaire de ce type ? */
+/** Peut-on construire/améliorer ce bâtiment ?
+ * - Bâtiments uniques (scierie, mine, etc.) : level max = 5
+ * - Bâtiments stackables (maison, quartier) : 5 exemplaires max */
 export function canBuildMore(city, buildingType) {
   const bType = BUILDING_TYPES[buildingType];
   if (!bType) return false;
-  if (bType.unique) return getBuildingCount(city, buildingType) === 0;
-  if (!bType.stackable) return getBuildingCount(city, buildingType) === 0;
-  return getBuildingCount(city, buildingType) < 5; // max 5 niveaux pour stackable
+  if (bType.stackable) {
+    return getBuildingCount(city, buildingType) < 5;
+  }
+  // Bâtiments uniques : on peut construire (si absent) OU améliorer (si level < 5)
+  const currentLevel = getBuildingLevel(city, buildingType);
+  return currentLevel < 5;
 }
 
 /**
- * Coût de construction du prochain niveau.
- * costBase × 2^currentLevel (double à chaque niveau pour les bâtiments stackables)
+ * Coût pour passer du niveau N au niveau N+1.
+ * REFONTE : coût ADDITIF (×(level+1)) au lieu de doublé.
+ * Ex pour scierie (costBase = 30 bois) :
+ *   niveau 0 → 1 : 30 bois (1× base)
+ *   niveau 1 → 2 : 60 bois (2× base)
+ *   niveau 2 → 3 : 90 bois (3× base)
+ *   niveau 3 → 4 : 120 bois (4× base)
+ *   niveau 4 → 5 : 150 bois (5× base)
+ *
+ * @param {string} buildingType
+ * @param {number} currentLevel - niveau actuel (0 si pas construit, 1-4 sinon)
  */
 export function getBuildingCost(buildingType, currentLevel = 0) {
   const bType = BUILDING_TYPES[buildingType];
   if (!bType?.costBase) return {};
-  const multiplier = Math.pow(2, currentLevel);
+  const targetLevel = currentLevel + 1; // niveau qu'on va atteindre
+  const multiplier = targetLevel; // multiplicateur additif (1, 2, 3, 4, 5)
   return Object.fromEntries(
     Object.entries(bType.costBase).map(([res, qty]) => [res, Math.ceil(qty * multiplier)])
   );
@@ -1287,7 +1485,7 @@ export const TIER_ACTION_COST = {
 export const WAREHOUSE_BUYBACK_PRICES = {
   bois_brut:    { min: 1, max: 3,  label: "Bois brut",    icon: "🪵" },
   pierre:       { min: 1, max: 3,  label: "Pierre",       icon: "🪨" },
-  pierre_brute: { min: 1, max: 3,  label: "Pierre brute", icon: "🗿" },
+  pierre_brute: { min: 1, max: 3,  label: "Pierre taillée", icon: "🗿" },
   minerai_fer:  { min: 2, max: 5,  label: "Minerai de fer", icon: "🪨" },
   ble:          { min: 1, max: 3,  label: "Blé",           icon: "🌾" },
   laine_brute:  { min: 1, max: 4,  label: "Laine brute",  icon: "🧶" },

@@ -26,7 +26,7 @@ export default function ArmySupplyPanel({ city, isMayor, onRefresh }) {
   const armyFood   = city?.army_food   || 0;
   const armyEnergy = city?.army_energy || 0;
 
-  // Calculer la conso quotidienne de l'armée (depuis CityArmy — passé en props ou estimé)
+  // Calculer la conso quotidienne de l'armée (depuis CityArmy : passé en props ou estimé)
   // Affiché comme info au maire
 
   const handleDeposit = async (resourceKey, type) => {

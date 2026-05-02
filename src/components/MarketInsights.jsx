@@ -71,21 +71,22 @@ function computeTrends(trades) {
     .slice(0, 6);
 }
 
-export default function MarketInsights({ cityId }) {
+export default function MarketInsights() {
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(true);
 
   useEffect(() => {
-    if (!cityId) return;
     setLoading(true);
-    base44.entities.TradeHistory.filter({ city_id: cityId }, "-created_date", 200)
+    // MARCHÉ UNIFIÉ : tendances globales sur toutes les ventes du royaume,
+    // cohérent avec l'unification du marché et les prix dynamiques globaux.
+    base44.entities.TradeHistory.filter({}, "-created_date", 500)
       .then(trades => {
         setInsights(computeTrends(trades));
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [cityId]);
+  }, []);
 
   if (loading) return null;
   if (insights.length === 0) return null;
@@ -98,7 +99,7 @@ export default function MarketInsights({ cityId }) {
       >
         <div className="flex items-center gap-2">
           <span className="text-base">📊</span>
-          <span className="font-heading font-semibold text-sm">Tendances du marché (24h)</span>
+          <span className="font-heading font-semibold text-sm">Tendances du royaume (24h)</span>
         </div>
         <span className="text-muted-foreground text-xs">{open ? "▲ Réduire" : "▼ Voir"}</span>
       </button>

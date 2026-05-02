@@ -6,12 +6,12 @@
  *   CityPage, MarketPage, ProductionPage, ProfilePage, TravelPage
  *
  * Retourne :
- *   profile   — profil joueur mis à jour (faim regen + arrivée voyage)
- *   city      — ville courante du joueur
- *   homeCity  — ville de résidence
- *   cities    — toutes les villes (utile pour Profile, Travel…)
- *   loading   — true pendant le chargement initial
- *   refresh   — fonction pour recharger manuellement
+ *   profile   : profil joueur mis à jour (faim regen + arrivée voyage)
+ *   city      : ville courante du joueur
+ *   homeCity  : ville de résidence
+ *   cities    : toutes les villes (utile pour Profile, Travel…)
+ *   loading   : true pendant le chargement initial
+ *   refresh   : fonction pour recharger manuellement
  */
 
 import { useState, useEffect, useCallback } from "react";

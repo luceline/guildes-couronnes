@@ -15,10 +15,10 @@ import { getMaxFatigue, getMaxHunger, getRegenCap, getRegenInterval, REGEN_AUTO_
 //
 // Un seul timestamp est utilisé (`fatigue_regen_at`) pour piloter les deux jauges,
 // puisque la régen est désormais commune. `hunger_regen_at` est conservé pour la
-// régen Fontaine spéciale (cf. Production.jsx, désormais retirée — historique).
+// régen Fontaine spéciale (cf. Production.jsx, désormais retirée : historique).
 //
 // @param p     PlayerProfile
-// @param city  City (optionnel — sert pour Hospice et Fontaine)
+// @param city  City (optionnel : sert pour Hospice et Fontaine)
 export async function applyHungerRegen(p, city = null) {
   const updates = {};
   const buildings = city?.buildings || [];
@@ -40,7 +40,7 @@ export async function applyHungerRegen(p, city = null) {
   const cap = getRegenCap(buildings);
 
   // On part de l'état courant. Si une jauge est déjà au-dessus du cap (consommables, items),
-  // on n'y touche pas — la régen ne descend jamais une jauge.
+  // on n'y touche pas : la régen ne descend jamais une jauge.
   const startHunger  = p.hunger  ?? getMaxHunger(p);
   const startFatigue = p.fatigue ?? getMaxFatigue(p);
   let hunger  = startHunger;
@@ -69,7 +69,7 @@ export async function applyHungerRegen(p, city = null) {
   updates.fatigue_regen_at = new Date().toISOString();
 
   if (Object.keys(updates).length === 1 && updates.fatigue_regen_at) {
-    // Aucune jauge n'a changé, mais on a pas mal traîné — on rafraîchit le timestamp quand même
+    // Aucune jauge n'a changé, mais on a pas mal traîné : on rafraîchit le timestamp quand même
     // pour ne pas accumuler indéfiniment de ticks lors de la prochaine connexion.
   }
 

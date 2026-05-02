@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-// recipePatterns.js — Schéma strict : T2→T5 patterns
+// recipePatterns.js : Schéma strict : T2→T5 patterns
 // T2 = 1×T1 propre + 2×T1 d'autres métiers
 // T3 = 3×T2 d'autres métiers
 // T4 = 4×T3 d'autres métiers
-// T5 = 5×T4 d'autres métiers (FIXES — ne pas modifier)
+// T5 = 5×T4 d'autres métiers (FIXES : ne pas modifier)
 // ═══════════════════════════════════════════════════════════════
 
 export const CRAFTING_RECIPES_REFACTORED = [
@@ -33,13 +33,13 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 3,
     inputs: [
       { key: "planches",    quantity: 1 }, // Bûcheron T2 (propre)
-      { key: "quartz_poli", quantity: 1 }, // Orfèvre T2 — vernis cristallin
+      { key: "quartz_poli", quantity: 1 }, // Orfèvre T2 : vernis cristallin
       { key: "pierre_brute",quantity: 1 }, // Mineur T2
     ],
     output: { key: "meuble", quantity: 1 },
     costGold: 0,
     cooldown: 240,
-    description: "Planches + Quartz poli (Orfèvre, vernis cristallin) + Pierre brute (Mineur, socle) → 1 meuble",
+    description: "Planches + Quartz poli (Orfèvre, vernis cristallin) + Pierre taillée (Mineur, socle) → 1 meuble",
   },
   {
     id: "craft_armure",
@@ -80,7 +80,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
   // ════ MINEUR ════
   {
     id: "craft_pierre_brute",
-    name: "Pierre brute",
+    name: "Pierre taillée",
     icon: "🗿",
     profession: "Mineur",
     tier: 2,
@@ -92,7 +92,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     output: { key: "pierre_brute", quantity: 1 },
     costGold: 0,
     cooldown: 120,
-    description: "Minerai + Bois (Bûcheron, étais) + Blé (Fermier, liant) → 2 pierres brutes",
+    description: "Minerai + Bois (Bûcheron, étais) + Blé (Fermier, liant) → 2 pierres taillées",
   },
   {
     id: "craft_lingots_fer",
@@ -103,12 +103,12 @@ export const CRAFTING_RECIPES_REFACTORED = [
     inputs: [
       { key: "charbon",     quantity: 1 }, // Forgeron T2
       { key: "pierre_brute",quantity: 1 }, // Mineur T2 (propre)
-      { key: "farine",      quantity: 1 }, // Fermier T2 — liant de creuset
+      { key: "farine",      quantity: 1 }, // Fermier T2 : liant de creuset
     ],
     output: { key: "lingots_fer", quantity: 1 },
     costGold: 0,
     cooldown: 240,
-    description: "Charbon (Forgeron, combustible) + Pierre brute (moule) + Farine (Fermier, liant creuset) → 2 lingots de fer",
+    description: "Charbon (Forgeron, combustible) + Pierre taillée (moule) + Farine (Fermier, liant creuset) → 2 lingots de fer",
   },
   {
     id: "craft_outils",
@@ -164,6 +164,22 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Blé + Herbes (Alchimiste, levain) + Laine (Tisserand, filtre) → 3 farines",
   },
   {
+    id: "craft_cataplasme_fermier",
+    name: "Cataplasme",
+    icon: "🩹",
+    profession: "Fermier",
+    tier: 2,
+    inputs: [
+      { key: "herbes",    quantity: 1 }, // Alchimiste T1
+      { key: "ble",       quantity: 1 }, // Fermier T1 (propre)
+      { key: "bois_brut", quantity: 1 }, // Bûcheron T1 (planche, support du cataplasme)
+    ],
+    output: { key: "cataplasme", quantity: 1 },
+    costGold: 0,
+    cooldown: 120,
+    description: "Herbes (Alchimiste, principe actif) + Blé (mucilage) + Bois (support) → 1 cataplasme (+1❤️)",
+  },
+  {
     id: "craft_pain",
     name: "Pain",
     icon: "🍞",
@@ -171,8 +187,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 3,
     inputs: [
       { key: "farine",  quantity: 1 }, // Fermier T2
-      { key: "extrait", quantity: 1 }, // Alchimiste T2 — levain concentré
-      { key: "encre",   quantity: 1 }, // Marchand T2 — cachet de qualité
+      { key: "extrait", quantity: 1 }, // Alchimiste T2 : levain concentré
+      { key: "encre",   quantity: 1 }, // Marchand T2 : cachet de qualité
     ],
     output: { key: "pain", quantity: 1 },
     costGold: 0,
@@ -187,9 +203,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 4,
     inputs: [
       { key: "pain",        quantity: 1 }, // Fermier T3
-      { key: "lingots_fer", quantity: 1 }, // Mineur T3 — marmite en fer
-      { key: "tissu",       quantity: 1 }, // Tisserand T3 — étamine de filtrage
-      { key: "potion_soin", quantity: 1 }, // Alchimiste T3 — bouillon fortifiant
+      { key: "lingots_fer", quantity: 1 }, // Mineur T3 : marmite en fer
+      { key: "tissu",       quantity: 1 }, // Tisserand T3 : étamine de filtrage
+      { key: "potion_soin", quantity: 1 }, // Alchimiste T3 : bouillon fortifiant
     ],
     output: { key: "ragout", quantity: 1 },
     costGold: 0,
@@ -240,8 +256,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 3,
     inputs: [
       { key: "fil",     quantity: 1 }, // Tisserand T2 (propre)
-      { key: "extrait", quantity: 1 }, // Alchimiste T2 — apprêt chimique
-      { key: "planches",quantity: 1 }, // Bûcheron T2 — cadre de métier à tisser
+      { key: "extrait", quantity: 1 }, // Alchimiste T2 : apprêt chimique
+      { key: "planches",quantity: 1 }, // Bûcheron T2 : cadre de métier à tisser
     ],
     output: { key: "tissu", quantity: 1 },
     costGold: 0,
@@ -256,9 +272,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 4,
     inputs: [
       { key: "tissu",       quantity: 1 }, // Tisserand T3
-      { key: "lingots_fer", quantity: 1 }, // Mineur T3 — armatures
-      { key: "lingots_or",  quantity: 1 }, // Orfèvre T3 — fermoirs
-      { key: "parchemin",   quantity: 1 }, // Marchand T3 — étiquette officielle
+      { key: "lingots_fer", quantity: 1 }, // Mineur T3 : armatures
+      { key: "lingots_or",  quantity: 1 }, // Orfèvre T3 : fermoirs
+      { key: "parchemin",   quantity: 1 }, // Marchand T3 : étiquette officielle
     ],
     output: { key: "besace", quantity: 1 },
     costGold: 0,
@@ -310,12 +326,12 @@ export const CRAFTING_RECIPES_REFACTORED = [
     inputs: [
       { key: "charbon",     quantity: 1 }, // Forgeron T2
       { key: "pierre_brute",quantity: 1 }, // Mineur T2
-      { key: "quartz_poli", quantity: 1 }, // Orfèvre T2 — abrasif d'affûtage
+      { key: "quartz_poli", quantity: 1 }, // Orfèvre T2 : abrasif d'affûtage
     ],
     output: { key: "epee_courte", quantity: 1 },
     costGold: 0,
     cooldown: 240,
-    description: "Charbon (forge) + Pierre brute + Quartz poli → 1 Outil multifonction (durabilité 10, débloque craft T3).",
+    description: "Charbon (forge) + Pierre taillée + Quartz poli → 1 Outil multifonction (durabilité 10, débloque craft T3).",
   },
   {
     id: "craft_epee_longue",
@@ -325,9 +341,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 4,
     inputs: [
       { key: "epee_courte", quantity: 1 }, // Forgeron T3 (propre)
-      { key: "tissu",       quantity: 1 }, // Tisserand T3 — garde et poignée
-      { key: "lingots_fer", quantity: 1 }, // Mineur T3 — allonge de lame
-      { key: "meuble",      quantity: 1 }, // Bûcheron T3 — atelier de forge boisé
+      { key: "tissu",       quantity: 1 }, // Tisserand T3 : garde et poignée
+      { key: "lingots_fer", quantity: 1 }, // Mineur T3 : allonge de lame
+      { key: "meuble",      quantity: 1 }, // Bûcheron T3 : atelier de forge boisé
     ],
     output: { key: "epee_longue", quantity: 1 },
     costGold: 0,
@@ -362,13 +378,29 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 2,
     inputs: [
       { key: "herbes",      quantity: 1 }, // Alchimiste T1 (propre)
-      { key: "laine_brute", quantity: 1 }, // Tisserand T1 — filtre
-      { key: "minerai_fer", quantity: 1 }, // Mineur T1 — alambic
+      { key: "laine_brute", quantity: 1 }, // Tisserand T1 : filtre
+      { key: "minerai_fer", quantity: 1 }, // Mineur T1 : alambic
     ],
     output: { key: "extrait", quantity: 1 },
     costGold: 0,
     cooldown: 120,
     description: "Herbes + Laine (Tisserand, filtre) + Minerai (Mineur, alambic) → 2 extraits",
+  },
+  {
+    id: "craft_cataplasme_alchimiste",
+    name: "Cataplasme",
+    icon: "🩹",
+    profession: "Alchimiste",
+    tier: 2,
+    inputs: [
+      { key: "herbes",    quantity: 1 }, // Alchimiste T1 (propre)
+      { key: "ble",       quantity: 1 }, // Fermier T1
+      { key: "bois_brut", quantity: 1 }, // Bûcheron T1
+    ],
+    output: { key: "cataplasme", quantity: 1 },
+    costGold: 0,
+    cooldown: 120,
+    description: "Herbes (principe actif) + Blé (mucilage) + Bois (support) → 1 cataplasme (+1❤️)",
   },
   {
     id: "craft_potion_soin",
@@ -378,8 +410,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 3,
     inputs: [
       { key: "extrait",quantity: 1 }, // Alchimiste T2 (propre)
-      { key: "fil",    quantity: 1 }, // Tisserand T2 — filtre de coton médicinal
-      { key: "encre",  quantity: 1 }, // Marchand T2 — étiquette de dosage
+      { key: "fil",    quantity: 1 }, // Tisserand T2 : filtre de coton médicinal
+      { key: "encre",  quantity: 1 }, // Marchand T2 : étiquette de dosage
     ],
     output: { key: "potion_soin", quantity: 1 },
     costGold: 0,
@@ -394,9 +426,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 4,
     inputs: [
       { key: "potion_soin", quantity: 1 }, // Alchimiste T3
-      { key: "pain",        quantity: 1 }, // Fermier T3 — nutriments
-      { key: "lingots_or",  quantity: 1 }, // Orfèvre T3 — or colloïdal alchimique
-      { key: "parchemin",   quantity: 1 }, // Marchand T3 — formule secrète
+      { key: "pain",        quantity: 1 }, // Fermier T3 : nutriments
+      { key: "lingots_or",  quantity: 1 }, // Orfèvre T3 : or colloïdal alchimique
+      { key: "parchemin",   quantity: 1 }, // Marchand T3 : formule secrète
     ],
     output: { key: "potion_endur", quantity: 1 },
     costGold: 0,
@@ -431,8 +463,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 2,
     inputs: [
       { key: "quartz_brut", quantity: 1 }, // Orfèvre T1 (propre)
-      { key: "ble",         quantity: 1 }, // Fermier T1 — pâte de polissage
-      { key: "minerai_fer", quantity: 1 }, // Mineur T1 — abrasif
+      { key: "ble",         quantity: 1 }, // Fermier T1 : pâte de polissage
+      { key: "minerai_fer", quantity: 1 }, // Mineur T1 : abrasif
     ],
     output: { key: "quartz_poli", quantity: 1 },
     costGold: 0,
@@ -447,8 +479,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 3,
     inputs: [
       { key: "quartz_poli",  quantity: 1 }, // Orfèvre T2 (propre)
-      { key: "charbon",      quantity: 1 }, // Forgeron T2 — fusion haute température
-      { key: "fil",          quantity: 1 }, // Tisserand T2 — creuset tressé
+      { key: "charbon",      quantity: 1 }, // Forgeron T2 : fusion haute température
+      { key: "fil",          quantity: 1 }, // Tisserand T2 : creuset tressé
     ],
     output: { key: "lingots_or", quantity: 1 },
     costGold: 0,
@@ -464,9 +496,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     requiresBuilding: "fonderie",
     inputs: [
       { key: "lingots_or",  quantity: 1 }, // Orfèvre T3
-      { key: "tissu",       quantity: 1 }, // Tisserand T3 — polissage final
-      { key: "epee_courte", quantity: 1 }, // Forgeron T3 — acier de moule
-      { key: "parchemin",   quantity: 1 }, // Marchand T3 — certificat d'authenticité
+      { key: "tissu",       quantity: 1 }, // Tisserand T3 : polissage final
+      { key: "epee_courte", quantity: 1 }, // Forgeron T3 : acier de moule
+      { key: "parchemin",   quantity: 1 }, // Marchand T3 : certificat d'authenticité
     ],
     output: { key: "lingot_raffine", quantity: 1 },
     costGold: 0,
@@ -501,9 +533,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     profession: "Marchand",
     tier: 2,
     inputs: [
-      { key: "herbes",      quantity: 1 }, // Alchimiste T1 — pigments
-      { key: "quartz_brut", quantity: 1 }, // Orfèvre T1 — fixateur minéral
-      { key: "laine_brute", quantity: 1 }, // Tisserand T1 — fibre absorbante
+      { key: "herbes",      quantity: 1 }, // Alchimiste T1 : pigments
+      { key: "quartz_brut", quantity: 1 }, // Orfèvre T1 : fixateur minéral
+      { key: "laine_brute", quantity: 1 }, // Tisserand T1 : fibre absorbante
     ],
     output: { key: "encre", quantity: 1 },
     costGold: 0,
@@ -518,8 +550,8 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 3,
     inputs: [
       { key: "encre",   quantity: 1 }, // Marchand T2 (propre)
-      { key: "planches",quantity: 1 }, // Bûcheron T2 — presse à imprimer
-      { key: "farine",  quantity: 1 }, // Fermier T2 — pâte à papier
+      { key: "planches",quantity: 1 }, // Bûcheron T2 : presse à imprimer
+      { key: "farine",  quantity: 1 }, // Fermier T2 : pâte à papier
     ],
     output: { key: "parchemin", quantity: 1 },
     costGold: 0,
@@ -534,9 +566,9 @@ export const CRAFTING_RECIPES_REFACTORED = [
     tier: 4,
     inputs: [
       { key: "parchemin",   quantity: 1 }, // Marchand T3
-      { key: "epee_courte", quantity: 1 }, // Forgeron T3 — sceau de forge
-      { key: "meuble",      quantity: 1 }, // Bûcheron T3 — bureau de signature
-      { key: "potion_soin", quantity: 1 }, // Alchimiste T3 — cachet d'authenticité
+      { key: "epee_courte", quantity: 1 }, // Forgeron T3 : sceau de forge
+      { key: "meuble",      quantity: 1 }, // Bûcheron T3 : bureau de signature
+      { key: "potion_soin", quantity: 1 }, // Alchimiste T3 : cachet d'authenticité
     ],
     output: { key: "contrat_artisan", quantity: 1 },
     costGold: 0,
@@ -581,11 +613,11 @@ export const CRAFTING_RECIPES_REFACTORED = [
   },
 
   // ════════════════════════════════════════════════
-  // T1 COMBAT — items équipables (Forgeron + Tisserand)
+  // T1 COMBAT : items équipables (Forgeron + Tisserand)
   // 3 ressources T1 simples → 1 item au grade 0
   // ════════════════════════════════════════════════
 
-  // ── ARME (Forgeron) — 1 seule arme universelle (Phase 3 Option B) ──
+  // ── ARME (Forgeron) : 1 seule arme universelle (Phase 3 Option B) ──
   {
     id: "craft_epee",
     name: "Épée",
@@ -601,6 +633,25 @@ export const CRAFTING_RECIPES_REFACTORED = [
     costGold: 0,
     cooldown: 60,
     description: "Minerai + Bois + Pierre → 1 Épée (grade 0).",
+  },
+
+  // ── BOUCLIER (Forgeron) : défense additionnelle V2 ──
+  // Recette identique à l'épée (1 fer + 1 bois + 1 pierre) : premium symétrique.
+  {
+    id: "craft_bouclier",
+    name: "Bouclier",
+    icon: "🛡️",
+    profession: "Forgeron",
+    tier: 1,
+    inputs: [
+      { key: "minerai_fer",  quantity: 1 }, // Mineur : plaques
+      { key: "bois_brut",    quantity: 1 }, // Bûcheron : arçon
+      { key: "pierre",       quantity: 1 }, // Mineur : boss central
+    ],
+    output: { key: "bouclier", quantity: 1 },
+    costGold: 0,
+    cooldown: 60,
+    description: "Fer + Bois + Pierre → 1 Bouclier (grade 0). Permet de défendre une 2e zone en PvP comme en biome.",
   },
 
   // ── DÉFENSE (Tisserand) ──

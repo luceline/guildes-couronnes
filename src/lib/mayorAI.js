@@ -60,7 +60,7 @@ export async function runMayorTick(city) {
   return { newTax, reason };
 }
 
-// IA build désactivé — seul un maire joueur peut construire
+// IA build désactivé : seul un maire joueur peut construire
 export async function mayerTryBuild(city) {
   return null; // Désactivé : seul le maire joueur peut construire
   const targetBuilding = getMayorBuildingPriority(city);
@@ -149,7 +149,7 @@ export async function runWealthTax(players, city) {
       player_email: player.user_email, player_name: player.character_name || "",
       city_id: city.id, city_name: city.name,
       amount: -taxed, type: "impot",
-      description: `Impôt journalier (${city.tax_rate}%) — ${city.name}`,
+      description: `Impôt journalier (${city.tax_rate}%) : ${city.name}`,
     }).catch(() => {});
     results.push({ name: player.character_name, taxed });
   }
@@ -237,7 +237,7 @@ export async function runBuildingMaintenance(city) {
     }
     report.push(`✅ Entretien payé : ${Object.entries(dailyCost).map(([r, q]) => `${q} ${r}`).join(", ")}`);
   } else {
-    // Partial payment — identify which resources are missing
+    // Partial payment : identify which resources are missing
     const missing = Object.entries(dailyCost)
       .filter(([res, qty]) => (warehouse[res] || 0) < qty)
       .map(([res]) => res);
@@ -294,43 +294,4 @@ export async function runBuildingMaintenance(city) {
   });
 
   return { degraded: [], destroyed: [], missing: [], report };
-}
-
-// ─────────────────────────────────────────────────────────────
-// Treasury interests: 1%/day of city treasury distributed to
-// all inhabitants. Capped at 50 or per city per day.
-// ─────────────────────────────────────────────────────────────
-export async function runTreasuryInterests(cities, players) {
-  const results = [];
-  const today = getTodayDateStr();
-
-  for (const city of cities) {
-    if (city.is_bot_city) continue;
-    const treasury = city.gold_treasury || 0;
-    if (treasury < 10) continue;
-    if (city.interests_last_run === today) continue;
-
-    const cityPlayers = players.filter(p => p.city_id === city.id);
-    if (cityPlayers.length === 0) continue;
-
-    const rawInterest = Math.floor(treasury * 0.01);
-    const totalDistributed = Math.min(rawInterest, 50);
-    if (totalDistributed <= 0) continue;
-
-    const share = Math.floor(totalDistributed / cityPlayers.length);
-    if (share <= 0) continue;
-
-    for (const player of cityPlayers) {
-      await base44.entities.PlayerProfile.update(player.id, {
-        gold: (player.gold || 0) + share,
-      });
-    }
-    await base44.entities.City.update(city.id, {
-      gold_treasury: Math.max(0, treasury - share * cityPlayers.length),
-      interests_last_run: today,
-    });
-
-    results.push({ city: city.name, treasury, perPlayer: share, players: cityPlayers.length });
-  }
-  return results;
 }

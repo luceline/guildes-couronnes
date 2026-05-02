@@ -23,8 +23,9 @@ export default function BountyBoard({ profile, cityId, cityName }) {
 
   async function load() {
     setLoading(true);
+    // REFONTE v5 : les primes sont globales (suivent la cible), on charge toutes les primes actives
     const [bList, pList] = await Promise.all([
-      base44.entities.Bounty.filter({ city_id: cityId, status: "active" }, "-created_date", 50),
+      base44.entities.Bounty.filter({ status: "active" }, "-created_date", 100),
       base44.entities.PlayerProfile.list("character_name", 100),
     ]);
     setBounties(bList);
@@ -83,7 +84,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-xs text-muted-foreground font-body">
-            Désignez un joueur. L'or est prélevé immédiatement et versé au premier qui réussit un vol sur la cible depuis n'importe quelle ville.
+            Désignez un joueur. L'or est prélevé immédiatement et sera versé au premier qui le défaira en combat zoné PvP, n'importe où dans le royaume. Une fois posée, la prime ne peut plus être annulée.
           </p>
 
           <div className="space-y-2">
@@ -93,7 +94,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
               onChange={e => setTargetEmail(e.target.value)}
               className="w-full border border-border rounded-md px-2 py-1.5 text-sm font-body bg-background"
             >
-              <option value="">— Choisir un joueur —</option>
+              <option value="">Choisir un joueur</option>
               {players.map(p => (
                 <option key={p.user_email} value={p.user_email}>
                   {p.character_name} ({p.profession})
@@ -111,6 +112,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
               value={rewardGold}
               onChange={e => setRewardGold(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-28 text-sm"
+              onFocus={e => e.target.select()}
             />
             <span className="text-xs text-muted-foreground font-body">Votre or : {profile.gold || 0} 💰</span>
           </div>
@@ -132,7 +134,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
             className="w-full font-heading"
             variant="destructive"
           >
-            {posting ? "Publication..." : `🏴‍☠️ Poster la prime — ${rewardGold} 💰`}
+            {posting ? "Publication..." : `🏴‍☠️ Poster la prime : ${rewardGold} 💰`}
           </Button>
         </CardContent>
       </Card>
@@ -141,7 +143,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="font-heading text-base">
-            📋 Avis de recherche actifs
+            📋 Avis de recherche du royaume
             {bounties.length > 0 && <Badge className="ml-2 bg-red-100 text-red-800 border-red-200 font-body">{bounties.length}</Badge>}
           </CardTitle>
         </CardHeader>
@@ -152,7 +154,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
             </div>
           ) : bounties.length === 0 ? (
             <p className="text-sm text-muted-foreground font-body text-center py-6">
-              Aucune prime active dans cette taverne. La paix règne... pour l'instant.
+              Aucune prime active dans tout le royaume. La paix règne... pour l'instant.
             </p>
           ) : (
             <div className="space-y-3">
@@ -161,7 +163,7 @@ export default function BountyBoard({ profile, cityId, cityName }) {
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div>
                       <span className="font-heading font-semibold text-sm">🎯 {b.target_name}</span>
-                      <span className="text-xs text-muted-foreground font-body ml-2">— prime posée par {b.poster_name}</span>
+                      <span className="text-xs text-muted-foreground font-body ml-2">· prime posée par {b.poster_name}</span>
                     </div>
                     <Badge className="bg-amber-400 text-amber-900 border-amber-300 font-heading text-sm">
                       +{b.reward_gold} 💰

@@ -7,21 +7,23 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRandomActionCost } from "../lib/gameData";
+import CombatEpic from "./combat/CombatEpic";
+import HelpTooltip from "./HelpTooltip";
 
 // ──────────────────────────────────────────────
-// RÉCOLTE AFK — config par biome
+// RÉCOLTE AFK : config par biome
 // Chaque biome rapporte la ressource T1 principale du métier associé
 // ──────────────────────────────────────────────
 const BIOME_HARVEST = {
   foret:   { item_key: "bois_brut",    item_name: "Bois brut",      item_category: "bois",      icon: "🪵" },
   champs:  { item_key: "ble",          item_name: "Blé",             item_category: "nourriture", icon: "🌾" },
-  mine:    { item_key: "pierre_brute", item_name: "Pierre brute",    item_category: "pierre",    icon: "🪨" },
+  mine:    { item_key: "pierre_brute", item_name: "Pierre taillée",    item_category: "pierre",    icon: "🪨" },
   atelier: { item_key: "laine_brute",  item_name: "Laine brute",     item_category: "tissu",     icon: "🧶" },
   forge:   { item_key: "minerai_fer",  item_name: "Minerai de fer",  item_category: "fer",       icon: "⚙️" },
   guilde:  { item_key: "tissu",        item_name: "Tissu",           item_category: "tissu",     icon: "🧵" },
 };
 
-const HARVEST_COST_PER_HOUR = 1;   // or détruit par heure
+const HARVEST_COST_PER_UNIT = 3;   // or détruit par unité récoltée
 const HARVEST_RATE_MS = 7200000;   // 1 ressource toutes les 2h (en ms)
 
 /** Calcule les ressources récoltées depuis harvest_started_at, limitées par l'inventaire et l'or */
@@ -32,7 +34,7 @@ function computeHarvestAccumulated(profile, biomeKey) {
   if (hoursRaw <= 0) return 0;
 
   // Limité par l'or disponible
-  const maxByGold = Math.floor((profile.gold || 0) / HARVEST_COST_PER_HOUR);
+  const maxByGold = Math.floor((profile.gold || 0) / HARVEST_COST_PER_UNIT);
 
   // Limité par la place dans l'inventaire
   const currentWeight = getInventoryWeight(profile);
@@ -174,7 +176,7 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   // Note (avril 2026) : la consommation faim/énergie a été déplacée au lancement
   // du combat (handleCombat) pour éviter que la résolution plante si le joueur
   // est à 0 entre-temps. Plus aucune logique de durabilité ici (système combat
-  // zoné — les items combat ne servent plus contre les monstres).
+  // zoné : les items combat ne servent plus contre les monstres).
 
   if (victory) {
     goldReward = monster.score === 1 ? 5 : monster.score === 2 ? 7 : 10;
@@ -254,6 +256,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
   const [harvestAccumulated, setHarvestAccumulated] = useState(0); // compteur live
   const [harvestNextIn, setHarvestNextIn] = useState(0); // secondes avant prochaine ressource
   const [collectingHarvest, setCollectingHarvest] = useState(false);
+  // ── Phase 2 (test) : combat tactique V2 ──
   const countdownRef = useRef(null);
   const harvestTimerRef = useRef(null);
   const profileRef = useRef(profile);
@@ -370,7 +373,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         hunger:  costResult.newHunger,
         fatigue: costResult.newFatigue,
       });
-      toast.success(`🐴 Votre monture s'élance vers ${biomeInfo.name} — soyez prêt au combat dans 2 min.`);
+      toast.success(`🐴 Votre monture s'élance vers ${biomeInfo.name} : soyez prêt au combat dans 2 min.`);
       onRefresh?.();
     } catch { toast.error("Erreur lors du départ."); }
     finally { setDeparting(false); }
@@ -381,14 +384,14 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
 
     // Bloquer si combat déjà en cours
     if (profile.biome_combat_started_at && profile.biome_combat_resolved === false) {
-      toast.error("Vous êtes déjà en pleine mêlée — finissez ce combat avant d'en chercher un autre !");
+      toast.error("Vous êtes déjà en pleine mêlée : finissez ce combat avant d'en chercher un autre !");
       return;
     }
 
     const today = getTodayDateStr();
     const combatsToday = profile.daily_combats_date === today ? (profile.daily_combats_count || 0) : 0;
     if (combatsToday >= maxCombats) {
-      toast.error(`Vos bras réclament le repos — vous avez déjà livré ${maxCombats} batailles aujourd'hui. Demain, la chasse reprend.`);
+      toast.error(`Vos bras réclament le repos : vous avez déjà livré ${maxCombats} batailles aujourd'hui. Demain, la chasse reprend.`);
       return;
     }
 
@@ -415,7 +418,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
       });
       onRefresh?.();
       startCountdown(COMBAT_DURATION);
-      toast.success(`⚔️ Vous chargez ${monster.icon} ${monster.name} — que les dieux vous soient favorables !`);
+      toast.success(`⚔️ Vous chargez ${monster.icon} ${monster.name} : que les dieux vous soient favorables !`);
     } catch { toast.error("Erreur au lancement du combat."); }
     finally { setLaunching(false); }
   };
@@ -434,14 +437,14 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
 
   // ── Démarrer la récolte AFK ──
   const handleStartHarvest = async () => {
-    if ((profile.gold || 0) < HARVEST_COST_PER_HOUR) {
-      toast.error("Votre bourse est vide — il faut au moins 1 💰 pour envoyer vos serfs aux champs.");
+    if ((profile.gold || 0) < HARVEST_COST_PER_UNIT) {
+      toast.error("Votre bourse est vide : il faut au moins 1 💰 pour envoyer vos serfs aux champs.");
       return;
     }
     const currentWeight = getInventoryWeight(profile);
     const maxWeight = getMaxWeight(profile);
     if (currentWeight >= maxWeight) {
-      toast.error("Votre besace déborde — faites de la place avant d'envoyer vos serfs travailler.");
+      toast.error("Votre besace déborde : faites de la place avant d'envoyer vos serfs travailler.");
       return;
     }
     try {
@@ -450,7 +453,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         harvest_biome_key: biomeKey,
         harvest_gold_spent: 0,
       });
-      toast.success(`🌿 Vos serfs s'en vont au labeur — ils rapporteront ${BIOME_HARVEST[biomeKey]?.item_name} à votre retour. 1 💰 par tranche de 2 heures.`);
+      toast.success(`🌿 Vos serfs s'en vont au labeur : ils rapporteront ${BIOME_HARVEST[biomeKey]?.item_name} à votre retour. ${HARVEST_COST_PER_UNIT} 💰 par unité récoltée.`);
       onRefresh?.();
     } catch (e) {
       toast.error("Erreur au démarrage de la récolte.");
@@ -465,11 +468,11 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
       const freshProfile = await base44.entities.PlayerProfile.get(profile.id);
       const qty = computeHarvestAccumulated(freshProfile, biomeKey);
       const hours = computeHarvestHours(freshProfile, biomeKey);
-      const goldCost = Math.min(hours, Math.floor((freshProfile.gold || 0) / HARVEST_COST_PER_HOUR));
+      const goldCost = Math.min(hours, Math.floor((freshProfile.gold || 0) / HARVEST_COST_PER_UNIT));
       const actualQty = Math.min(qty, goldCost);
 
       if (actualQty <= 0) {
-        toast.info("Vos serfs peinent encore sous le soleil — revenez les voir dans quelques instants.");
+        toast.info("Vos serfs peinent encore sous le soleil : revenez les voir dans quelques instants.");
         setCollectingHarvest(false);
         return;
       }
@@ -490,7 +493,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
 
       await base44.entities.PlayerProfile.update(profile.id, {
         inventory: newInventory,
-        gold: Math.max(0, (freshProfile.gold || 0) - actualQty * HARVEST_COST_PER_HOUR),
+        gold: Math.max(0, (freshProfile.gold || 0) - actualQty * HARVEST_COST_PER_UNIT),
         harvest_started_at: null,
         harvest_biome_key: null,
         harvest_gold_spent: 0,
@@ -500,12 +503,12 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         player_email: profile.user_email,
         player_name: profile.character_name || "",
         city_id: "", city_name: "",
-        amount: -actualQty * HARVEST_COST_PER_HOUR,
+        amount: -actualQty * HARVEST_COST_PER_UNIT,
         type: "objectif",
-        description: `Récolte AFK biome ${biomeKey} : −${actualQty * HARVEST_COST_PER_HOUR} 💰 pour ${actualQty} ${harvest.item_name}`,
+        description: `Récolte AFK biome ${biomeKey} : −${actualQty * HARVEST_COST_PER_UNIT} 💰 pour ${actualQty} ${harvest.item_name}`,
       }).catch(() => {});
 
-      toast.success(`🎒 Vos serfs rentrent les bras chargés ! +${actualQty} ${harvest.icon} ${harvest.item_name} — −${actualQty * HARVEST_COST_PER_HOUR} 💰 de gages.`);
+      toast.success(`🎒 Vos serfs rentrent les bras chargés ! +${actualQty} ${harvest.icon} ${harvest.item_name} : −${actualQty * HARVEST_COST_PER_UNIT} 💰 de gages.`);
       onRefresh?.();
     } catch (e) {
       toast.error("Erreur lors de la collecte.");
@@ -640,7 +643,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
               </div>
             ) : (
               <div className="bg-white rounded-lg p-3 border border-red-200">
-                <p className="text-sm font-body text-red-700 text-center">⚠️ Un équipement a perdu 1 durabilité.</p>
+                <p className="text-sm font-body text-red-700 text-center">Pas de butin ce coup-ci. Tentez votre chance ailleurs ou plus tard.</p>
               </div>
             )}
 
@@ -666,16 +669,10 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
           </div>
 
           {(() => {
-            const masteryInfo = getMasteryInfo(biomeKey, profile.biome_mastery);
-            const baseDrop = hasMetierBonus ? 15 : 10;
-            const totalDrop = baseDrop + masteryInfo.bonusPercent;
             return (
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 <p className="text-xs font-body text-amber-800">
                   🎁 Ressource rare : <strong>{BIOME_RARES[biomeKey].name}</strong>
-                  <span className="ml-2 text-muted-foreground">
-                    ({baseDrop}%{masteryInfo.bonusPercent > 0 && ` +${masteryInfo.bonusPercent}% maîtrise`} = {totalDrop}%)
-                  </span>
                 </p>
               </div>
             );
@@ -697,13 +694,24 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
           {(() => {
             const masteryInfo = getMasteryInfo(biomeKey, profile.biome_mastery);
             const nextTier = MASTERY_TIERS.find(t => t.points > masteryInfo.points);
+            const masteryTooltipText =
+              "Gagnez 1 point de maîtrise par monstre tué dans ce biome lors de l'épopée quotidienne.\n\n" +
+              "Paliers (bonus permanents) :\n" +
+              "• Niv. 1 (50 pts) : +1 PV max · +5% or\n" +
+              "• Niv. 2 (150 pts) : +2 PV max · +10% or\n" +
+              "• Niv. 3 (300 pts) : +3 PV max · +15% or\n" +
+              "• Niv. 4 (600 pts) : +4 PV max · +20% or\n\n" +
+              "Les bonus sont permanents et spécifiques à ce biome.";
             return (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-heading font-semibold text-blue-900">🎖️ Maîtrise du biome</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-heading font-semibold text-blue-900">🎖️ Maîtrise du biome</span>
+                    <HelpTooltip text={masteryTooltipText} side="bottom" />
+                  </div>
                   {masteryInfo.level > 0 && (
                     <Badge variant="secondary" className="font-heading text-blue-700 bg-blue-100">
-                      Niv. {masteryInfo.level} +{masteryInfo.bonusPercent}% drop rare
+                      Niv. {masteryInfo.level}
                     </Badge>
                   )}
                 </div>
@@ -746,127 +754,16 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
       </div>
 
       {/* ══════════════════ ONGLET COMBAT ══════════════════ */}
-      {activeTab === "combat" && (<>
-
-      {/* Bannière combat en cours */}
-      {combatInProgress && activeMonster && (
-        <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-5 flex items-center gap-4">
-          <div className="text-5xl animate-pulse">{activeMonster.icon}</div>
-          <div className="flex-1">
-            <p className="font-heading font-bold text-orange-900 text-lg">⚔️ Combat en cours contre {activeMonster.name}</p>
-            <p className="text-sm font-body text-orange-700">Résultat dans…</p>
-            <p className="text-3xl font-bold text-orange-600 font-heading">
-              {combatCountdown > 0 ? `${combatCountdown}s` : "Résolution…"}
-            </p>
-            <p className="text-xs text-orange-600 font-body mt-1">Vous pouvez changer de page, le combat continue.</p>
-          </div>
-        </div>
+      {activeTab === "combat" && (
+        <CombatEpic
+          profile={profile}
+          biomeKey={biomeKey}
+          onExit={() => {
+            // Recharge les données depuis la BDD pour refléter l'état mis à jour
+            if (onRefresh) onRefresh();
+          }}
+        />
       )}
-
-      {/* Monstres */}
-      {monstresDisponibles.length === 0 ? (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-          <p className="text-green-800 font-body">✅ Tous les combats sont terminés pour aujourd'hui !</p>
-          <p className="text-sm text-green-700 font-body mt-1">Reviens demain pour de nouveaux monstres.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {monstresDisponibles.map(monster => {
-            const winProb = getWinProbability(playerAttack, monster.score);
-            const difficultyLabel = monster.score === 1 ? "Facile" : monster.score === 2 ? "Normal" : "Difficile";
-            const difficultyColor = monster.score === 1 ? "bg-green-50 border-green-200" : monster.score === 2 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200";
-            const isThisMonsterFighting = activeMonsterId === monster.id;
-            const isAnotherFighting = combatInProgress && activeMonsterId !== monster.id;
-
-            return (
-              <Card key={monster.id} className={`${difficultyColor} ${isAnotherFighting ? "opacity-50" : ""}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-3xl ${isThisMonsterFighting ? "animate-bounce" : ""}`}>{monster.icon}</span>
-                    <div>
-                      <p className="font-heading font-semibold">{monster.name}</p>
-                      <Badge variant="outline" className="text-xs font-body">{difficultyLabel}</Badge>
-                    </div>
-                  </div>
-
-                  <div className="mb-3">
-                    {(() => {
-                      const winPct = Math.round(winProb * 100);
-                      const isStrongOdds  = winPct >= 70;
-                      const isMediumOdds  = winPct >= 40 && winPct < 70;
-                      const isWeakOdds    = winPct < 40;
-                      const labelColor =
-                        isStrongOdds ? "text-green-700"  :
-                        isMediumOdds ? "text-orange-700" :
-                                       "text-red-700";
-                      const barColor =
-                        isStrongOdds ? "[&>div]:bg-green-500"  :
-                        isMediumOdds ? "[&>div]:bg-orange-500" :
-                                       "[&>div]:bg-red-500";
-                      return (
-                        <>
-                          <p className="text-xs font-body mb-1">
-                            Chance de victoire : <strong className={labelColor}>{winPct}%</strong>
-                            {isStrongOdds  && <span className="ml-1 text-green-600">✓ favorable</span>}
-                            {isMediumOdds  && <span className="ml-1 text-orange-600">⚠ risqué</span>}
-                            {isWeakOdds    && <span className="ml-1 text-red-600">⛔ très risqué</span>}
-                          </p>
-                          <Progress value={winPct} className={`h-1.5 ${barColor}`} />
-                          {isWeakOdds && (
-                            <p className="text-xs font-body text-red-700 mt-1.5 italic">
-                              Votre maîtrise du biome est trop faible face à ce monstre. Affrontez d'abord des cibles plus modestes pour gagner en expérience.
-                            </p>
-                          )}
-                          {isMediumOdds && (
-                            <p className="text-xs font-body text-orange-700 mt-1.5 italic">
-                              Combat équilibré, mais la défaite reste probable. Préparez vos potions de soin si besoin.
-                            </p>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-
-                  <div className="bg-red-50 rounded-lg p-2 mb-3 border border-red-200">
-                    <p className="text-xs font-body text-red-800">⚠️ Coût du combat :</p>
-                    <p className="text-sm font-heading text-red-900">−1 ⚡/🍽️ aléatoire</p>
-                  </div>
-
-                  {(() => {
-                    const masteryInfo = getMasteryInfo(biomeKey, profile.biome_mastery);
-                    let dropChance = getRareDropRate(monster.score, hasMetierBonus) + (masteryInfo.bonusPercent / 100);
-                    return (
-                      <div className="bg-white rounded-lg p-2 mb-3 border border-border/50">
-                        <p className="text-xs font-body text-muted-foreground">Récompenses en cas de victoire :</p>
-                        <p className="text-sm font-heading">
-                          💰 {monster.score === 1 ? 5 : monster.score === 2 ? 7 : 10} or + <span className="text-amber-600">{Math.round(dropChance * 100)}% {BIOME_RARES[biomeKey].name}</span>
-                          {hasMetierBonus && <span className="text-green-600 font-bold"> + ⚡ -10% CD · 10% dbl prod (1h)</span>}
-                        </p>
-                      </div>
-                    );
-                  })()}
-
-                  <Button
-                    className="w-full font-heading"
-                    disabled={combatInProgress || launching || (() => {
-                      const today = getTodayDateStr();
-                      return (profile.daily_combats_date === today ? (profile.daily_combats_count || 0) : 0) >= maxCombats;
-                    })()}
-                    onClick={() => handleCombat(monster)}
-                  >
-                    {isThisMonsterFighting
-                      ? `⚔️ En combat… ${combatCountdown}s`
-                      : isAnotherFighting
-                      ? "⏳ Combat en cours"
-                      : "⚔️ Combattre"}
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-      </>)}
 
       {/* ══════════════════ ONGLET RÉCOLTE AFK ══════════════════ */}
       {activeTab === "harvest" && (() => {
@@ -875,8 +772,8 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         const currentWeight = getInventoryWeight(profile);
         const maxWeight = getMaxWeight(profile);
         const freeSlots = Math.max(0, maxWeight - currentWeight);
-        const maxHoursGold = Math.floor((profile.gold || 0) / HARVEST_COST_PER_HOUR);
-        const canAfford = (profile.gold || 0) >= HARVEST_COST_PER_HOUR;
+        const maxUnitsGold = Math.floor((profile.gold || 0) / HARVEST_COST_PER_UNIT);
+        const canAfford = (profile.gold || 0) >= HARVEST_COST_PER_UNIT;
         const inventoryFull = freeSlots <= 0;
         const formatCountdown = (s) => {
           const m = Math.floor(s / 60);
@@ -892,7 +789,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
               <div className="flex-1">
                 <p className="font-heading font-semibold text-emerald-900">{harvest?.item_name}</p>
                 <p className="text-xs font-body text-emerald-700">
-                  Ressource T1 de ce biome · 1 unité / heure · Hors ligne ou en ligne
+                  Ressource T1 de ce biome · 1 unité / 2h · Hors ligne ou en ligne
                 </p>
               </div>
             </div>
@@ -901,11 +798,11 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
             <div className="bg-muted/40 rounded-lg px-4 py-3 space-y-1.5 text-sm font-body">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">⏱️ Cadence</span>
-                <span className="font-semibold">1 {harvest?.item_name} / heure</span>
+                <span className="font-semibold">1 {harvest?.item_name} / 2h</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">💰 Coût</span>
-                <span className="font-semibold text-amber-700">1 or / heure (détruit)</span>
+                <span className="font-semibold text-amber-700">{HARVEST_COST_PER_UNIT} or / unité (détruit)</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">🎒 Inventaire</span>
@@ -916,7 +813,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
               <div className="flex justify-between">
                 <span className="text-muted-foreground">💰 Or disponible</span>
                 <span className={`font-semibold ${!canAfford ? "text-red-600" : "text-foreground"}`}>
-                  {profile.gold || 0} or (~{maxHoursGold}h de récolte)
+                  {profile.gold || 0} or (~{maxUnitsGold} unité{maxUnitsGold !== 1 ? "s" : ""} payable{maxUnitsGold !== 1 ? "s" : ""})
                 </span>
               </div>
             </div>
@@ -924,12 +821,12 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
             {/* Avertissements */}
             {!canAfford && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm font-body text-red-800">
-                ⚠️ Votre bourse est vide — il faut au moins 1 💰 pour payer vos serfs.
+                ⚠️ Votre bourse est vide : il faut au moins {HARVEST_COST_PER_UNIT} 💰 pour payer vos serfs.
               </div>
             )}
             {inventoryFull && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm font-body text-red-800">
-                ⚠️ Votre besace déborde — faites de la place avant de renvoyer vos serfs.
+                ⚠️ Votre besace déborde : faites de la place avant de renvoyer vos serfs.
               </div>
             )}
 
@@ -953,23 +850,23 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
                     {harvestAccumulated} <span className="text-2xl">{harvest?.icon}</span>
                   </p>
                   <p className="text-xs font-body text-muted-foreground mt-1">
-                    Prochain retour dans : <strong>{harvestNextIn > 0 ? formatCountdown(harvestNextIn) : "—"}</strong>
+                    Prochain retour dans : <strong>{harvestNextIn > 0 ? formatCountdown(harvestNextIn) : "-"}</strong>
                   </p>
                 </div>
 
                 {/* Limites actives */}
                 <div className="text-xs font-body text-emerald-700 space-y-1">
                   {freeSlots <= 3 && freeSlots > 0 && (
-                    <p>⚠️ La besace se remplit — encore {freeSlots} place{freeSlots > 1 ? "s" : ""} avant que vos serfs ne rentrent bredouilles.</p>
+                    <p>⚠️ La besace se remplit : encore {freeSlots} place{freeSlots > 1 ? "s" : ""} avant que vos serfs ne rentrent bredouilles.</p>
                   )}
                   {inventoryFull && (
-                    <p className="text-red-700 font-semibold">🛑 Besace pleine — vos serfs ont posé leur charge et attendent !</p>
+                    <p className="text-red-700 font-semibold">🛑 Besace pleine : vos serfs ont posé leur charge et attendent !</p>
                   )}
-                  {maxHoursGold <= 2 && canAfford && (
-                    <p>⚠️ Les gages s'amenuisent — encore {maxHoursGold}h de labeur possibles avant la caisse vide.</p>
+                  {maxUnitsGold <= 2 && canAfford && (
+                    <p>⚠️ Les gages s'amenuisent : encore {maxUnitsGold} unité{maxUnitsGold !== 1 ? "s" : ""} payable{maxUnitsGold !== 1 ? "s" : ""} avant la caisse vide.</p>
                   )}
                   {!canAfford && (
-                    <p className="text-red-700 font-semibold">🛑 Plus un denier pour les payer — vos serfs ont posé les outils !</p>
+                    <p className="text-red-700 font-semibold">🛑 Plus un denier pour les payer : vos serfs ont posé les outils !</p>
                   )}
                 </div>
 
@@ -1010,13 +907,13 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
 
             {/* Note info offline */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-xs font-body text-blue-800">
-              📜 Le ménestrel murmure : « Vos serfs travaillent même quand vous dormez. Revenez les chercher quand bon vous semble — 4 butins au plus, 1 tous les 2 heures. L'or ne leur est versé qu'à la collecte. »
+              📜 Le ménestrel murmure : « Vos serfs travaillent même quand vous dormez. Revenez les chercher quand bon vous semble : 4 butins au plus, 1 tous les 2 heures. L'or ne leur est versé qu'à la collecte. »
             </div>
           </div>
         );
       })()}
 
-      {/* Bouton quitter le biome — toujours visible */}
+      {/* Bouton quitter le biome : toujours visible */}
       {!combatInProgress && (
         <div className="bg-muted/40 border border-border rounded-lg p-3 flex items-center justify-between">
           <span className="text-sm font-body text-muted-foreground">📍 Vous êtes dans ce biome</span>
@@ -1030,7 +927,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
                 travel_destination_id: profile.city_id,
                 travel_arrival_time: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
               });
-              toast.success("🐴 Vous prenez le chemin du retour — la ville n'est plus qu'à quelques lieues.");
+              toast.success("🐴 Vous prenez le chemin du retour : la ville n'est plus qu'à quelques lieues.");
               onRefresh?.();
             }}
           >
@@ -1051,7 +948,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
                 travel_destination_id: profile.city_id,
                 travel_arrival_time: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
               });
-              toast.success("🐴 Vous prenez le chemin du retour — la ville n'est plus qu'à quelques lieues.");
+              toast.success("🐴 Vous prenez le chemin du retour : la ville n'est plus qu'à quelques lieues.");
               onRefresh?.();
             }}
           >

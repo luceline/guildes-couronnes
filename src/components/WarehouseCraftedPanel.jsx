@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 const T2_ITEMS = [
   { key: "planches",    name: "Planches",     icon: "🪵", tier: 2, usedBy: "Construction" },
-  { key: "pierre_brute",name: "Pierre brute", icon: "🗿", tier: 2, usedBy: "Construction" },
+  { key: "pierre_brute",name: "Pierre taillée", icon: "🗿", tier: 2, usedBy: "Construction" },
   { key: "fil",         name: "Fil",          icon: "🧵", tier: 2, usedBy: "Bergerie" },
   { key: "charbon",     name: "Charbon",      icon: "⚫", tier: 2, usedBy: "Mine / Forge" },
   { key: "extrait",     name: "Extrait",      icon: "🫗", tier: 2, usedBy: "Laboratoire" },
@@ -116,7 +116,7 @@ export default function WarehouseCraftedPanel({
           <p className="text-xs font-heading font-semibold text-amber-900">🎯 Quêtes en cours :</p>
           {depositObjectives.filter(obj => !obj.target_city_id || obj.target_city_id === city.id).map(obj => (
             <div key={obj.id} className="flex items-center justify-between text-xs font-body text-amber-800">
-              <span>{obj.title} — {obj.target_item} ({obj.current_quantity || 0}/{obj.target_quantity})</span>
+              <span>{obj.title} : {obj.target_item} ({obj.current_quantity || 0}/{obj.target_quantity})</span>
               <span className="font-semibold">+{obj.reward_gold}💰</span>
             </div>
           ))}
@@ -124,11 +124,11 @@ export default function WarehouseCraftedPanel({
       )}
 
       <div className="space-y-1">
-        <p className="text-xs font-body font-semibold text-indigo-700">T2 — Entretien courant</p>
+        <p className="text-xs font-body font-semibold text-indigo-700">T2 : Entretien courant</p>
         <StockGrid items={T2_ITEMS} warehouse={warehouse} dailyMaintenance={dailyMaintenance} />
       </div>
       <div className="space-y-1">
-        <p className="text-xs font-body font-semibold text-indigo-700">T3 — Entretien palier 5</p>
+        <p className="text-xs font-body font-semibold text-indigo-700">T3 : Entretien palier 5</p>
         <StockGrid items={T3_ITEMS} warehouse={warehouse} dailyMaintenance={dailyMaintenance} />
       </div>
 
@@ -162,7 +162,8 @@ export default function WarehouseCraftedPanel({
               <span className="text-xs text-muted-foreground font-body w-16">Inv: {playerQty}</span>
               <input type="number" min={1} max={playerQty} value={Math.min(amount, playerQty)}
                 onChange={e => setDepositAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(playerQty, Number(e.target.value))) }))}
-                className="w-16 h-7 text-xs text-center border border-indigo-200 rounded font-body" />
+                className="w-16 h-7 text-xs text-center border border-indigo-200 rounded font-body"
+                onFocus={e => e.target.select()} />
               <button
                 disabled={contributing || playerQty <= 0}
                 onClick={() => handleDeposit(item, Math.min(amount, playerQty))}

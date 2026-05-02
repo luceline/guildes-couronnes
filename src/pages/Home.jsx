@@ -33,11 +33,11 @@ function ProfessionMigration({ profile, onComplete }) {
         <h2 className="text-2xl font-bold font-heading">Réorientation professionnelle</h2>
         <p className="text-muted-foreground font-body">
           Le métier de <strong>Producteur</strong> a été fusionné dans d'autres professions.
-          Choisissez votre nouveau métier — vos items existants sont conservés.
+          Choisissez votre nouveau métier : vos items existants sont conservés.
         </p>
         <select value={choice} onChange={e => setChoice(e.target.value)}
           className="w-full border border-border rounded-lg px-4 py-3 font-body bg-background text-base">
-          <option value="">— Choisir un métier —</option>
+          <option value="">Choisir un métier</option>
           {PROFESSIONS_LIST.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
         <button disabled={!choice || saving} onClick={handleMigrate}
@@ -65,7 +65,7 @@ export default function Home() {
     if (profiles.length > 0) {
       let p = profiles[0];
 
-      // Regen faim + énergie (centralisé) — on charge la ville pour bénéficier de Fontaine/Hospice
+      // Regen faim + énergie (centralisé) : on charge la ville pour bénéficier de Fontaine/Hospice
       let homeCity = null;
       if (p.home_city_id) {
         homeCity = await base44.entities.City.get(p.home_city_id).catch(() => null);

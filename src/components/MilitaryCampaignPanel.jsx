@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -164,11 +165,11 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
   const handleDeclare = async () => {
     if (!selectedTarget) return;
     if (!isMayor) { toast.error("Seul le maire en exercice peut sonner le tocsin de guerre."); return; }
-    if (alreadyAttacking) { toast.error("Vos armées sont déjà en marche — attendez leur retour avant de déclarer une nouvelle guerre."); return; }
-    if (citiesUnderAttack.has(selectedTarget)) { toast.error("Cette cité est déjà assaillie par d'autres — patientez que la poussière retombe."); return; }
+    if (alreadyAttacking) { toast.error("Vos armées sont déjà en marche : attendez leur retour avant de déclarer une nouvelle guerre."); return; }
+    if (citiesUnderAttack.has(selectedTarget)) { toast.error("Cette cité est déjà assaillie par d'autres : patientez que la poussière retombe."); return; }
 
     const route = getRoute(selectedTarget);
-    if (!route) { toast.error("Aucun chemin ne relie vos cités — vos soldats ne peuvent marcher vers l'inconnu."); return; }
+    if (!route) { toast.error("Aucun chemin ne relie vos cités : vos soldats ne peuvent marcher vers l'inconnu."); return; }
 
     // Vérifier la trésorerie
     if ((city.gold_treasury || 0) < WAR_DECLARATION_COST) {
@@ -211,7 +212,7 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
         message: `⚔️ Le maire a déclaré une attaque contre ${getCityName(selectedTarget)} (−${WAR_DECLARATION_COST}💰 trésorerie) ! Résidents, contribuez vos unités dans la Mairie → Guerre. Départ dans 30 minutes.`,
       }).catch(() => {});
 
-      toast.success(`🥁 Le tocsin résonne ! Les portes s'ouvrent — 30 minutes pour rejoindre l'armée. (−${WAR_DECLARATION_COST}💰 trésorerie)`);
+      toast.success(`🥁 Le tocsin résonne ! Les portes s'ouvrent : 30 minutes pour rejoindre l'armée. (−${WAR_DECLARATION_COST}💰 trésorerie)`);
       setSelectedTarget(null);
       await load();
       onRefresh?.();
@@ -237,7 +238,7 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
     }
 
     if (!hasUnits) { toast.error("Désignez vos guerriers avant de les envoyer au combat !"); return; }
-    if (campaign.status !== "contributing") { toast.error("L'armée a déjà levé le camp — trop tard pour rejoindre les rangs."); return; }
+    if (campaign.status !== "contributing") { toast.error("L'armée a déjà levé le camp : trop tard pour rejoindre les rangs."); return; }
 
     setContributing(campaign.id);
     try {
@@ -281,7 +282,7 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
         contributors,
       });
 
-      toast.success(`⚔️ Vos guerriers ont quitté la garnison — qu'ils reviennent victorieux !`);
+      toast.success(`⚔️ Vos guerriers ont quitté la garnison : qu'ils reviennent victorieux !`);
       setContributing(null);
       setContributeUnits({});
       await load();
@@ -343,7 +344,7 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
       }
 
       // Lingots volés (option 2 : si la ville attaquante a aussi été attaquée entre-temps,
-      // ses lingots ont peut-être déjà été réduits — on prend ce qui reste)
+      // ses lingots ont peut-être déjà été réduits : on prend ce qui reste)
       if (isVictory && result.lingotsStolen > 0 && defenderCity) {
         const freshDefender = await base44.entities.City.filter({ id: campaign.defender_city_id }).catch(() => [defenderCity]);
         const currentLingots = (freshDefender[0] || defenderCity).lingots_cumul || 0;
@@ -375,6 +376,15 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
               gold: (p.gold || 0) + goldGain,
               cumul_t5_envoyes: (p.cumul_t5_envoyes || 0) + 1,
             });
+            // V6.1.7 — Trace dans le journal d'or (récompense de la cité)
+            if (goldGain > 0) {
+              await logGold(
+                p.user_email, p.character_name,
+                campaign.attacker_city_id, getCityName(campaign.attacker_city_id),
+                goldGain, "recompense_campagne",
+                `Récompense campagne ${isVictory ? "victorieuse" : "perdue"}`
+              );
+            }
           }
         } catch (e) { console.warn("reward contributor:", e); }
       }
@@ -383,8 +393,8 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
       const atkName = getCityName(campaign.attacker_city_id);
       const defName = getCityName(campaign.defender_city_id);
       const tavernMsg = isVictory
-        ? `⚔️ ${atkName} a attaqué ${defName} — ${result.label} ! ${result.lingotsStolen > 0 ? `${result.lingotsStolen} lingot(s) pillé(s).` : ""}`
-        : `🛡️ ${defName} a repoussé l'attaque de ${atkName} — ${result.label}.`;
+        ? `⚔️ ${atkName} a attaqué ${defName} : ${result.label} ! ${result.lingotsStolen > 0 ? `${result.lingotsStolen} lingot(s) pillé(s).` : ""}`
+        : `🛡️ ${defName} a repoussé l'attaque de ${atkName} : ${result.label}.`;
 
       for (const cityId of [campaign.attacker_city_id, campaign.defender_city_id]) {
         await base44.entities.TavernMessage.create({
@@ -485,8 +495,8 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
                   {campaign.status === "contributing" && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs font-body text-yellow-800">
                       ⏳ Départ dans <strong>{formatTimeLeft(campaign.departure_at)}</strong>
-                      {isAttacker && " — contribuez vos unités ci-dessous."}
-                      {!isAttacker && " — renforcez la garnison via l'onglet Armée."}
+                      {isAttacker && " : contribuez vos unités ci-dessous."}
+                      {!isAttacker && " : renforcez la garnison via l'onglet Armée."}
                     </div>
                   )}
 
@@ -638,7 +648,7 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
 
       {isMayor && alreadyAttacking && (
         <div className="bg-muted/30 border border-border rounded-lg p-3 text-xs font-body text-muted-foreground text-center">
-          Vos armées sont déjà en marche — attendez leur retour avant de déclarer une nouvelle guerre. Attendez la résolution pour en lancer une nouvelle.
+          Vos armées sont déjà en marche : attendez leur retour avant de déclarer une nouvelle guerre. Attendez la résolution pour en lancer une nouvelle.
         </div>
       )}
 

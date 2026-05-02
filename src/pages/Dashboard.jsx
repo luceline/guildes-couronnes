@@ -6,6 +6,7 @@ import PlayerStatusBar from "../components/PlayerStatusBar";
 import { PROFESSIONS, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, HUNGER_WARNING_THRESHOLD } from "../lib/gameData";
 import { computeFatigueWithDailyReset } from "../lib/craftingData";
 import LoginStreakWidget from "../components/LoginStreakWidget";
+import AldebertGreeting from "../components/AldebertGreeting";
 import { getTxLabel } from "../lib/transactionTypes";
 
 
@@ -90,7 +91,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
             Bienvenue, {liveProfile.character_name}
           </h2>
           <p className="text-muted-foreground font-body italic">
-            {prof?.icon} {liveProfile.profession}{city ? ` à ${city.name} — Gouvernée par ${city.mayor_name || "personne"}` : ""}
+            {prof?.icon} {liveProfile.profession}{city ? ` à ${city.name} : Gouvernée par ${city.mayor_name || "personne"}` : ""}
           </p>
         </div>
       </div>
@@ -102,9 +103,39 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
         const { fatigue } = computeFatigueWithDailyReset(liveProfile, maxFatigue);
         const hunger = liveProfile.hunger ?? MAX_HUNGER;
         const maxHunger = getMaxHunger(liveProfile, getCityHungerBonus(homeCity?.buildings || []));
-        const dailyCombatsDate = liveProfile.daily_combats_date;
-        const dailyCombatsCount = dailyCombatsDate === todayStr ? (liveProfile.daily_combats_count || 0) : 0;
-        const biomeCombatsLeft = Math.max(0, 5 - dailyCombatsCount);
+
+        // V6.1.8 — Épopée du jour (remplace l'ancien système de 5 combats biome)
+        // L'épopée est terminée quand : combat_last_date === aujourd'hui ET
+        // l'index de vague atteint le maximum (5 vagues, le joueur a fait toutes).
+        // Si combat_last_date === aujourd'hui mais l'index < max, l'épopée est
+        // en cours (commencée mais pas finie).
+        const MAX_WAVES_PER_DAY_DASH = 5;
+        const epicStartedToday = liveProfile.combat_last_date === todayStr;
+        const epicDoneToday = epicStartedToday
+          && liveProfile.combat_active_biome
+          && (liveProfile.combat_wave_index ?? 0) >= MAX_WAVES_PER_DAY_DASH;
+        const epicInProgress = epicStartedToday && !epicDoneToday;
+        const epicBiomeName = liveProfile.combat_active_biome
+          ? ({ foret: "Forêt", champs: "Champs", mine: "Mine", atelier: "Atelier", forge: "Forge", guilde: "Guilde" }[liveProfile.combat_active_biome] || liveProfile.combat_active_biome)
+          : null;
+
+        // V6.1.8 — État de la récolte AFK (4 ressources max, 1 toutes les 2h)
+        // On affiche une tuile dédiée pour prévenir le joueur quand sa récolte
+        // est arrivée au plafond.
+        const HARVEST_RATE_MS_DASH = 7200000;       // 2h
+        const HARVEST_MAX_DASH = 4;                 // plafond
+        const HARVEST_BIOME_NAMES = { foret: "Forêt", champs: "Champs", mine: "Mine", atelier: "Atelier", forge: "Forge", guilde: "Guilde" };
+        let harvestActive = false;
+        let harvestCount = 0;
+        let harvestBiomeName = null;
+        if (liveProfile.harvest_started_at && liveProfile.harvest_biome_key) {
+          harvestActive = true;
+          harvestBiomeName = HARVEST_BIOME_NAMES[liveProfile.harvest_biome_key] || liveProfile.harvest_biome_key;
+          const elapsed = Date.now() - new Date(liveProfile.harvest_started_at).getTime();
+          const hoursRaw = Math.max(0, Math.floor(elapsed / HARVEST_RATE_MS_DASH));
+          harvestCount = Math.min(hoursRaw, HARVEST_MAX_DASH);
+        }
+        const harvestReady = harvestActive && harvestCount >= HARVEST_MAX_DASH;
 
         // Quêtes
         const questsDone = quests.filter(q => q.status === "completed").length;
@@ -132,7 +163,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
           hunger <= 0
             ? { to: "/production", icon: "🍽️", title: "Faim critique !", sub: "Vous ne pouvez plus voyager", state: "alert" }
             : hunger <= HUNGER_WARNING_THRESHOLD
-            ? { to: "/production", icon: "🍽️", title: "Faim basse", sub: `${hunger}/${maxHunger} — mangez bientôt`, state: "warn" }
+            ? { to: "/production", icon: "🍽️", title: "Faim basse", sub: `${hunger}/${maxHunger} : mangez bientôt`, state: "warn" }
             : null,
 
           // Énergie
@@ -149,10 +180,19 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
             ? { to: "/quetes", icon: "🎯", title: "Quêtes du jour", sub: "Toutes accomplies !", state: "done" }
             : { to: "/quetes", icon: "🎯", title: "Quêtes du jour", sub: `${questsDone}/${questsTotal} accomplies`, state: "neutral" },
 
-          // Biome
-          biomeCombatsLeft > 0
-            ? { to: "/travel", icon: "🌿", title: "Biome", sub: `${biomeCombatsLeft} combat${biomeCombatsLeft > 1 ? "s" : ""} disponible${biomeCombatsLeft > 1 ? "s" : ""}`, state: "warn" }
-            : { to: "/travel", icon: "🌿", title: "Biome", sub: "Combats épuisés pour aujourd'hui", state: "done" },
+          // Biome — Épopée quotidienne (remplace l'ancien système 5 combats)
+          epicDoneToday
+            ? { to: "/travel", icon: "🗡️", title: "Épopée du jour", sub: "Accomplie", state: "done", strikethrough: true }
+            : epicInProgress
+            ? { to: "/travel", icon: "🗡️", title: "Épopée du jour", sub: `En cours en ${epicBiomeName}`, state: "warn" }
+            : { to: "/travel", icon: "🗡️", title: "Épopée du jour", sub: "Disponible", state: "warn" },
+
+          // Récolte AFK
+          harvestReady
+            ? { to: "/travel", icon: "🌿", title: "Récolte prête", sub: `${HARVEST_MAX_DASH} ressources en ${harvestBiomeName}`, state: "warn" }
+            : harvestActive
+            ? { to: "/travel", icon: "🌿", title: "Récolte en cours", sub: `${harvestCount}/${HARVEST_MAX_DASH} en ${harvestBiomeName}`, state: "neutral" }
+            : { to: "/travel", icon: "🌿", title: "Récolte", sub: "Aucune lancée", state: "neutral" },
 
           // Production
           hasCooldownReady
@@ -162,7 +202,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
           // Marché
           marketListings.length > 0
             ? { to: "/market", icon: "🛒", title: "Marché", sub: `${marketListings.length} annonce${marketListings.length > 1 ? "s" : ""} active${marketListings.length > 1 ? "s" : ""}`, state: "done" }
-            : { to: "/market", icon: "🛒", title: "Marché", sub: "Aucune annonce — vendez !", state: "neutral" },
+            : { to: "/market", icon: "🛒", title: "Marché", sub: "Aucune annonce : vendez !", state: "neutral" },
 
           // Entrepôt ville
           warehouseAlert
@@ -196,7 +236,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
                   <div className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors hover:opacity-80 ${stateStyles[card.state]}`}>
                     <span className="text-xl w-7 text-center shrink-0">{card.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-heading font-semibold text-foreground leading-tight">{card.title}</p>
+                      <p className={`text-xs font-heading font-semibold text-foreground leading-tight ${card.strikethrough ? "line-through opacity-60" : ""}`}>{card.title}</p>
                       <p className="text-xs font-body text-muted-foreground leading-tight mt-0.5">{card.sub}</p>
                     </div>
                     <span className={`text-xs font-bold shrink-0 ${statusColor[card.state]}`}>{statusIcon[card.state]}</span>
@@ -209,6 +249,7 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
       })()}
 
       {/* Login Streak */}
+      <AldebertGreeting profile={liveProfile} />
       <LoginStreakWidget profile={liveProfile} onProfileUpdate={p => setLiveProfile(p)} />
 
       {onShowTutorial && (

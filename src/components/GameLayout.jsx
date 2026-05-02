@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword } from "lucide-react";
+import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword, MessageCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -122,9 +122,10 @@ export default function GameLayout() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            <a href="https://fr.tipeee.com/guildes-couronnes/" target="_blank" rel="noopener noreferrer" title="Soutenir le créateur">
+            <a href="https://discord.com/channels/1496627736553193782/1496627739594330143" target="_blank" rel="noopener noreferrer" title="Rejoindre le Discord">
               <Button variant="ghost" size="sm" className="gap-2 font-body text-sm">
-                💝 Tipeee
+                <MessageCircle className="h-4 w-4" />
+                Discord
               </Button>
             </a>
             {navItems.map(({ path, icon: Icon, label }) => (
@@ -144,7 +145,7 @@ export default function GameLayout() {
                 </Button>
               </Link>
             ))}
-            {/* Theme toggle — desktop */}
+            {/* Theme toggle : desktop */}
             <Button
               variant="ghost"
               size="sm"
@@ -153,7 +154,7 @@ export default function GameLayout() {
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            {/* Tutorial button — desktop */}
+            {/* Tutorial button : desktop */}
             <Button
               variant="ghost"
               size="sm"
@@ -213,12 +214,13 @@ export default function GameLayout() {
                 </Button>
               </Link>
             ))}
-            <a href="https://fr.tipeee.com/guildes-couronnes/" target="_blank" rel="noopener noreferrer" className="block">
+            <a href="https://discord.com/channels/1496627736553193782/1496627739594330143" target="_blank" rel="noopener noreferrer" className="block">
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-3 font-body"
               >
-                💝 Soutenir
+                <MessageCircle className="h-4 w-4" />
+                Discord
               </Button>
             </a>
             <Button
@@ -256,14 +258,14 @@ export default function GameLayout() {
               </Link>
             ))}
             <a
-              href="https://fr.tipeee.com/guildes-couronnes/"
+              href="https://discord.com/channels/1496627736553193782/1496627739594330143"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMoreOpen(false)}
               className="flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs text-muted-foreground"
             >
-              <span style={{fontSize:"20px"}}>💝</span>
-              <span className="font-body">Soutenir</span>
+              <MessageCircle className="h-5 w-5" />
+              <span className="font-body">Discord</span>
             </a>
             <button
               onClick={() => { setShowTutorial(true); setMoreOpen(false); }}

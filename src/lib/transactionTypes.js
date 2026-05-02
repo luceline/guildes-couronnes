@@ -1,5 +1,5 @@
 /**
- * transactionTypes.js — Source de vérité des types de transactions or
+ * transactionTypes.js : Source de vérité des types de transactions or
  *
  * Importé par :
  *   - Dashboard.jsx        (journal joueur  → utilise TRANSACTION_LABELS)
@@ -8,14 +8,14 @@
  * Pour ajouter un type : l'ajouter ici UNIQUEMENT, les deux dashboards en héritent.
  *
  * Chaque entrée :
- *   icon  — emoji affiché
- *   label — texte humain court
- *   side  — "in" | "out" | "both" | "none"
+ *   icon  : emoji affiché
+ *   label : texte humain court
+ *   side  : "in" | "out" | "both" | "none"
  *             in   = rentre dans la trésorerie ville
  *             out  = sort de la trésorerie ville
  *             both = peut être les deux selon le signe (vols, etc.)
  *             none = flux joueur uniquement, n'affecte pas la trésorerie ville
- *   cityAmountInverted — optionnel, défaut true
+ *   cityAmountInverted : optionnel, défaut true
  *             true  = les GoldTransaction sont enregistrées côté JOUEUR
  *                     (il faut donc inverser le signe pour voir l'impact ville)
  *             false = le montant est déjà stocké du point de vue ville
@@ -33,7 +33,7 @@ export const TRANSACTION_TYPES = {
   // ── Fiscalité ────────────────────────────────────────────────────────────
   impot:              { icon: "💸", label: "Impôt journalier",          side: "in"   },
   peage:              { icon: "🏰", label: "Péage",                     side: "in"   },
-  frais_voyage:       { icon: "🛤️", label: "Frais de voyage",           side: "none" },
+  frais_voyage:       { icon: "🛤️", label: "Frais de voyage",           side: "in"   },
   cout_production:    { icon: "⚒️", label: "Coût production",           side: "none" },
 
   // ── Logement & ville ─────────────────────────────────────────────────────
@@ -68,6 +68,13 @@ export const TRANSACTION_TYPES = {
 
   // ── Quêtes ───────────────────────────────────────────────────────────────
   objectif:         { icon: "🎯", label: "Objectif accompli",         side: "none" },
+
+  // ── V6.1.7 : nouveaux types pour audit complet ───────────────────────────
+  recrutement:        { icon: "⚔️", label: "Recrutement d'unités",      side: "none" },
+  sceau:              { icon: "🏵️", label: "Achat sceau royal",          side: "in"   },
+  taverne_repos:      { icon: "🛌", label: "Repos à la taverne",         side: "none" },
+  vente_lingot:       { icon: "👑", label: "Vente lingot royal",         side: "out"  },
+  recompense_campagne:{ icon: "🎖️", label: "Récompense campagne",        side: "out"  },
 };
 
 /**
@@ -93,7 +100,7 @@ export function getTxLabel(type) {
   return TRANSACTION_TYPES[type] ?? { icon: "💱", label: type };
 }
 
-/** Types de vol — utilisés pour séparer le bloc "vols" dans Dashboard.jsx */
+/** Types de vol : utilisés pour séparer le bloc "vols" dans Dashboard.jsx */
 export const VOL_TYPES = new Set(["vol_recu", "vol_subi", "vol_echoue", "vol_repousse"]);
 
 // ── Helpers Dashboard maire ─────────────────────────────────────────────────

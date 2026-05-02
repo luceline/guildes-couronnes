@@ -52,7 +52,7 @@ export function isVacationExpiringSoon(profile) {
   return diff <= 2;
 }
 
-// Vérification globale — appelée depuis Home au chargement
+// Vérification globale : appelée depuis Home au chargement
 // Ne traite que si le joueur courant est admin ou si on passe runAsAdmin=true
 // Pour ne pas surcharger, on limit à 1 exécution toutes les 6h via localStorage
 export async function runInactivityCheck() {

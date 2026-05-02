@@ -1,5 +1,5 @@
 /**
- * AtelierVitrine — Permet à un joueur d'activer sa vitrine de production
+ * AtelierVitrine : Permet à un joueur d'activer sa vitrine de production
  * et de fixer ses tarifs (prix par tier).
  * Affiché dans Production.jsx pour le joueur lui-même.
  */
@@ -22,7 +22,7 @@ export default function AtelierVitrine({ profile, onRefresh }) {
       const newVitrine = { ...vitrine, active: !vitrine.active, price_t1: priceT1, price_t2plus: priceT2 };
       await base44.entities.PlayerProfile.update(profile.id, { atelier_vitrine: newVitrine });
       toast.success(newVitrine.active
-        ? "🏪 Votre atelier est ouvert — les habitants peuvent commander vos services !"
+        ? "🏪 Votre atelier est ouvert : les habitants peuvent commander vos services !"
         : "Votre atelier est fermé.");
       onRefresh?.();
     } finally { setSaving(false); }
@@ -51,7 +51,7 @@ export default function AtelierVitrine({ profile, onRefresh }) {
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground font-body">
           Ouvrez votre atelier pour que les habitants de votre ville puissent vous commander des productions.
-          Ils fournissent leurs propres ingrédients, paient le service, et reçoivent les items — sans que vous soyez connecté.
+          Ils fournissent leurs propres ingrédients, paient le service, et reçoivent les items : sans que vous soyez connecté.
           Leurs bonus de rang et buff biome s'appliquent. Vous recevez l'or directement.
         </p>
         <div className="flex items-center gap-3 flex-wrap">
@@ -61,6 +61,7 @@ export default function AtelierVitrine({ profile, onRefresh }) {
               type="number" min={0} max={50} value={priceT1}
               onChange={e => setPriceT1(Math.max(0, parseInt(e.target.value) || 0))}
               className="w-16 h-7 text-xs text-center"
+              onFocus={e => e.target.select()}
             />
             <span className="text-xs text-muted-foreground">💰/action</span>
           </div>
@@ -70,6 +71,7 @@ export default function AtelierVitrine({ profile, onRefresh }) {
               type="number" min={0} max={100} value={priceT2}
               onChange={e => setPriceT2(Math.max(0, parseInt(e.target.value) || 0))}
               className="w-16 h-7 text-xs text-center"
+              onFocus={e => e.target.select()}
             />
             <span className="text-xs text-muted-foreground">💰/action</span>
           </div>

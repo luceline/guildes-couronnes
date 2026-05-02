@@ -1,16 +1,16 @@
 import { ITEMS } from "./craftingData.js";
 
-// ── Récompenses de quêtes — montant fixe par type ──
+// ── Récompenses de quêtes : montant fixe par type ──
 export const QUEST_REWARDS = {
   deposit:    20,
   sell:        5,
-  produce:     5,
+  produce:    15,  // Artisan actif (T2/T3 craft) : récompense plus élevée car craft = effort + ressources
   travel:      5,
   profession:  5,
   contribute: 20,
 };
 
-// ── T2_DEPOSIT_ITEMS — dérivé automatique depuis ITEMS ──
+// ── T2_DEPOSIT_ITEMS : dérivé automatique depuis ITEMS ──
 export const T2_DEPOSIT_ITEMS = Object.entries(ITEMS)
   .filter(([, v]) => v.tier === 2 && v.trigger !== "attack" && v.trigger !== "sellable")
   .map(([key, v]) => ({ key, name: v.name, icon: v.icon }));
@@ -18,7 +18,7 @@ export const T2_DEPOSIT_ITEMS = Object.entries(ITEMS)
 // ── T2 principal par profession (utilisé pour les quêtes deposit/contribute) ──
 export const PROFESSION_T2 = {
   "Bûcheron":  { key: "planches",    name: "Planches",    icon: "🪵" },
-  "Mineur":    { key: "pierre_brute",name: "Pierre brute",icon: "🗿" },
+  "Mineur":    { key: "pierre_brute",name: "Pierre taillée",icon: "🗿" },
   "Fermier":   { key: "farine",      name: "Farine",      icon: "🧺" },
   "Tisserand": { key: "fil",         name: "Fil",         icon: "🧵" },
   "Forgeron":  { key: "charbon",     name: "Charbon",     icon: "⚫" },
@@ -27,14 +27,14 @@ export const PROFESSION_T2 = {
   "Marchand":  { key: "encre",       name: "Encre",       icon: "🖋️" },
 };
 
-// ── QUEST_TEMPLATES — source de vérité des quêtes ──
+// ── QUEST_TEMPLATES : source de vérité des quêtes ──
 // Pour modifier une quête : toucher uniquement ce bloc.
 // reward: voir QUEST_REWARDS en haut du fichier
 export const QUEST_TEMPLATES = {
 
   deposit: {
     title: "📦 Approvisionnement",
-    // item = T2 de la profession active du joueur — déposé dans SA ville
+    // item = T2 de la profession active du joueur : déposé dans SA ville
     description: (item) => `Approvisionnez votre ville. Déposez 2 ${item.icon} ${item.name} dans l'entrepôt de votre ville de résidence.`,
     target_item: (item) => item.key,
     target_quantity: 2,
@@ -67,20 +67,20 @@ export const QUEST_TEMPLATES = {
 
   contribute: {
     title: "🤝 Contributeur civic",
-    // item = T2 de la profession active du joueur — déposé dans une AUTRE ville (implique voyage)
+    // item = T2 de la profession active du joueur : déposé dans une AUTRE ville (implique voyage)
     description: (item) => `Exportez votre savoir-faire ! Déposez 2 ${item.icon} ${item.name} dans l'entrepôt d'une ville étrangère.`,
     target_item: (item) => item.key,
     target_quantity: 2,
     reward: "base",
   },
 
-  // ── Quête métier — titre/desc/item/qty définis dans PROFESSION_QUESTS ──
+  // ── Quête métier : titre/desc/item/qty définis dans PROFESSION_QUESTS ──
   profession: {
     reward: "big",
   },
 };
 
-// ── PROFESSION_QUESTS — quêtes spéciales par métier ──
+// ── PROFESSION_QUESTS : quêtes spéciales par métier ──
 export const PROFESSION_QUESTS = {
   Bûcheron: [
     { title: "🌲 Bûcheronnage intensif", item: "bois_brut",  qty: 8, desc: "Récoltez 8 bois brut aujourd'hui." },

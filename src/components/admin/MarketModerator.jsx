@@ -54,7 +54,7 @@ export default function MarketModerator() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="font-heading text-lg">🛒 Marché — {listings.length} annonces actives</CardTitle>
+            <CardTitle className="font-heading text-lg">🛒 Marché : {listings.length} annonces actives</CardTitle>
             <div className="flex items-center gap-2 text-sm font-body text-muted-foreground">
               Valeur totale : <span className="font-semibold text-foreground">{totalValue.toLocaleString()} 💰</span>
             </div>

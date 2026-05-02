@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PROFESSIONS, MAX_HUNGER } from "../lib/gameData";
+import { PROFESSIONS, MAX_HUNGER, COMBAT_MAX_HP } from "../lib/gameData";
 import { createNewCityWithRoutes } from "../lib/cityCreation";
 
 export default function CharacterCreation({ onComplete }) {
@@ -37,7 +37,7 @@ export default function CharacterCreation({ onComplete }) {
     return { activeCount: activePlayers.length, inactiveCount: inactivePlayers.length, canCreate: activePlayers.length < 500 };
   };
 
-  // Compte les métiers sur l'ensemble du jeu — les joueurs voyagent, la ville n'a pas de sens ici
+  // Compte les métiers sur l'ensemble du jeu : les joueurs voyagent, la ville n'a pas de sens ici
   const getProfessionCounts = () => {
     const counts = {};
     for (const p of players) {
@@ -95,6 +95,7 @@ export default function CharacterCreation({ onComplete }) {
       home_city_id:    sdfMode ? null : targetCityId,
       is_sdf:          sdfMode,
       gold:            startGold,
+      hp:              COMBAT_MAX_HP,
       inventory:       profData.startItems,
       housing_level:   "tente",
       is_traveling:    false,
@@ -203,7 +204,7 @@ export default function CharacterCreation({ onComplete }) {
             {isSdfMode ? (
               <div className="space-y-2">
                 <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-body text-amber-800">
-                  🏕️ <strong>Mode Sans-Domicile Fixe</strong> — Toutes les villes sont pleines et le cap de 10 villes est atteint. Vous arriverez en tant que visiteur et devrez attendre qu'une place se libère pour vous établir.
+                  🏕️ <strong>Mode Sans-Domicile Fixe</strong> : Toutes les villes sont pleines et le cap de 10 villes est atteint. Vous arriverez en tant que visiteur et devrez attendre qu'une place se libère pour vous établir.
                 </div>
                 <Label className="font-body text-xs text-muted-foreground">Choisissez votre ville d'arrivée :</Label>
                 <Select value={form.preferred_city_id} onValueChange={v => setForm({ ...form, preferred_city_id: v })}>
@@ -211,7 +212,7 @@ export default function CharacterCreation({ onComplete }) {
                   <SelectContent>
                     {realNonBotCities.map(city => (
                       <SelectItem key={city.id} value={city.id}>
-                        🏘️ {city.name} ({city.population || 0}/{city.max_population || 5} — pleine)
+                        🏘️ {city.name} ({city.population || 0}/{city.max_population || 5} : pleine)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -272,7 +273,7 @@ export default function CharacterCreation({ onComplete }) {
           </div>
 
           <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs font-body text-amber-800">
-            📜 <strong>Le royaume a besoin de vous :</strong> chaque artisan dépend des autres. Sans le Mineur, les forges s'éteignent. Sans le Fermier, les ventres crient famine. Les métiers <strong>absents du royaume</strong> sont les plus précieux — soyez celui qui manque !
+            📜 <strong>Le royaume a besoin de vous :</strong> chaque artisan dépend des autres. Sans le Mineur, les forges s'éteignent. Sans le Fermier, les ventres crient famine. Les métiers <strong>absents du royaume</strong> sont les plus précieux : soyez celui qui manque !
           </div>
 
           <Button className="w-full font-heading tracking-wide" size="lg" onClick={handleCreate}

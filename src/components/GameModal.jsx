@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * GameModal — Bannière animée pour les notifications importantes du jeu
+ * GameModal : Bannière animée pour les notifications importantes du jeu
  *
  * Props :
  *   show     : boolean

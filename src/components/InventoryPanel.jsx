@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -7,6 +8,7 @@ import {
   ITEM_CATEGORIES,
   EQUIPMENT_MAX_DURABILITY,
   MAX_HUNGER, getMaxHunger, getCityHungerBonus, getFestinHungerDrain, HUNGER_FOOD_ITEMS,
+  COMBAT_MAX_HP, getPlayerHP, isPlayerKO,
 } from "../lib/gameData";
 import {
   ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY,
@@ -29,7 +31,10 @@ const CONTRAT_DEFS = {
 };
 
 // Prix de revente lingot royal (fallback si pas de city)
-const LINGOT_ROYAL_PRICE_DEFAULT = 156;
+// Référence économique : un T5 contient 180 ressources T1 (5×36 T1 par cumul du schéma T5).
+// Avec une fourchette T1 de 1 à 6 or, la matière brute vaut 180-1080 or. Le prix de départ
+// à 800 or assure un bénéfice net au crafteur dans la majorité des cas.
+const LINGOT_ROYAL_PRICE_DEFAULT = 800;
 
 export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
   const cityHungerBonus = getCityHungerBonus(homeCity?.buildings || []);
@@ -137,22 +142,45 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         updates.energy_max_bonus_expires_at = expiresAt;
         updates.energy_max_bonus_value      = itemDef.value || 10;
       } else if (itemDef.effect === "biome_buff_only") {
-        // pierre, laine_brute : aucun effet hors buff biome (géré plus bas)
+        // pierre, laine_brute, bois_brut, minerai_fer : aucun effet hors buff biome
       } else if (itemDef.effect === "double_prod_bonus") {
-        const currentBonus = profile.double_prod_bonus || 0;
-        updates.double_prod_bonus = Math.min(0.80, currentBonus + (itemDef.value || 0.10));
-        updates.double_prod_bonus_expires_at = expiresAt;
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
-      } else if (itemDef.effect === "travel_and_gamble") {
-        updates.travel_discount = itemDef.value || 0.20;
-        // Le gamble or et le toast sont gérés exclusivement dans Production.jsx
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
-        // Encre : flag pour bonus T1 au prochain craft T2
-        if (itemDef.next_t2_gives_t1) {
-          updates.pending_t2_to_t1_bonus = true;
+        // REFONTE v5 : charbon devient passif, pas consommable
+        toast("⚫ Le charbon agit passivement — pas besoin de le consommer.");
+        setActivating(null);
+        return;
+      } else if (itemDef.effect === "gamble") {
+        // REFONTE v5 : Encre — gamble pur 0–80💰
+        const gambleMax = itemDef.gamble_max || 80;
+        const gambleGold = Math.floor(Math.random() * (gambleMax + 1));
+        if (gambleGold > 0) {
+          updates.gold = (profile.gold || 0) + gambleGold;
+          const flavor = gambleGold > gambleMax * 0.6 ? "📖 Votre ouvrage fait fureur !" : gambleGold > 20 ? "📖 Succès modeste..." : "📖 Un flop, hélas...";
+          toast.success(`${itemDef.icon || "🖋️"} ${flavor} +${gambleGold}💰`);
+          try {
+            await base44.entities.GoldTransaction.create({
+              player_email: profile.user_email, player_name: profile.character_name || '',
+              city_id: city?.id || '', city_name: city?.name || '',
+              amount: gambleGold, type: 'objectif',
+              description: `Gamble ${itemDef.name || itemDef.key} : +${gambleGold}💰 (max ${gambleMax})`,
+            });
+          } catch (_) {}
+        } else {
+          toast(`📖 Votre livre est resté dans les cartons... Personne n'a mordu.`);
         }
-
+      } else if (itemDef.effect === "xp_reward") {
+        // REFONTE v5 : Parchemin — récompense XP pure
+        const xpAmount = itemDef.value || 100;
+        updates.player_xp_total = (profile.player_xp_total || 0) + xpAmount;
+        toast.success(`${itemDef.icon || "📜"} +${xpAmount} XP !`);
+      } else if (itemDef.effect === "army_food" || itemDef.effect === "army_energy") {
+        // REFONTE v5 : Ragoût T4 / Potion d'endurance T4 — ressources militaires.
+        // Le joueur ne peut pas les consommer individuellement — elles passent par le maire
+        // qui les dépose en entrepôt depuis le panel Gouvernance > Approvisionnement armée.
+        toast(`🏰 ${itemDef.name || itemDef.label} — ressource militaire, à déposer en entrepôt par le maire.`);
+        setActivating(null);
+        return;
       } else if (itemDef.effect === "hunger_restore") {
+        // Blé / Farine / Pain : +X faim instant (REFONTE v5 : valeurs simplifiées)
         const maxH = getMaxHunger(profile, cityHungerBonus);
         updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
@@ -162,34 +190,26 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
           updates.fatigue = Math.max(0, (profile.fatigue ?? 20) - festinDrain);
         }
       } else if (itemDef.effect === "fatigue_restore") {
+        // Herbes / Extrait / Potion de soin : +X énergie instant (REFONTE v5)
         const maxFatigue = (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0);
         updates.fatigue = Math.min(maxFatigue, (profile.fatigue ?? 20) + (itemDef.value || 5));
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
-      } else if (itemDef.effect === "hunger_and_regen") {
-        const maxH = getMaxHunger(profile, cityHungerBonus);
-        updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));
-        updates.hunger_regen_bonus_expires_at = expiresAt;
-        updates.hunger_regen_interval_min     = itemDef.regen_interval_min || 10;
-        updates.hunger_regen_value            = itemDef.regen_value || 1;
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
-        // Festin empoisonné actif → drain énergie
-        const festinDrain = getFestinHungerDrain(city);
-        if (festinDrain > 0) {
-          updates.fatigue = Math.max(0, (profile.fatigue ?? 20) - festinDrain);
+      } else if (itemDef.effect === "hp_restore") {
+        // Cataplasme : +X PV instant (utilisable hors combat ou avant combat de biome)
+        // Ne fonctionne pas si le joueur est KO (il doit attendre la fin du KO).
+        if (isPlayerKO(profile)) {
+          toast.error("Vous êtes KO, le cataplasme ne peut pas vous soigner. Reposez-vous.");
+          setActivating(null);
+          return;
         }
-      } else if (itemDef.effect === "fatigue_and_regen") {
-        updates.fatigue = Math.min(
-          (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0),
-          (profile.fatigue ?? 20) + (itemDef.value || 10)
-        );
-        updates.energy_regen_bonus_expires_at = expiresAt;
-        updates.energy_regen_interval_min     = itemDef.regen_interval_min || 5;
-        updates.energy_regen_value            = itemDef.regen_value || 1;
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
-        // Restauration PV (potion soin/endurance)
-        if (itemDef.hp_restore) {
-          updates.hp = Math.min(10, (profile.hp ?? 10) + itemDef.hp_restore);
+        const currentHp = getPlayerHP(profile);
+        if (currentHp >= COMBAT_MAX_HP) {
+          toast.info("Vos PV sont déjà au maximum.");
+          setActivating(null);
+          return;
         }
+        updates.hp = Math.min(COMBAT_MAX_HP, currentHp + (itemDef.value || 5));
+        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
       } else if (itemDef.effect === "housing_maintenance") {
         const expires15 = new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0];
         updates.meuble_expires_at = expires15;
@@ -243,6 +263,14 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         lingots_cumul:  newLingotsCumul,
         warehouse:      newWarehouse,
       });
+
+      // V6.1.7 — Trace dans le journal d'or (vente à la mairie : sortie trésorerie)
+      await logGold(
+        profile.user_email, profile.character_name,
+        city.id, city.name,
+        LINGOT_ROYAL_PRICE, "vente_lingot",
+        `Vente lingot royal à la mairie de ${city.name}`
+      );
       toast.success(`👑 Lingot royal vendu à la mairie ! +${LINGOT_ROYAL_PRICE}💰`);
       onRefresh?.();
     } catch { toast.error("Erreur lors de la vente."); }
@@ -332,6 +360,10 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
                       {item.durability !== undefined && (() => {
                         const maxDur = EQUIPMENT_DURABILITY?.[item.item_key] ?? EQUIPMENT_MAX_DURABILITY;
                         return <div className="text-xs text-slate-500 mt-0.5">🛡️ Durabilité : {item.durability}/{maxDur}</div>;
+                      })()}
+                      {item.item_key === "bourse_protection" && (() => {
+                        const usesLeft = profile.bourse_uses_left ?? 5;
+                        return <div className="text-xs text-yellow-700 mt-0.5">👜 Charges : {usesLeft}/5 attaque{usesLeft > 1 ? "s" : ""}</div>;
                       })()}
                       {isMeuble && (
                         <div className="text-xs text-amber-700 mt-0.5">

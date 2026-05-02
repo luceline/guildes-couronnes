@@ -52,7 +52,7 @@ const T1_ITEMS = [
 
 const T2_ITEMS = [
   { key: "planches",     name: "Planches",       icon: "🏗️", tier: 2 },
-  { key: "pierre_brute", name: "Pierre brute",   icon: "🪨", tier: 2 },
+  { key: "pierre_brute", name: "Pierre taillée",   icon: "🪨", tier: 2 },
   { key: "fil",          name: "Fil",            icon: "🧵", tier: 2 },
   { key: "charbon",      name: "Charbon",        icon: "⚫", tier: 2 },
   { key: "extrait",      name: "Extrait",        icon: "💎", tier: 2 },
@@ -99,12 +99,12 @@ export default function WarehouseUnified({
     const isGold = itemKey === "or";
 
     if (isSale && !city.warehouse_rachat_enabled) {
-      toast.error("📦 Le rachat est désactivé — le maire doit l'activer via la Mairie.");
+      toast.error("📦 Le rachat est désactivé : le maire doit l'activer via la Mairie.");
       return;
     }
 
     if (isGold) {
-      if ((profile.gold || 0) < qty) { toast.error("Votre bourse est vide — il vous manque de l'or pour ce dépôt."); return; }
+      if ((profile.gold || 0) < qty) { toast.error("Votre bourse est vide : il vous manque de l'or pour ce dépôt."); return; }
     } else {
       const invItem = (profile.inventory || []).find(i => i.item_key === itemKey);
       if (!invItem || invItem.quantity < qty) { toast.error(`Vous n'avez pas assez de ${WAREHOUSE_LABELS[itemKey]}.`); return; }
@@ -119,11 +119,11 @@ export default function WarehouseUnified({
       const pricePerUnit = offer.price;
       const totalGold = qty * pricePerUnit;
       if ((city.gold_treasury || 0) < totalGold) {
-        toast.error("🏦 Les coffres de la ville sont à sec — la mairie ne peut honorer cette offre."); return;
+        toast.error("🏦 Les coffres de la ville sont à sec : la mairie ne peut honorer cette offre."); return;
       }
       const boughtToday = (city.rachat_t1_bought_today || {})[itemKey] || 0;
       if (boughtToday >= offer.qty_max) {
-        toast.error(`📦 Le quota journalier de ${itemKey} est épuisé — la ville ne rachète plus rien de ce genre aujourd'hui.`); return;
+        toast.error(`📦 Le quota journalier de ${itemKey} est épuisé : la ville ne rachète plus rien de ce genre aujourd'hui.`); return;
       }
       const actualQty = Math.min(qty, offer.qty_max - boughtToday);
       const actualGold = actualQty * pricePerUnit;
@@ -208,8 +208,8 @@ export default function WarehouseUnified({
         ]);
         await logWarehouse(profile, city, "deposit", itemKey, WAREHOUSE_LABELS[itemKey] || itemKey, isGold ? 0 : qty, "player");
         toast.success(isGold
-          ? `💰 ${qty} or versé à la trésorerie de la ville — la ville vous remercie !`
-          : `📦 ${qty}× ${WAREHOUSE_LABELS[itemKey]} versé(e)s à l'entrepôt communautaire — la ville vous remercie !`
+          ? `💰 ${qty} or versé à la trésorerie de la ville : la ville vous remercie !`
+          : `📦 ${qty}× ${WAREHOUSE_LABELS[itemKey]} versé(e)s à l'entrepôt communautaire : la ville vous remercie !`
         );
 
         if (isHomeCity) for (const obj of depositObjectives) {
@@ -244,7 +244,7 @@ export default function WarehouseUnified({
   const handleDepositT2T3 = async (itemKey, qty, isSale = false) => {
     const invItem = (profile.inventory || []).find(i => i.item_key === itemKey);
     if (!invItem || invItem.quantity < qty) {
-      toast.error(`Votre besace est insuffisante en ${itemKey} — récoltez davantage avant de revenir.`); return;
+      toast.error(`Votre besace est insuffisante en ${itemKey} : récoltez davantage avant de revenir.`); return;
     }
 
     const offers = city.rachat_t2t3_offers || {};
@@ -256,12 +256,12 @@ export default function WarehouseUnified({
       const pricePerUnit = offer.price;
       const totalGold = qty * pricePerUnit;
       if ((city.gold_treasury || 0) < totalGold) {
-        toast.error("🏦 Les coffres de la ville sont à sec — la mairie ne peut honorer cette offre."); return;
+        toast.error("🏦 Les coffres de la ville sont à sec : la mairie ne peut honorer cette offre."); return;
       }
       const boughtToday = city.rachat_t2t3_bought_today || {};
       const alreadyBought = boughtToday[itemKey] || 0;
       if (alreadyBought >= offer.qty_max) {
-        toast.error(`📦 Le quota journalier de ${itemKey} est épuisé — la ville ne rachète plus rien de ce genre aujourd'hui.`); return;
+        toast.error(`📦 Le quota journalier de ${itemKey} est épuisé : la ville ne rachète plus rien de ce genre aujourd'hui.`); return;
       }
       const actualQty = Math.min(qty, offer.qty_max - alreadyBought);
       const actualGold = actualQty * pricePerUnit;
@@ -336,7 +336,7 @@ export default function WarehouseUnified({
             cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + qty,
           }),
         ]);
-        toast.success(`📦 ${qty}× ${itemKey} versé(e)s à l'entrepôt — les bâtiments de la ville vous en seront reconnaissants !`);
+        toast.success(`📦 ${qty}× ${itemKey} versé(e)s à l'entrepôt : les bâtiments de la ville vous en seront reconnaissants !`);
         await logWarehouse(profile, city, "deposit", itemKey, GAME_ITEMS[itemKey]?.name || itemKey, qty, "player");
 
         if (isHomeCity) for (const obj of depositObjectives) {
@@ -424,7 +424,7 @@ export default function WarehouseUnified({
                     </div>
                     {hasOffer && remaining > 0 && city.warehouse_rachat_enabled && (
                       <div className="text-xs font-body text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce — quota restant : <strong>{remaining}</strong>. Apportez-en !
+                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce : quota restant : <strong>{remaining}</strong>. Apportez-en !
                       </div>
                     )}
                   </div>
@@ -452,6 +452,7 @@ export default function WarehouseUnified({
                          onChange={e => setAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(playerStock, Number(e.target.value))) }))}
                          className="w-14 h-7 text-xs text-center text-foreground"
                          disabled={contributing}
+                         onFocus={e => e.target.select()}
                        />
                       <Button
                         size="sm"
@@ -467,7 +468,7 @@ export default function WarehouseUnified({
                   {hasOffer && remaining > 0 && city.warehouse_rachat_enabled && (
                     <div className="flex flex-col gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 sm:flex-row sm:items-center">
                       <span className="text-xs font-body text-green-800 flex-1">
-                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce — quota restant aujourd'hui : <strong>{remaining}</strong>
+                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce : quota restant aujourd'hui : <strong>{remaining}</strong>
                       </span>
                       <div className="flex items-center gap-1.5 self-end sm:self-auto">
                         <Input
@@ -478,6 +479,7 @@ export default function WarehouseUnified({
                            onChange={e => setAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(playerStock, remaining, Number(e.target.value))) }))}
                            className="w-14 h-7 text-xs text-center text-foreground border-green-300"
                            disabled={contributing}
+                           onFocus={e => e.target.select()}
                          />
                         <Button
                           size="sm"
@@ -493,7 +495,7 @@ export default function WarehouseUnified({
                   )}
                   {hasOffer && remaining === 0 && (
                     <div className="text-xs font-body text-muted-foreground bg-muted/30 rounded-lg px-3 py-1.5">
-                      🏪 La ville rachète ce produit — quota journalier atteint, revenez demain.
+                      🏪 La ville rachète ce produit : quota journalier atteint, revenez demain.
                     </div>
                   )}
                 </div>
@@ -522,7 +524,7 @@ export default function WarehouseUnified({
                     </div>
                     {hasOffer && remaining > 0 && city.warehouse_rachat_enabled && (
                       <div className="text-xs font-body text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce — quota restant : <strong>{remaining}</strong>. Apportez-en !
+                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce : quota restant : <strong>{remaining}</strong>. Apportez-en !
                       </div>
                     )}
                   </div>
@@ -549,6 +551,7 @@ export default function WarehouseUnified({
                          onChange={e => setAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(playerQty, Number(e.target.value))) }))}
                          className="w-14 h-7 text-xs text-center text-foreground"
                          disabled={contributing}
+                         onFocus={e => e.target.select()}
                        />
                       <Button
                         size="sm"
@@ -564,7 +567,7 @@ export default function WarehouseUnified({
                   {hasOffer && remaining > 0 && city.warehouse_rachat_enabled && (
                     <div className="flex flex-col gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 sm:flex-row sm:items-center">
                       <span className="text-xs font-body text-green-800 flex-1">
-                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce — quota restant aujourd'hui : <strong>{remaining}</strong>
+                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce : quota restant aujourd'hui : <strong>{remaining}</strong>
                       </span>
                       <div className="flex items-center gap-1.5 self-end sm:self-auto">
                         <Input
@@ -575,6 +578,7 @@ export default function WarehouseUnified({
                            onChange={e => setAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(playerQty, remaining, Number(e.target.value))) }))}
                            className="w-14 h-7 text-xs text-center text-foreground border-green-300"
                            disabled={contributing}
+                           onFocus={e => e.target.select()}
                          />
                         <Button
                           size="sm"
@@ -590,7 +594,7 @@ export default function WarehouseUnified({
                   )}
                   {hasOffer && remaining === 0 && (
                     <div className="text-xs font-body text-muted-foreground bg-muted/30 rounded-lg px-3 py-1.5">
-                      🏪 La ville rachète ce produit — quota journalier atteint, revenez demain.
+                      🏪 La ville rachète ce produit : quota journalier atteint, revenez demain.
                     </div>
                   )}
                 </div>

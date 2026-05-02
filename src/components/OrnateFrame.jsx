@@ -1,5 +1,5 @@
 /**
- * OrnateFrame — Cadre orné avec coins décoratifs dorés (fleur de lys / volutes).
+ * OrnateFrame : Cadre orné avec coins décoratifs dorés (fleur de lys / volutes).
  *
  * Wrappe n'importe quel contenu dans un cadre médiéval avec 4 coins ornés
  * en SVG. Léger, pas de dépendance à une image.
@@ -86,7 +86,7 @@ export default function OrnateFrame({ children, variant = "default", className =
 }
 
 /**
- * SectionDivider — Séparateur orné horizontal type filigrane.
+ * SectionDivider : Séparateur orné horizontal type filigrane.
  * À utiliser entre des grosses sections d'une page.
  */
 export function SectionDivider({ icon = "⚜️" }) {
@@ -105,7 +105,7 @@ export function SectionDivider({ icon = "⚜️" }) {
 }
 
 /**
- * SectionHeader — Titre de section avec ornements décoratifs gauche/droite.
+ * SectionHeader : Titre de section avec ornements décoratifs gauche/droite.
  */
 export function SectionHeader({ children, icon = null, level = 2 }) {
   const Tag = `h${level}`;
@@ -124,7 +124,7 @@ export function SectionHeader({ children, icon = null, level = 2 }) {
 }
 
 /**
- * RoyalSeal — Élément circulaire type sceau de cire à utiliser
+ * RoyalSeal : Élément circulaire type sceau de cire à utiliser
  * pour des boutons importants ou des badges spéciaux.
  */
 export function RoyalSeal({ children, color = "gold", size = 40 }) {

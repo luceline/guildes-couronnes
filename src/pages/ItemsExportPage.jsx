@@ -132,7 +132,7 @@ export default function ItemsExportPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-heading font-bold">📊 Export des objets</h1>
-          <p className="text-muted-foreground mt-1">{rows.length} objets — ouvrir dans Excel avec l'option "UTF-8"</p>
+          <p className="text-muted-foreground mt-1">{rows.length} objets : ouvrir dans Excel avec l'option "UTF-8"</p>
         </div>
         <Button onClick={downloadCsv} className="text-base px-6">
           ⬇️ Télécharger CSV (Excel)

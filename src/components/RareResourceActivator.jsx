@@ -51,7 +51,7 @@ export default function RareResourceActivator({ profile, onProfileUpdate }) {
       // Notifier l'utilisateur
       const resource = RARE_RESOURCES[resourceKey];
       if (newLevel > oldLevel) {
-        toast.success(`🎉 ${resource.name} activée! +100 XP — Niveau ${newLevel}!`, {
+        toast.success(`🎉 ${resource.name} activée! +100 XP : Niveau ${newLevel}!`, {
           duration: 4000,
         });
       } else {

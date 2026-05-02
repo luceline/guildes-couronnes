@@ -18,13 +18,16 @@ import { Button } from "@/components/ui/button";
 import ChallengeDefenseForm from "@/components/ChallengeDefenseForm";
 import ChallengeForm from "@/components/ChallengeForm";
 import CombatEquipmentPanel from "@/components/CombatEquipmentPanel";
+import { CombatReplayButton, useCombatReplay } from "@/components/CombatReplay";
 import { resolveCombat } from "@/lib/combatPvP";
+import { claimBountiesIfApplicable } from "@/lib/bountyResolver";
 import {
   COMBAT_PARRY_TIMER_HOURS,
   COMBAT_KO_DURATION_HOURS,
   COMBAT_STEAL_MAX_GOLD,
   COMBAT_MAX_HP,
   COMBAT_SLOT_INFO,
+  EQUIPMENT_MAX_DURABILITY,
   isPlayerKO,
   getPlayerHP,
 } from "@/lib/gameData";
@@ -83,6 +86,8 @@ async function autoResolveTimeoutChallenge(challenge) {
 
   ops.push(base44.entities.CombatChallenge.update(challenge.id, {
     defense_zone: "",
+    shield_zone: "",       // V2 : pas de défense → pas de bouclier placé
+    shield_used: false,    // V2
     status: "resolved",
     result: resolution.result,
     attack_score: resolution.attack_score,
@@ -92,6 +97,8 @@ async function autoResolveTimeoutChallenge(challenge) {
     attacker_break_item: resolution.attacker_break_item || "",
     defender_break_item: resolution.defender_break_item || "",
     bourse_broke: !!resolution.bourse_broke,
+    tie_breaker_used: !!resolution.tie_breaker_used,
+    tie_breaker_details: resolution.tie_breaker_details || null,
     riposte_window_until: ripostWindow,
     resolved_at: new Date().toISOString(),
   }));
@@ -139,6 +146,21 @@ async function autoResolveTimeoutChallenge(challenge) {
   } catch (e) { /* silent */ }
 
   await Promise.all(ops);
+
+  // ── REFONTE v5 : claim des bounties si l'attaquant a gagné par timeout ──
+  if (resolution.result === "attacker_won") {
+    try {
+      await claimBountiesIfApplicable(base44, {
+        attacker,
+        defender,
+        combatResult: resolution.result,
+        cityId: challenge.city_id || "",
+        cityName: challenge.city_name || "",
+      });
+    } catch (e) {
+      console.error("Bounty claim error (timeout):", e);
+    }
+  }
 }
 
 function ZoneBadge({ zone }) {
@@ -228,7 +250,10 @@ function ChallengeCard({ challenge, currentEmail, onDefend, onRiposte }) {
             {myRole && <Badge variant="secondary" className="text-xs">{myRole}</Badge>}
           </div>
           {challenge.status === "resolved" && (
-            <ResultBadge result={challenge.result} perspective={perspective} />
+            <div className="flex items-center gap-2">
+              <ResultBadge result={challenge.result} perspective={perspective} />
+              <CombatReplayButton challenge={challenge} perspective={perspective} />
+            </div>
           )}
           {challenge.status === "pending_defense" && (
             <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 font-heading">
@@ -271,6 +296,11 @@ function ChallengeCard({ challenge, currentEmail, onDefend, onRiposte }) {
                 <span>Atk: <strong>{challenge.attack_score}</strong></span>
                 <span>Def: <strong>{challenge.defense_score}</strong></span>
               </>
+            )}
+            {challenge.tie_breaker_used && challenge.tie_breaker_details && (
+              <span className="text-purple-700">
+                ⚖️ Égalité résolue par la durabilité (épée {challenge.tie_breaker_details.attacker_weapon_durability} vs armure {challenge.tie_breaker_details.defender_armor_durability})
+              </span>
             )}
             {challenge.damage_dealt > 0 && (
               <span className="text-red-600">💔 -{challenge.damage_dealt} PV</span>
@@ -414,18 +444,67 @@ export default function Combat({ profile, onRefresh }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // V6 — Replay animé : déclenché automatiquement pour les défis nouvellement
+  // résolus (une seule fois par défi, mémorisé en localStorage).
+  // Hook placé AVANT le early return pour respecter les rules of hooks.
+  const replay = useCombatReplay(profile?.user_email, challenges);
+
   if (!profile) return null;
 
   const pendingDefense = challenges.filter(c => c.status === "pending_defense" && c.defender_email === profile.user_email);
   const pendingAttack = challenges.filter(c => c.status === "pending_defense" && c.attacker_email === profile.user_email);
   const myActive = [...pendingDefense, ...pendingAttack];
-  const myHistory = challenges.filter(c => c.status === "resolved" || c.status === "expired");
+  const myHistory = challenges
+    .filter(c => c.status === "resolved" || c.status === "expired")
+    .sort((a, b) => {
+      // V6.1.5 — Plus récent en premier (resolved_at, fallback updated puis created)
+      const dateA = a.resolved_at || a.updated || a.created || "";
+      const dateB = b.resolved_at || b.updated || b.created || "";
+      return dateB.localeCompare(dateA);
+    });
 
   const hp = getPlayerHP(profile);
   const ko = isPlayerKO(profile);
 
+  // ── Blocage si épopée biome en cours ──
+  // Quand le joueur a un combat de biome démarré aujourd'hui qui n'est pas terminé,
+  // l'onglet PvP est bloqué pour éviter qu'un attaquant lui fasse perdre des PV
+  // pendant qu'il enchaîne ses vagues (PV partagés biome ↔ PvP).
+  const today = new Date().toISOString().split("T")[0];
+  const epicInProgress = profile?.combat_last_date === today
+                       && profile?.combat_active_biome
+                       && (profile?.combat_wave_index ?? 0) < 5;
+  if (epicInProgress) {
+    const lockedBiomeName = {
+      foret: "Forêt ancestrale", champs: "Champs dorés", mine: "Mines profondes",
+      atelier: "Atelier", forge: "Forge", guilde: "Guilde",
+    }[profile.combat_active_biome] || profile.combat_active_biome;
+    return (
+      <div className="space-y-3 max-w-3xl mx-auto p-3">
+        <Card className="border-purple-300 bg-purple-50/40">
+          <CardContent className="p-6 text-center space-y-3">
+            <h2 className="text-xl font-heading">⚔️ Combat zoné PvP verrouillé</h2>
+            <p className="text-sm font-body text-purple-900">
+              Vous avez une <strong>épopée en cours</strong> dans le biome{" "}
+              <strong>{lockedBiomeName}</strong> (vague {(profile.combat_wave_index ?? 0) + 1}/5).
+            </p>
+            <p className="text-xs font-body text-purple-800">
+              Le PvP est bloqué tant que votre épopée n'est pas terminée pour éviter
+              que vous perdiez des PV pendant votre combat de biome.
+            </p>
+            <p className="text-xs font-body text-muted-foreground italic">
+              Retournez dans le biome pour continuer ou abandonner votre épopée.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3 max-w-3xl mx-auto p-3">
+      {/* V6 — Modal de replay animé du dernier combat résolu */}
+      {replay.modal}
       {/* En-tête : statut combat du joueur */}
       <Card className={ko ? "border-red-300 bg-red-50/30" : "border-amber-300 bg-amber-50/30"}>
         <CardHeader className="pb-2">
@@ -541,14 +620,50 @@ export default function Combat({ profile, onRefresh }) {
         <CardHeader className="pb-2">
           <CardTitle className="font-heading text-sm">📜 Règles du combat zoné</CardTitle>
         </CardHeader>
-        <CardContent className="text-xs font-body text-muted-foreground space-y-1.5">
-          <p>• L'attaquant choisit une zone (tête, torse, bras, jambes) et l'arme à utiliser.</p>
-          <p>• Le défenseur a {COMBAT_PARRY_TIMER_HOURS}h pour choisir sa zone de défense.</p>
-          <p>• Si les deux zones coïncident, le coup est paré (zéro dégât) et le défenseur peut riposter pendant {COMBAT_PARRY_TIMER_HOURS}h.</p>
-          <p>• Sinon, on compare le score d'attaque et le score de défense sur la zone visée. Le plus fort l'emporte.</p>
-          <p>• Coup porté = -1 PV + or volé selon l'arme (capé à {COMBAT_STEAL_MAX_GOLD}💰). À 0 PV, le joueur est blessé {COMBAT_KO_DURATION_HOURS}h.</p>
-          <p>• Les armes et armures peuvent se briser à chaque coup porté (5% au grade 0, 1% au grade 5).</p>
-          <p>• Une seule attaque par jour vers une même cible (mais plusieurs attaquants peuvent se relayer).</p>
+        <CardContent className="text-xs font-body text-muted-foreground space-y-3">
+
+          {/* ── Le duel ── */}
+          <div>
+            <p className="font-heading font-semibold text-foreground mb-1">⚔️ Le duel</p>
+            <p>• L'attaquant choisit une zone (tête, torse, bras, jambes) à frapper.</p>
+            <p>• Le défenseur a {COMBAT_PARRY_TIMER_HOURS}h pour deviner la zone et choisir sa défense.</p>
+            <p>• Si les deux zones coïncident → coup paré (zéro dégât). Le défenseur peut riposter pendant {COMBAT_PARRY_TIMER_HOURS}h.</p>
+            <p>• Sinon → on compare le score d'attaque et le score de défense sur la zone visée. Le plus fort l'emporte.</p>
+            <p>• <strong>Égalité parfaite</strong> (ex : épée G5 vs armure G5) → on compare la <strong>durabilité</strong> de l'épée et de l'armure. Plus de dura = victoire. Si dura identique, le défenseur l'emporte.</p>
+            <p>• Une seule attaque par jour vers une même cible (mais plusieurs attaquants peuvent se relayer).</p>
+            <p>• Si le défenseur ne répond pas dans les {COMBAT_PARRY_TIMER_HOURS}h, le combat se résout sans parade possible.</p>
+          </div>
+
+          {/* ── Conséquences du coup porté ── */}
+          <div>
+            <p className="font-heading font-semibold text-foreground mb-1">💥 Conséquences d'un coup porté</p>
+            <p>• −1 PV au défenseur. À 0 PV, il est blessé {COMBAT_KO_DURATION_HOURS}h (ne peut ni attaquer ni être attaqué).</p>
+            <p>• Or volé selon le grade de l'épée : <strong>10% au G0 → 25% au G5</strong> (+3% par grade), capé à {COMBAT_STEAL_MAX_GOLD}💰 par coup.</p>
+            <p>• La <strong>bourse de protection</strong> plafonne le vol subi à 10💰 et encaisse exactement 5 attaques avant de se briser (compteur déterministe).</p>
+            <p>• Les PV se régénèrent uniquement via le cataplasme (+5 PV).</p>
+          </div>
+
+          {/* ── Durabilité & réparation ── */}
+          <div>
+            <p className="font-heading font-semibold text-foreground mb-1">🛡️ Durabilité & réparation</p>
+            <p>• Chaque arme et armure équipée dispose de <strong>{EQUIPMENT_MAX_DURABILITY} points de durabilité</strong>.</p>
+            <p>• <strong>Attaquant</strong> : votre épée perd <strong>−1 dura</strong> à chaque attaque PvP (peu importe le résultat).</p>
+            <p>• <strong>Défenseur</strong> : si vous prenez un coup, l'objet qui défendait la zone touchée perd <strong>−1 dura</strong>. Le bouclier prime s'il était placé sur la zone visée.</p>
+            <p>• Si vous parez parfaitement (zone identique à l'attaque) ou si vous absorbez sans dégâts, aucune usure.</p>
+            <p>• À 0 dura, l'item reste équipé mais ne procure plus son bonus tant qu'il n'est pas réparé.</p>
+            <p>• <strong>Réparation</strong> : 1 🧱 Pierre = +1 dura sur l'arme · 1 🧶 Laine brute = +1 dura sur une armure (panel dédié dans l'inventaire).</p>
+          </div>
+
+          {/* ── Amélioration des grades ── */}
+          <div>
+            <p className="font-heading font-semibold text-foreground mb-1">⚒️ Amélioration des grades (G0 → G5)</p>
+            <p>• L'upgrade se fait <strong>en libre-service depuis l'onglet Combat</strong> (plus d'artisan intermédiaire).</p>
+            <p>• Coût en 3 ressources T1 par palier : 🪵 Bois brut, 🪨 Minerai de fer, 🔮 Quartz brut.</p>
+            <p>• Une armure coûte 96 bois + 96 fer + 30 quartz cumulés pour G0→G5. L'épée coûte 4× plus.</p>
+            <p>• Cooldown par item : 1min (G0→G1), 2min, 4min, 8min, 16min (G4→G5). Parallélisable entre items différents.</p>
+            <p>• Chaque grade donne +1 d'effet (G0=+1, G5=+6) et augmente le pourcentage de vol pour l'épée.</p>
+          </div>
+
         </CardContent>
       </Card>
 

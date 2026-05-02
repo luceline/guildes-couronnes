@@ -71,7 +71,7 @@ export default function DailyResetManager() {
             resets.map(r => (
               <div key={r.id} className="flex items-center justify-between text-sm font-body border-b pb-1 last:border-0">
                 <span>{r.reset_date}</span>
-                <span className="text-xs text-muted-foreground">{r.triggered_by || "—"}</span>
+                <span className="text-xs text-muted-foreground">{r.triggered_by || "-"}</span>
                 <Badge className={statusColor(r.status)}>{r.status}</Badge>
               </div>
             ))

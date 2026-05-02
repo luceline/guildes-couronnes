@@ -118,7 +118,7 @@ export default function InflationMonitor() {
               </div>
               <div className="text-xs font-body text-muted-foreground mt-2">Snapshot d'hier</div>
               <div className="text-xs font-body text-muted-foreground mt-1">
-                Mis à jour: {economySettings?.last_updated || "—"}
+                Mis à jour: {economySettings?.last_updated || "-"}
               </div>
             </div>
           </CardContent>

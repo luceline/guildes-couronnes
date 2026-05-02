@@ -60,7 +60,7 @@ T5 (Items JCJ + Lingots royaux)
 - Quartz brut (ferme_quartz)
 
 **T2 Crée:**
-- Pierre brute (de minerai)
+- Pierre taillée (de minerai)
 
 **T3 Crée:**
 - Lingots de fer (pierre_brute + **tissu Tisserand** + **ragoût Fermier**)
@@ -250,7 +250,7 @@ T5 (Items JCJ + Lingots royaux)
   - 💰 Vendable: 120💰 orfèvre + 80💰 résidents
 
 **Dépendances Entrantes:**
-- Pierre brute (Mineur T2)
+- Pierre taillée (Mineur T2)
 - Herbes (Alchimiste T1)
 - Fil (Tisserand T2)
 - Encre (Marchand T2)
