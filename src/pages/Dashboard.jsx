@@ -8,6 +8,7 @@ import { computeFatigueWithDailyReset } from "../lib/craftingData";
 import LoginStreakWidget from "../components/LoginStreakWidget";
 import AldebertGreeting from "../components/AldebertGreeting";
 import { getTxLabel } from "../lib/transactionTypes";
+import { getBiomeName } from "../lib/biomes";
 
 
 
@@ -124,13 +125,12 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
         // est arrivée au plafond.
         const HARVEST_RATE_MS_DASH = 7200000;       // 2h
         const HARVEST_MAX_DASH = 4;                 // plafond
-        const HARVEST_BIOME_NAMES = { foret: "Forêt", champs: "Champs", mine: "Mine", atelier: "Atelier", forge: "Forge", guilde: "Guilde" };
         let harvestActive = false;
         let harvestCount = 0;
         let harvestBiomeName = null;
         if (liveProfile.harvest_started_at && liveProfile.harvest_biome_key) {
           harvestActive = true;
-          harvestBiomeName = HARVEST_BIOME_NAMES[liveProfile.harvest_biome_key] || liveProfile.harvest_biome_key;
+          harvestBiomeName = getBiomeName(liveProfile.harvest_biome_key, true); // true = nom court
           const elapsed = Date.now() - new Date(liveProfile.harvest_started_at).getTime();
           const hoursRaw = Math.max(0, Math.floor(elapsed / HARVEST_RATE_MS_DASH));
           harvestCount = Math.min(hoursRaw, HARVEST_MAX_DASH);

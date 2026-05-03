@@ -35,15 +35,9 @@ import {
 } from "@/lib/gameData";
 import { ITEMS } from "@/lib/craftingData";
 import { MAX_WAVES_PER_DAY, getPlayerMaxHP } from "@/lib/combatPvE";
+import { BIOMES } from "@/lib/biomes";
 
-const BIOME_NAMES = {
-  foret:   { name: "Forêt ancestrale", icon: "🌲" },
-  champs:  { name: "Champs dorés",     icon: "🌾" },
-  mine:    { name: "Mines profondes",  icon: "⛏️" },
-  atelier: { name: "Atelier",          icon: "🧵" },
-  forge:   { name: "Forge",            icon: "🔥" },
-  guilde:  { name: "Guilde",           icon: "🏛️" },
-};
+// BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
 const BIOME_RARES = {
   foret:   { key: "essence_foret",     name: "Essence forestière",     icon: "🌿" },
@@ -84,7 +78,7 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
     setLocalProfile(profile);
   }, [profile?.id, profile?.hp, profile?.inventory]);
 
-  const biomeInfo = BIOME_NAMES[biomeKey] || { name: biomeKey, icon: "🗺️" };
+  const biomeInfo = BIOMES[biomeKey] || { name: biomeKey, icon: "🗺️" };
   const biomeRare = BIOME_RARES[biomeKey];
 
   // Conditions de blocage
@@ -107,7 +101,7 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       return;
     }
     if (isLockedAnotherBiome) {
-      toast.error(`Combat verrouillé : votre épopée du jour est en ${BIOME_NAMES[profile.combat_active_biome]?.name || profile.combat_active_biome}.`);
+      toast.error(`Combat verrouillé : votre épopée du jour est en ${BIOMES[profile.combat_active_biome]?.name || profile.combat_active_biome}.`);
       return;
     }
     setBusy(true);
@@ -369,14 +363,14 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
           {isLockedAnotherBiome && (
             <div className="bg-orange-50 border border-orange-300 rounded-lg p-3 text-sm font-body text-orange-900">
               ⚠️ Vous avez démarré votre épopée du jour en{" "}
-              <strong>{BIOME_NAMES[profile.combat_active_biome]?.name || profile.combat_active_biome}</strong>.
+              <strong>{BIOMES[profile.combat_active_biome]?.name || profile.combat_active_biome}</strong>.
               Retournez-y pour la continuer.
             </div>
           )}
 
           {isCombatDoneToday && (
             <div className="bg-stone-100 border border-stone-300 rounded-lg p-3 text-sm font-body text-stone-700">
-              ✅ Vous avez terminé votre combat du jour en {BIOME_NAMES[profile.combat_active_biome]?.name}.
+              ✅ Vous avez terminé votre combat du jour en {BIOMES[profile.combat_active_biome]?.name}.
               Revenez demain.
             </div>
           )}

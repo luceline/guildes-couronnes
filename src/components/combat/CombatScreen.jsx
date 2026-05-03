@@ -43,6 +43,7 @@ import {
 } from "@/lib/combatPvE";
 import { COMBAT_MAX_HP, getPlayerHP, isPlayerKO } from "@/lib/gameData";
 import { ITEMS } from "@/lib/craftingData";
+import { BIOMES } from "@/lib/biomes";
 import "./CombatScreen.css";
 
 const ZONE_META = {
@@ -52,14 +53,7 @@ const ZONE_META = {
   legs:  { label: "Jambes", icon: "🦵" },
 };
 
-const BIOME_NAMES = {
-  foret:   { name: "Forêt ancestrale", icon: "🌲" },
-  champs:  { name: "Champs dorés",     icon: "🌾" },
-  mine:    { name: "Mines profondes",  icon: "⛏️" },
-  atelier: { name: "Atelier",          icon: "🧵" },
-  forge:   { name: "Forge",            icon: "🔥" },
-  guilde:  { name: "Guilde",           icon: "🏛️" },
-};
+// BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -405,7 +399,7 @@ export default function CombatScreen({
     );
   }
 
-  const biomeInfo = BIOME_NAMES[biomeKey] || { name: biomeKey, icon: "🗺️" };
+  const biomeInfo = BIOMES[biomeKey] || { name: biomeKey, icon: "🗺️" };
   const playerMaxHP = getPlayerMaxHP(profile, biomeKey);
   const counterDmg = profile?.equipment?.weapon
     ? getCombatItemValue(profile.equipment.weapon.grade)
