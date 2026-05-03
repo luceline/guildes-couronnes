@@ -218,8 +218,10 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   };
 
   if (victory) {
-    const currentMastery = profile.biome_mastery || {};
-    profileUpdates.biome_mastery = { ...currentMastery, [biomeKey]: (currentMastery[biomeKey] || 0) + 1 };
+    // NOTE : biome_mastery N'EST PLUS incrémenté ici. La maîtrise des biomes
+    // (et le classement Chasseurs) reflète UNIQUEMENT les kills en épopée
+    // (CombatEpic). Le BiomeHub continue à lire biome_mastery pour ses paliers
+    // de bonus drop, mais c'est une lecture seule.
     if (hasMetierBonus && !isBiomeBuffActive(profile)) {
       profileUpdates.biome_cooldown_bonus_value = 0.10;
       activateBiomeBuff(profileUpdates, { value: 0.10 });
