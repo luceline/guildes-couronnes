@@ -593,22 +593,40 @@ export function getBestPassiveCooldownSource(profile) {
   return null;
 }
 
+// Helper : lit le `value` d'un effet passif d'item depuis ITEMS_DEF.
+// Source unique de vérité = craftingData.ITEMS. Évite la duplication des
+// constantes dans le code et garantit la cohérence avec la description
+// affichée au joueur (`use`).
+function _passiveEffectValueFromItem(itemKey, expectedEffect) {
+  const def = ITEMS_DEF[itemKey];
+  if (!def || def.trigger !== "passive" || def.effect !== expectedEffect) return 0;
+  return def.value || 0;
+}
+
 export function getPassiveEnergyMaxBonus(profile) {
   const inv = profile.inventory || [];
-  // pierre_brute T2 : +2, lingots_fer T3 : +5 (meilleur actif)
   let best = 0;
-  if (inv.some(i => i.item_key === "lingots_fer" && (i.quantity || 0) > 0)) best = Math.max(best, 5);
-  if (inv.some(i => i.item_key === "pierre_brute" && (i.quantity || 0) > 0)) best = Math.max(best, 2);
+  // Lit dynamiquement les valeurs depuis ITEMS_DEF (craftingData.js).
+  // Si on rebalance pierre_brute ou lingots_fer, ce code n'a pas besoin d'être touché.
+  for (const itemKey of ["lingots_fer", "pierre_brute"]) {
+    if (inv.some(i => i.item_key === itemKey && (i.quantity || 0) > 0)) {
+      best = Math.max(best, _passiveEffectValueFromItem(itemKey, "energy_max_bonus"));
+    }
+  }
   // Comparer avec bonus temporaire
   return Math.max(best, getTemporaryEnergyMaxBonus(profile));
 }
 
 export function getPassiveInventoryBonus(profile) {
   const inv = profile.inventory || [];
-  // tissu T3 : +60, fil T2 : +40 (meilleur actif)
   let best = 0;
-  if (inv.some(i => i.item_key === "tissu" && (i.quantity || 0) > 0)) best = Math.max(best, 60);
-  if (inv.some(i => i.item_key === "fil" && (i.quantity || 0) > 0)) best = Math.max(best, 40);
+  // Lit dynamiquement les valeurs depuis ITEMS_DEF (craftingData.js).
+  // Si on rebalance fil ou tissu, ce code n'a pas besoin d'être touché.
+  for (const itemKey of ["tissu", "fil"]) {
+    if (inv.some(i => i.item_key === itemKey && (i.quantity || 0) > 0)) {
+      best = Math.max(best, _passiveEffectValueFromItem(itemKey, "inventory_bonus"));
+    }
+  }
   // Comparer avec bonus temporaire
   return Math.max(best, getTemporaryInventoryBonus(profile));
 }
