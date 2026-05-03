@@ -73,7 +73,12 @@ export default function TavernLotteryPanel({ profile, city, onRefresh }) {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState([]);
 
-  const drawDate = getNextMondayDraw();
+  // Date du tirage : on lit cycle_end du record (source de vérité côté serveur).
+  // Fallback sur le prochain lundi 06:00 UTC si le cycle n'est pas encore chargé
+  // (évite un compte à rebours incohérent à l'initialisation).
+  const drawDate = currentLottery?.cycle_end
+    ? new Date(currentLottery.cycle_end)
+    : getNextMondayDraw();
   const frozen = isFrozen(drawDate);
 
   // ─── Chargement des données ───
