@@ -8,6 +8,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { logGold } from "@/lib/goldLog";
 import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
+import { isBiomeBuffActive, getBiomeDoubleProdChance } from "@/lib/playerBuffs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -32,9 +33,7 @@ function getCooldownLeft(recipeId, clientProfile) {
   // Réduction cooldown du client (niveau + buff biome + palier ville)
   const levelBonuses = getPlayerLevelBonuses(clientProfile?.player_level || 1);
   const levelCd = (levelBonuses.cooldownBonus || 0) / 100;
-  const biomeCd = (clientProfile?.biome_cooldown_bonus_expires_at &&
-    new Date(clientProfile.biome_cooldown_bonus_expires_at) > new Date())
-    ? 0.10 : 0;
+  const biomeCd = isBiomeBuffActive(clientProfile) ? 0.10 : 0;
   const totalReduction = Math.min(0.9, levelCd + biomeCd);
 
   // Cooldown de base (on utilise 80s par défaut pour T1, recette pour craft)
@@ -164,14 +163,10 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
 
       // Bonus biome client
       let biomeBonusQty = 0;
-      const biomeBuffActive = freshClient.biome_cooldown_bonus_expires_at &&
-        new Date(freshClient.biome_cooldown_bonus_expires_at) > new Date();
-      if (biomeBuffActive) {
-        const biomeChance = freshClient.biome_double_prod_bonus ?? 0.10;
-        if (Math.random() < biomeChance) {
-          biomeBonusQty = baseQty;
-          toast.success("🌿 Buff biome ! Double production !");
-        }
+      const biomeChance = getBiomeDoubleProdChance(freshClient);
+      if (biomeChance > 0 && Math.random() < biomeChance) {
+        biomeBonusQty = baseQty;
+        toast.success("🌿 Buff biome ! Double production !");
       }
 
       // Bonus double production par niveau client

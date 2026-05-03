@@ -35,6 +35,7 @@ import InventoryPanel from "../components/InventoryPanel";
 import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "../lib/playerLevelSystem";
 import { findInventoryItem, getInventoryQty as getInvQty, removeFromInventory, addToInventory, hasInInventory } from "../lib/inventoryHelpers";
 import { showXPToast } from "../lib/xpToasts";
+import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeDoubleProdChance, activateBiomeHarvestBonus } from "../lib/playerBuffs";
 
 
 
@@ -329,10 +330,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     // ── Buff biome harvest bonus pour les T1 fatigue_restore (herbes) ──
     const itemDefFatigue = ITEMS[foodKey];
     if (itemDefFatigue?.biome_profession && itemDefFatigue?.biome_key) {
-      const biomeBuffActiveFat = profile.biome_cooldown_bonus_expires_at &&
-        new Date(profile.biome_cooldown_bonus_expires_at) > new Date();
-      if (biomeBuffActiveFat) {
-        xpUpdates.biome_harvest_bonus_expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      if (isBiomeBuffActive(profile)) {
+        activateBiomeHarvestBonus(xpUpdates);
         toast(`🌿 Buff biome actif ! +1 récolte bonus sur ta prochaine production T1.`);
       }
     }
@@ -464,12 +463,10 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     } else if (itemDef.effect === "market_tax_discount") {
       // Quartz brut T1 : si buff biome actif, activer le harvest bonus
       if (itemDef.biome_profession && itemDef.biome_key) {
-        const biomeBuffActiveQz = profile.biome_cooldown_bonus_expires_at &&
-          new Date(profile.biome_cooldown_bonus_expires_at) > now;
-        if (biomeBuffActiveQz) {
-          await base44.entities.PlayerProfile.update(profile.id, {
-            biome_harvest_bonus_expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-          });
+        if (isBiomeBuffActive(profile)) {
+          const harvestUpdates = {};
+          activateBiomeHarvestBonus(harvestUpdates);
+          await base44.entities.PlayerProfile.update(profile.id, harvestUpdates);
           toast(`🌿 Buff biome actif ! +1 récolte bonus sur ta prochaine production T1.`);
           onRefresh?.();
           return;
@@ -498,10 +495,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
     // ── Buff biome harvest bonus (T1) ──
     if (itemDef.biome_profession && itemDef.biome_key) {
-      const biomeBuffActive = profile.biome_cooldown_bonus_expires_at &&
-        new Date(profile.biome_cooldown_bonus_expires_at) > now;
-      if (biomeBuffActive) {
-        updates.biome_harvest_bonus_expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // +5 min
+      if (isBiomeBuffActive(profile)) {
+        activateBiomeHarvestBonus(updates);
         toast(`🌿 Buff biome actif ! +1 récolte bonus sur ta prochaine production T1.`);
       }
     }
@@ -624,10 +619,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     // ── Chance double production : tous les bonus additifs (REFONTE v5) ──
     // Charbon T2 est désormais un PASSIF : présence dans inventaire = +5%, peu importe la quantité.
     // S'AJOUTE aux bonus biome et niveau (cumul additif).
-    const biomeBuffActive = profile?.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date();
+    const biomeDoubleChanceProd  = getBiomeDoubleProdChance(profile);
     const levelBonusesProd       = getPlayerLevelBonuses(profile?.player_level || 1);
     const doubleChanceLevel      = levelBonusesProd.doubleProductionBonus / 100;
-    const biomeDoubleChanceProd  = biomeBuffActive ? (profile?.biome_double_prod_bonus ?? 0.10) : 0;
     const charbonBonus = getPassiveCharbonDoubleProdBonus(profile); // 0.05 si charbon en stock, sinon 0
     const doubleChance = doubleChanceLevel + biomeDoubleChanceProd + charbonBonus;
     const doubleBonus  = (!isNaN(doubleChance) && doubleChance > 0 && Math.random() < doubleChance) ? recipe.quantity : 0;
@@ -642,7 +636,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     }
     // Biome harvest bonus T1 (timer 5min : indépendant du double prod)
     let biomeHarvestBonus = 0;
-    if (recipe.tier === 1 && profile?.biome_harvest_bonus_expires_at && new Date(profile.biome_harvest_bonus_expires_at) > new Date()) {
+    if (recipe.tier === 1 && isBiomeHarvestActive(profile)) {
       biomeHarvestBonus = 1;
     }
     const totalQty = recipe.quantity + bonusQty + buildingQtyBonus + doubleBonus + biomeHarvestBonus;
@@ -804,9 +798,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     // ── Chance double production : tous les bonus additifs (REFONTE v5) ──
     const levelBonusesCraft = getPlayerLevelBonuses(profile?.player_level || 1);
     const doubleChanceLevelCraft  = levelBonusesCraft.doubleProductionBonus / 100;
-    const biomeDoubleChanceCraft  = (profile?.biome_cooldown_bonus_expires_at &&
-      new Date(profile.biome_cooldown_bonus_expires_at) > new Date())
-      ? (profile?.biome_double_prod_bonus ?? 0.10) : 0;
+    const biomeDoubleChanceCraft  = getBiomeDoubleProdChance(profile);
     const charbonBonusCraft = getPassiveCharbonDoubleProdBonus(profile);
     const doubleChanceCraft = doubleChanceLevelCraft + biomeDoubleChanceCraft + charbonBonusCraft;
     const doubleBonusCraft  = (!isNaN(doubleChanceCraft) && doubleChanceCraft > 0 && Math.random() < doubleChanceCraft)

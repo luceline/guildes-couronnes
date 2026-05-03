@@ -40,6 +40,7 @@ import { getRareResourceFromBiome } from "@/lib/rareResources";
 import { grantXP, XP_REWARDS } from "@/lib/playerLevelSystem";
 import { logGold } from "@/lib/goldLog";
 import { showXPToast } from "@/lib/xpToasts";
+import { isBiomeBuffActive, activateBiomeBuff, getBiomeBuffRemainingMs } from "@/lib/playerBuffs";
 
 // BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
@@ -169,12 +170,9 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       // Attribué dès la 1ère vague complétée, pas de re-attribution si déjà actif.
       // Donné à tout le monde (peu importe la profession).
       if (isWaveCompleted) {
-        const bonusActive = localProfile.biome_cooldown_bonus_expires_at
-          && new Date(localProfile.biome_cooldown_bonus_expires_at) > new Date();
-        if (!bonusActive) {
+        if (!isBiomeBuffActive(localProfile)) {
           updates.biome_cooldown_bonus_value = 0.10;
-          updates.biome_double_prod_bonus = 0.10;
-          updates.biome_cooldown_bonus_expires_at = new Date(Date.now() + 3600000).toISOString(); // +1h
+          activateBiomeBuff(updates, { value: 0.10 });
         }
       }
 
@@ -472,12 +470,8 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
 
           {/* Bonus biome actif (1h) : affiché à toutes les vagues tant qu'il est encore actif */}
           {(() => {
-            const bonusActive = localProfile.biome_cooldown_bonus_expires_at
-              && new Date(localProfile.biome_cooldown_bonus_expires_at) > new Date();
-            if (!bonusActive) return null;
-            const minsLeft = Math.max(0, Math.ceil(
-              (new Date(localProfile.biome_cooldown_bonus_expires_at).getTime() - Date.now()) / 60000
-            ));
+            if (!isBiomeBuffActive(localProfile)) return null;
+            const minsLeft = Math.max(0, Math.ceil(getBiomeBuffRemainingMs(localProfile) / 60000));
             return (
               <div className="bg-purple-50 border border-purple-300 rounded-lg p-2 text-xs font-body text-purple-900">
                 ⚡ <strong>Bonus biome actif</strong> : +10% double prod / -10% cooldown · encore {minsLeft} min
@@ -552,12 +546,8 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
 
           {/* Bonus biome actif rappelé en fin d'épopée */}
           {(() => {
-            const bonusActive = localProfile.biome_cooldown_bonus_expires_at
-              && new Date(localProfile.biome_cooldown_bonus_expires_at) > new Date();
-            if (!bonusActive) return null;
-            const minsLeft = Math.max(0, Math.ceil(
-              (new Date(localProfile.biome_cooldown_bonus_expires_at).getTime() - Date.now()) / 60000
-            ));
+            if (!isBiomeBuffActive(localProfile)) return null;
+            const minsLeft = Math.max(0, Math.ceil(getBiomeBuffRemainingMs(localProfile) / 60000));
             return (
               <div className="bg-purple-50 border border-purple-300 rounded-lg p-3 text-sm font-body text-purple-900">
                 ⚡ <strong>Bonus biome actif</strong> : +10% double prod / -10% cooldown<br />

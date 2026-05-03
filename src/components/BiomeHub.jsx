@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRandomActionCost } from "../lib/gameData";
 import { addToInventory } from "../lib/inventoryHelpers";
 import { logGold } from "../lib/goldLog";
+import { isBiomeBuffActive, activateBiomeBuff } from "../lib/playerBuffs";
 import CombatEpic from "./combat/CombatEpic";
 import HelpTooltip from "./HelpTooltip";
 
@@ -215,11 +216,9 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   if (victory) {
     const currentMastery = profile.biome_mastery || {};
     profileUpdates.biome_mastery = { ...currentMastery, [biomeKey]: (currentMastery[biomeKey] || 0) + 1 };
-    const bonusActive = profile?.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date();
-    if (hasMetierBonus && !bonusActive) {
+    if (hasMetierBonus && !isBiomeBuffActive(profile)) {
       profileUpdates.biome_cooldown_bonus_value = 0.10;
-      profileUpdates.biome_double_prod_bonus = 0.10;
-      profileUpdates.biome_cooldown_bonus_expires_at = new Date(Date.now() + 3600000).toISOString();
+      activateBiomeBuff(profileUpdates, { value: 0.10 });
     }
   }
 
@@ -684,7 +683,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
               const combatsToday = profile.daily_combats_date === today ? (profile.daily_combats_count || 0) : 0;
               return <span>🎯 Combats du jour : <strong>{combatsToday}/{maxCombats}</strong></span>;
             })()}
-            {profile.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date() && (
+            {isBiomeBuffActive(profile) && (
               <span className="text-green-700 font-bold">⚡ -10% cooldown · 10% dbl prod actif</span>
             )}
           </div>

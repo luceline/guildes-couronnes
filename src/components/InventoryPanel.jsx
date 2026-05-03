@@ -4,6 +4,7 @@ import { logGold } from "@/lib/goldLog";
 import { getItemName } from "@/lib/itemHelpers";
 import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
 import { showXPToast } from "@/lib/xpToasts";
+import { isBiomeBuffActive, activateBiomeHarvestBonus } from "@/lib/playerBuffs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -217,10 +218,8 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
 
       // Biome harvest bonus T1
       if (itemDef.biome_profession && itemDef.biome_key) {
-        const biomeActive = profile.biome_cooldown_bonus_expires_at &&
-          new Date(profile.biome_cooldown_bonus_expires_at) > new Date();
-        if (biomeActive) {
-          updates.biome_harvest_bonus_expires_at = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // +5 min
+        if (isBiomeBuffActive(profile)) {
+          activateBiomeHarvestBonus(updates);  // +5 min de récolte +1
         }
       }
       await base44.entities.PlayerProfile.update(profile.id, updates);

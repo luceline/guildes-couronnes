@@ -8,6 +8,7 @@ import PlayerLevelBadge from "./PlayerLevelBadge";
 import { getPlayerLevelInfo, grantXP, XP_REWARDS } from "../lib/playerLevelSystem";
 import { removeFromInventory } from "../lib/inventoryHelpers";
 import { showXPToast } from "../lib/xpToasts";
+import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeBuffRemainingMs, getBiomeHarvestRemainingMs } from "../lib/playerBuffs";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
@@ -136,16 +137,16 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
   }
 
   // Buff biome
-  if (profile.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date(now)) {
-    const t = formatDuration(new Date(profile.biome_cooldown_bonus_expires_at).getTime() - now);
+  if (isBiomeBuffActive(profile)) {
+    const t = formatDuration(getBiomeBuffRemainingMs(profile));
     buffs.push({
       icon: "🌿", label: "Biome", detail: `−10% CD · 10% dbl prod (${t})`,
       tooltip: `Bénédiction biome active encore ${t}. −10% cooldown + 10% chance double production.`,
       color: "text-green-700 bg-green-50 border-green-200",
     });
   }
-  if (profile.biome_harvest_bonus_expires_at && new Date(profile.biome_harvest_bonus_expires_at) > new Date(now)) {
-    const t = formatDuration(new Date(profile.biome_harvest_bonus_expires_at).getTime() - now);
+  if (isBiomeHarvestActive(profile)) {
+    const t = formatDuration(getBiomeHarvestRemainingMs(profile));
     buffs.push({
       icon: "🌾", label: "+1 récolte T1", detail: `(${t})`,
       tooltip: `La prochaine production T1 donne +1 ressource bonus. Expire dans ${t}.`,
