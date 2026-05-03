@@ -15,16 +15,13 @@ import {
   ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY,
 } from "../lib/craftingData";
 import { getLevelFromXP } from "../lib/playerLevelSystem";
+import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "../lib/rareResources";
 
-// Ressources rares des biomes
-const RARE_RESOURCES = {
-  essence_foret:     { name: "Essence forestière",   icon: "🌿", biome: "Forêt" },
-  poussiere_moisson: { name: "Poussière de récolte", icon: "🌾", biome: "Champs" },
-  fragment_cristal:  { name: "Fragment cristallin",  icon: "💎", biome: "Mine" },
-  fil_enchante:      { name: "Fil enchanté",         icon: "✨", biome: "Atelier" },
-  cendre_forge:      { name: "Cendre de forge",      icon: "🔥", biome: "Forge" },
-  piece_ancienne:    { name: "Pièce d'or ancienne",  icon: "🪙", biome: "Guilde" },
-};
+// RARE_RESOURCES retiré : utiliser la source de vérité @/lib/rareResources.
+// Les keys utilisées sont celles que CombatEpic distribue effectivement en loot
+// (essence_foret, poussiere_moisson, fragment_cristal, fil_or, lingot_runique,
+// sceau_guilde). Les anciennes keys "fil_enchante", "cendre_forge", "piece_ancienne"
+// n'étaient en réalité jamais alimentées par le combat → bug XP corrigé.
 
 const CONTRAT_DEFS = {
   parchemin:         { label: "📜 Activer contrat", type: "quest_activate",   parchemin_type: "parchemin" },
@@ -55,7 +52,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     if (!item || item.quantity <= 0) return;
     setActivating(resourceKey);
     try {
-      const newXP    = (profile.player_xp_total || 0) + 100;
+      const newXP    = (profile.player_xp_total || 0) + XP_PER_RARE_RESOURCE;
       const oldLevel = getLevelFromXP(profile.player_xp_total || 0);
       const newLevel = getLevelFromXP(newXP);
       const newInv   = inventory
@@ -66,8 +63,8 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
       });
       const rare = RARE_RESOURCES[resourceKey];
       toast.success(newLevel > oldLevel
-        ? `🎉 ${rare.name} activée ! +100 XP — Niveau ${newLevel} !`
-        : `✨ ${rare.name} activée ! +100 XP`, { duration: 3000 });
+        ? `🎉 ${rare.name} activée ! +${XP_PER_RARE_RESOURCE} XP — Niveau ${newLevel} !`
+        : `✨ ${rare.name} activée ! +${XP_PER_RARE_RESOURCE} XP`, { duration: 3000 });
       onRefresh?.();
     } catch { toast.error("Erreur lors de l'activation"); }
     finally  { setActivating(null); }
@@ -291,7 +288,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
             <CardTitle className="font-heading text-lg flex items-center gap-2">
               ✨ Ressources rares
               <span className="text-xs font-body font-normal text-muted-foreground">
-                — Activez pour +100 XP
+                — Activez pour +{XP_PER_RARE_RESOURCE} XP
               </span>
             </CardTitle>
           </CardHeader>
@@ -304,14 +301,14 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
                     <span className="text-2xl shrink-0">{rare.icon}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-heading font-semibold">{rare.name}</div>
-                      <div className="text-xs text-muted-foreground font-body">×{item.quantity} · {rare.biome}</div>
+                      <div className="text-xs text-muted-foreground font-body">×{item.quantity} · {rare.biome_name}</div>
                     </div>
                     <button
                       onClick={() => handleActivateRare(item.item_key)}
                       disabled={activating === item.item_key}
                       className="text-xs bg-violet-100 hover:bg-violet-200 border border-violet-300 text-violet-700 px-2 py-0.5 rounded font-body transition-colors shrink-0"
                     >
-                      {activating === item.item_key ? "..." : "+100 XP"}
+                      {activating === item.item_key ? "..." : `+${XP_PER_RARE_RESOURCE} XP`}
                     </button>
                   </div>
                 );

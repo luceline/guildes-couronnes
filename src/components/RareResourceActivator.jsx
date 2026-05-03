@@ -1,19 +1,13 @@
-import { RARE_RESOURCE_XP } from "../lib/gameData";
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getLevelFromXP, getPlayerLevelInfo } from "@/lib/playerLevelSystem";
+import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "@/lib/rareResources";
 
-const RARE_RESOURCES = {
-  essence_foret:     { name: "Essence forestière",     icon: "🌿", biome: "Forêt" },
-  poussiere_moisson: { name: "Poussière de récolte",   icon: "🌾", biome: "Champs" },
-  fragment_cristal:  { name: "Fragment cristallin",    icon: "💎", biome: "Mine" },
-  fil_enchante:      { name: "Fil enchanté",           icon: "✨", biome: "Atelier" },
-  cendre_forge:      { name: "Cendre de forge",        icon: "🔥", biome: "Forge" },
-  piece_ancienne:    { name: "Pièce d'or ancienne",    icon: "🪙", biome: "Guilde" },
-};
+// RARE_RESOURCES retiré : utiliser la source de vérité @/lib/rareResources.
+// Voir le commentaire dans InventoryPanel.jsx pour le contexte du bug fixé.
 
 export default function RareResourceActivator({ profile, onProfileUpdate }) {
   const [selectedResource, setSelectedResource] = useState(null);
@@ -29,7 +23,7 @@ export default function RareResourceActivator({ profile, onProfileUpdate }) {
     setLoading(true);
     try {
       // Calculer le nouvel XP
-      const newXPTotal = (profile.player_xp_total || 0) + RARE_RESOURCE_XP;
+      const newXPTotal = (profile.player_xp_total || 0) + XP_PER_RARE_RESOURCE;
       const oldLevel = getLevelFromXP(profile.player_xp_total || 0);
       const newLevel = getLevelFromXP(newXPTotal);
 
@@ -110,7 +104,7 @@ export default function RareResourceActivator({ profile, onProfileUpdate }) {
           <DialogHeader>
             <DialogTitle>Activer ressource rare</DialogTitle>
             <DialogDescription>
-              Consommer 1 {selectedResource && RARE_RESOURCES[selectedResource]?.name} pour +100 XP?
+              Consommer 1 {selectedResource && RARE_RESOURCES[selectedResource]?.name} pour +{XP_PER_RARE_RESOURCE} XP?
             </DialogDescription>
           </DialogHeader>
 
@@ -128,7 +122,7 @@ export default function RareResourceActivator({ profile, onProfileUpdate }) {
 
               {/* Aperçu du niveau futur */}
               {(() => {
-                const newXP = (profile.player_xp_total || 0) + RARE_RESOURCE_XP;
+                const newXP = (profile.player_xp_total || 0) + XP_PER_RARE_RESOURCE;
                 const levelInfo = getPlayerLevelInfo(newXP);
                 const currentInfo = getPlayerLevelInfo(profile.player_xp_total || 0);
 

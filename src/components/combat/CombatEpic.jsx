@@ -36,17 +36,12 @@ import {
 import { ITEMS } from "@/lib/craftingData";
 import { MAX_WAVES_PER_DAY, getPlayerMaxHP } from "@/lib/combatPvE";
 import { BIOMES } from "@/lib/biomes";
+import { getRareResourceFromBiome } from "@/lib/rareResources";
 
 // BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
-const BIOME_RARES = {
-  foret:   { key: "essence_foret",     name: "Essence forestière",     icon: "🌿" },
-  champs:  { key: "poussiere_moisson", name: "Poussière de récolte",   icon: "🌾" },
-  mine:    { key: "fragment_cristal",  name: "Fragment cristallin",    icon: "💎" },
-  atelier: { key: "fil_or",            name: "Fil d'or",               icon: "🧵" },
-  forge:   { key: "lingot_runique",    name: "Lingot runique",         icon: "🔥" },
-  guilde:  { key: "sceau_guilde",      name: "Sceau de la guilde",     icon: "🏛️" },
-};
+// BIOME_RARES retiré : utiliser getRareResourceFromBiome() depuis @/lib/rareResources
+// (source de vérité unique, partagée avec InventoryPanel et RareResourceActivator).
 
 function getTodayStr() {
   return new Date().toISOString().split("T")[0];
@@ -79,7 +74,7 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
   }, [profile?.id, profile?.hp, profile?.inventory]);
 
   const biomeInfo = BIOMES[biomeKey] || { name: biomeKey, icon: "🗺️" };
-  const biomeRare = BIOME_RARES[biomeKey];
+  const biomeRare = getRareResourceFromBiome(biomeKey);
 
   // Conditions de blocage
   const isCombatDoneToday = profile?.combat_last_date === today
