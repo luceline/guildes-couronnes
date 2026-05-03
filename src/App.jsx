@@ -26,6 +26,7 @@ import InventairePage from './pages/InventairePage';
 import ItemsExportPage from './pages/ItemsExportPage';
 import RankingPageWrapper from './pages/RankingPageWrapper';
 import CombatPage from './pages/CombatPage';
+import CodexPage from './pages/CodexPage';
 import landscapeBg from './assets/landscape.jpg';
 
 // Injection de l'image de fond paysage en variable CSS (utilisée dans index.css)
@@ -76,6 +77,7 @@ const AuthenticatedApp = () => {
         <Route path="/inventaire" element={<InventairePage />} />
         <Route path="/ranking" element={<RankingPageWrapper />} />
         <Route path="/combat" element={<CombatPage />} />
+        <Route path="/codex" element={<CodexPage />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>

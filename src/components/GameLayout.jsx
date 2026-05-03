@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword, MessageCircle } from "lucide-react";
+import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword, MessageCircle, BookOpen } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ const BASE_NAV = [
   { path: "/combat", icon: Sword, label: "Combat" },
   { path: "/quetes", icon: Target, label: "Quêtes" },
   { path: "/inventaire", icon: Package, label: "Inventaire" },
+  { path: "/codex", icon: BookOpen, label: "Codex" },
   { path: "/ranking", icon: Trophy, label: "Classement" },
   { path: "/profile", icon: User, label: "Profil" },
 ];
