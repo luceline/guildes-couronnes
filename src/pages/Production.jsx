@@ -33,6 +33,7 @@ import HelpTooltip from "../components/HelpTooltip";
 import AtelierVitrine from "../components/AtelierVitrine";
 import InventoryPanel from "../components/InventoryPanel";
 import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "../lib/playerLevelSystem";
+import { findInventoryItem, getInventoryQty as getInvQty, removeFromInventory, addToInventory, hasInInventory } from "../lib/inventoryHelpers";
 
 
 
@@ -1023,14 +1024,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     loadObjectives();
   };
 
-  const getInventoryQty = (itemKey) => {
-    const itemDef = ITEMS[itemKey];
-    return (profile?.inventory || []).find(i =>
-      i.item_key === itemKey ||
-      i.item_name === itemDef?.name ||
-      i.item_name?.toLowerCase().replace(/ /g, "_") === itemKey
-    )?.quantity || 0;
-  };
+  // Wrapper local : passe l'inventaire courant à l'helper centralisé.
+  // Voir src/lib/inventoryHelpers.js pour l'implémentation et la gestion legacy.
+  const getInventoryQty = (itemKey) => getInvQty(profile?.inventory, itemKey);
 
   const canCraft = (recipe) => recipe.inputs.every(inp => getInventoryQty(inp.key) >= inp.quantity);
 

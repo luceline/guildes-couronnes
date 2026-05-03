@@ -2,13 +2,13 @@
  * biomes.js : source de vérité unique pour les biomes du jeu.
  *
  * Avant ce fichier, les noms et icônes des biomes étaient répétés dans :
- *   - src/components/combat/CombatScreen.jsx
- *   - src/components/combat/CombatEpic.jsx
+ *   - src/lib/biomeData.js (BIOMES avec descriptions narratives)
+ *   - src/components/combat/CombatScreen.jsx (BIOME_NAMES)
+ *   - src/components/combat/CombatEpic.jsx (BIOME_NAMES)
  *   - src/pages/Dashboard.jsx (HARVEST_BIOME_NAMES)
  *   - et indirectement dans craftingData.js (biome_key sur les items T1)
  *
- * Désormais, le mapping biome_key -> métadonnées vit ici. Pour ajouter
- * un biome ou en renommer un, c'est ici qu'on touche.
+ * Désormais, tout vit ici. biomeData.js est obsolète.
  *
  * Usage :
  *   import { BIOMES, getBiomeName, getBiomeIcon, getBiomeProfession } from "@/lib/biomes";
@@ -16,15 +16,52 @@
  *   const short = getBiomeName("foret", true);    // "Forêt"
  *   const icon  = getBiomeIcon("forge");          // "🔥"
  *   const prof  = getBiomeProfession("mine");     // "Mineur"
+ *   const desc  = BIOMES.foret.description;       // narratif long
  */
 
 export const BIOMES = {
-  foret:   { name: "Forêt ancestrale", short: "Forêt",   icon: "🌲", profession: "Bûcheron"  },
-  champs:  { name: "Champs dorés",     short: "Champs",  icon: "🌾", profession: "Fermier"   },
-  mine:    { name: "Mines profondes",  short: "Mine",    icon: "⛏️", profession: "Mineur"    },
-  atelier: { name: "Atelier",          short: "Atelier", icon: "🧵", profession: "Tisserand" },
-  forge:   { name: "Forge",            short: "Forge",   icon: "🔥", profession: "Forgeron"  },
-  guilde:  { name: "Guilde",           short: "Guilde",  icon: "🏛️", profession: "Marchand"  },
+  foret: {
+    name: "Forêt ancestrale",
+    short: "Forêt",
+    icon: "🌲",
+    profession: "Bûcheron",
+    description: "Les grands arbres murmurent des secrets anciens. Bûcherons et Alchimistes y trouvent leur subsistance : bois noueux et herbes rares poussent à l'abri des frondaisons.",
+  },
+  champs: {
+    name: "Champs dorés",
+    short: "Champs",
+    icon: "🌾",
+    profession: "Fermier",
+    description: "À perte de vue, les épis se balancent sous le vent. Seul le Fermier connaît ces terres comme sa paume : chaque sillon lui appartient.",
+  },
+  mine: {
+    name: "Mines profondes",
+    short: "Mine",
+    icon: "⛏️",
+    profession: "Mineur",
+    description: "Les galeries résonnent de coups sourds. Le Mineur y descend chercher ce que la terre cache jalousement dans ses entrailles.",
+  },
+  atelier: {
+    name: "Atelier des artisans",
+    short: "Atelier",
+    icon: "🧵",
+    profession: "Tisserand",
+    description: "Métiers à tisser, bobines et fils colorés : le domaine du Tisserand. Ici les étoffes naissent de la patience et de la dextérité.",
+  },
+  forge: {
+    name: "Forge du destin",
+    short: "Forge",
+    icon: "🔥",
+    profession: "Forgeron",
+    description: "La chaleur des brasiers rougeoie nuit et jour. Forgeron et Orfèvre y façonnent acier et métaux précieux, liant leur art à la flamme.",
+  },
+  guilde: {
+    name: "Guilde des marchands",
+    short: "Guilde",
+    icon: "🏛️",
+    profession: "Marchand",
+    description: "Sous les colonnes de la Guilde, le Marchand règne. Contrats, autorisations et pièces d'or circulent dans un ballet que lui seul maîtrise.",
+  },
 };
 
 /**

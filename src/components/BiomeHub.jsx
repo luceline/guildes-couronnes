@@ -1,4 +1,4 @@
-import { BIOMES } from "../lib/biomeData";
+import { BIOMES } from "../lib/biomes";
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRandomActionCost } from "../lib/gameData";
+import { addToInventory } from "../lib/inventoryHelpers";
 import CombatEpic from "./combat/CombatEpic";
 import HelpTooltip from "./HelpTooltip";
 
@@ -478,18 +479,15 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
       }
 
       const harvest = BIOME_HARVEST[biomeKey];
-      const newInventory = [...(freshProfile.inventory || [])];
-      const existing = newInventory.find(i => i.item_key === harvest.item_key);
-      if (existing) {
-        existing.quantity += actualQty;
-      } else {
-        newInventory.push({
-          item_key: harvest.item_key,
+      const newInventory = addToInventory(
+        freshProfile.inventory,
+        harvest.item_key,
+        actualQty,
+        {
           item_name: harvest.item_name,
           item_category: harvest.item_category,
-          quantity: actualQty,
-        });
-      }
+        }
+      );
 
       await base44.entities.PlayerProfile.update(profile.id, {
         inventory: newInventory,

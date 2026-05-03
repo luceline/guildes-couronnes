@@ -2,6 +2,7 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { logGold } from "@/lib/goldLog";
 import { getItemName } from "@/lib/itemHelpers";
+import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -48,16 +49,14 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
 
   // ── Activation ressource rare → +100 XP ──
   const handleActivateRare = async (resourceKey) => {
-    const item = inventory.find(i => i.item_key === resourceKey);
+    const item = findInventoryItem(inventory, resourceKey);
     if (!item || item.quantity <= 0) return;
     setActivating(resourceKey);
     try {
       const newXP    = (profile.player_xp_total || 0) + XP_PER_RARE_RESOURCE;
       const oldLevel = getLevelFromXP(profile.player_xp_total || 0);
       const newLevel = getLevelFromXP(newXP);
-      const newInv   = inventory
-        .map(i => i.item_key === resourceKey ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
+      const newInv   = removeFromInventory(inventory, resourceKey, 1);
       await base44.entities.PlayerProfile.update(profile.id, {
         inventory: newInv, player_xp_total: newXP, player_level: newLevel,
       });
@@ -81,9 +80,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     }
     setConsumingFood(itemKey + "_hunger");
     try {
-      const newInv = inventory
-        .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
+      const newInv = removeFromInventory(inventory, itemKey, 1);
       const newHunger = Math.min(maxHunger, currentHunger + foodDef.hunger_restore);
       const upd = { inventory: newInv, hunger: newHunger };
       const msgs = [`+${foodDef.hunger_restore} faim`];
