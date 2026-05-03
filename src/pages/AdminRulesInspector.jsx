@@ -3,15 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { ITEMS, CRAFTING_RECIPES } from '@/lib/craftingData';
+import { getProfessionsList } from '@/lib/professions';
 const CRAFTING_RECIPES_REFACTORED = CRAFTING_RECIPES;
 
 export default function AdminRulesInspector() {
   const [selectedProfession, setSelectedProfession] = useState('Bûcheron');
 
-  const professions = [
-    'Bûcheron', 'Mineur', 'Fermier', 'Tisserand', 'Forgeron', 
-    'Alchimiste', 'Orfèvre', 'Marchand'
-  ];
+  const professions = getProfessionsList();
 
   const getTierColor = (tier) => {
     const colors = { 1: 'bg-slate-100', 2: 'bg-blue-100', 3: 'bg-purple-100', 4: 'bg-orange-100', 5: 'bg-red-100' };

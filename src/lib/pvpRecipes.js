@@ -5,6 +5,7 @@
 
 import { ITEMS } from './craftingData.js';
 import { COMPETITIVE_ITEMS } from './gameData.js';
+import { getProfessionsList } from './professions.js';
 
 // Hash string → entier déterministe
 function hashStr(str) {
@@ -32,7 +33,7 @@ const T2_POOL = ["planches", "pierre_brute", "fil", "charbon", "extrait", "quart
 export function getTodayPvpRecipes() {
   const today = getTodayStr();
 
-  const allProfessions = ["Bûcheron", "Mineur", "Fermier", "Tisserand", "Forgeron", "Alchimiste", "Orfèvre", "Marchand"];
+  const allProfessions = getProfessionsList();
   const recipes = [];
 
   // Recettes T1.5 : tous les items sont craftables par toutes les professions avec inputs dynamiques

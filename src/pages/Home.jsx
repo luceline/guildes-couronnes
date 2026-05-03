@@ -8,10 +8,13 @@ import PatchnoteModal from "../components/PatchnoteModal";
 import { MAX_HUNGER, getFatigueRegenInterval } from "../lib/gameData";
 import { getMaxFatigue } from "../lib/gameData";
 import { updateLastActive, runInactivityCheck } from "../lib/inactivityCheck";
+import { getProfessionsList } from "../lib/professions";
 import { toast } from "sonner";
 
 // ── Migration Producteur → nouveau métier ──
-const PROFESSIONS_LIST = ["Bûcheron","Mineur","Fermier","Tisserand","Forgeron","Alchimiste","Orfèvre","Marchand"];
+// Liste centralisée — voir @/lib/professions. Évite que d'anciens métiers
+// supprimés (ex: "Producteur") apparaissent ici.
+const PROFESSIONS_LIST = getProfessionsList();
 
 function ProfessionMigration({ profile, onComplete }) {
   const [choice, setChoice] = useState("");
