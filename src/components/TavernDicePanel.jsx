@@ -1,25 +1,24 @@
 /**
- * TavernDicePanel.jsx : Table de jeux de la taverne (hazart asynchrone).
+ * TavernDicePanel.jsx : Table de hazart mutualisée du royaume.
  *
  * Inspiré du jeu de hazart médiéval (XIIIe siècle) : 3 dés, 1 vs 1, plus haut
  * total gagne. Une "tierce" (3 dés identiques) bat tout et paie ×3.
  *
- * Architecture :
- *   1. Un joueur publie un défi (mise verrouillée immédiatement)
- *   2. Un autre joueur l'accepte → résolution serveur instantanée
- *   3. Animation de dés côté client en utilisant les valeurs déjà calculées
- *      (illusion de jeu, mais le résultat est déterminé au moment de l'acceptation)
+ * Architecture (mutualisée) :
+ *   1. Le challenger publie un défi : mise verrouillée + son lancer (3 dés) immédiat
+ *   2. Son score reste secret (pas affiché publiquement) mais est stocké côté serveur
+ *   3. N'importe quel joueur du royaume peut accepter le défi (pas de filtre par ville)
+ *   4. À l'acceptation : l'accepteur lance ses dés, résolution instantanée
+ *   5. Anti-metaplay : annuler son défi = perte de 50% de la mise
  *
  * Anti-triche :
- *   - Les dés et le résultat sont calculés côté serveur lors de l'acceptation
- *   - Le seed est stocké et auditable (transparent post-résolution)
- *   - Le client ne fait qu'animer les valeurs serveur
+ *   - Les dés sont calculés côté serveur via seed déterministe
+ *   - Les valeurs sont auditables après résolution
  *
  * Quotas et règles :
  *   - Mise : 10 à 200 or
  *   - Max 5 parties par joueur par jour (anti-addiction)
  *   - Commission tavernier : 10% sur le pot total
- *   - Table accessible si ≥3 joueurs présents dans la ville (city_id partagé)
  */
 import { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
@@ -35,8 +34,8 @@ const MIN_MISE = 10;
 const MAX_MISE = 200;
 const MAX_PARTIES_PAR_JOUR = 5;
 const TAVERN_COMMISSION = 0.10; // 10% pour le tavernier
-const PRESENCE_THRESHOLD = 3;   // ≥3 joueurs présents pour ouvrir la table
 const CHALLENGE_EXPIRY_HOURS = 24;
+const CANCEL_PENALTY_RATE = 0.50; // anti-metaplay : 50% de la mise perdue si annulation
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -151,7 +150,6 @@ function DiceDisplay({ values, animating = false, label = null, isWinner = false
 export default function TavernDicePanel({ profile, city, isResident, onRefresh }) {
   const [challenges, setChallenges] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [presentCount, setPresentCount] = useState(0);
   const [miseInput, setMiseInput] = useState("20");
   const [submitting, setSubmitting] = useState(false);
   const [accepting, setAccepting] = useState(null);
@@ -161,24 +159,19 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
   const partiesAujourdhui = getPartiesAujourdhui(profile);
   const quotaAtteint = partiesAujourdhui >= MAX_PARTIES_PAR_JOUR;
 
-  // ─── Chargement initial : défis ouverts + présence ───
+  // ─── Chargement initial : défis ouverts (mutualisés royaume) ───
   const loadData = useCallback(async () => {
     if (!city?.id) return;
     setLoading(true);
     try {
-      // Défis ouverts dans cette ville (status = "open")
+      // Défis ouverts dans tout le royaume (mutualisé, pas de filtre city_id)
       const open = await base44.entities.TavernDiceChallenge.filter({
-        city_id: city.id,
         status: "open",
       });
       // Filtre côté client les expirés (au cas où le cron n'a pas encore tourné)
       const now = Date.now();
       const stillOpen = open.filter(c => new Date(c.expires_at).getTime() > now);
       setChallenges(stillOpen);
-
-      // Compte les joueurs présents dans la ville
-      const players = await base44.entities.PlayerProfile.filter({ city_id: city.id });
-      setPresentCount(players.filter(p => p.character_name).length);
     } catch (e) {
       console.error("[TavernDice] load error:", e);
     } finally {
@@ -227,18 +220,28 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
         description: `Mise table de hazart : défi à ${mise}💰`,
       });
 
+      // Le challenger lance ses dés MAINTENANT (Option A).
+      // Les valeurs sont stockées sur le défi, secrètes pour les autres,
+      // et seront révélées à l'accepteur au moment de la résolution.
+      const seedChallenger = `chall:${profile.user_email}:${Date.now()}:${mise}`;
+      const challengerRoll = rollDice(seedChallenger);
+
       const expiresAt = new Date(Date.now() + CHALLENGE_EXPIRY_HOURS * 3600 * 1000).toISOString();
       await base44.entities.TavernDiceChallenge.create({
-        city_id: city.id,
-        city_name: city.name || "",
         challenger_email: profile.user_email,
         challenger_name: profile.character_name,
+        challenger_dice: challengerRoll.dice,
         mise: mise,
         status: "open",
         expires_at: expiresAt,
       });
 
-      toast.success(`🎲 Votre défi est lancé ! ${mise}💰 sur la table : qui osera relever le gant ?`);
+      // Affiche au challenger son propre lancer (il garde son score secret pour les autres)
+      toast.success(
+        `🎲 Vos dés : ${challengerRoll.dice.join(" · ")} (score ${scoreOf(challengerRoll.dice)}). ` +
+        `${mise}💰 sur la table : qui osera relever le gant ?`,
+        { duration: 6000 }
+      );
       onRefresh?.();
       loadData();
     } catch (e) {
@@ -274,10 +277,15 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
         return;
       }
 
-      // Lance les dés (calcul serveur-déterministe basé sur le challenge_id + acceptation timestamp)
-      const seedChallenger = `chall:${challenge.id}`;
+      // Lit le lancer du challenger qui a été enregistré au moment de la publication.
+      // Fallback sur un nouveau lancer pour les anciens défis pré-Option A (compat).
+      const challengerDice = Array.isArray(fresh.challenger_dice) && fresh.challenger_dice.length === 3
+        ? fresh.challenger_dice
+        : rollDice(`chall:${fresh.id}`).dice;
+      const challengerRoll = { dice: challengerDice };
+
+      // L'accepteur lance ses dés MAINTENANT (résolution instantanée)
       const seedAccepter = `acc:${challenge.id}:${Date.now()}`;
-      const challengerRoll = rollDice(seedChallenger);
       const accepterRoll = rollDice(seedAccepter);
 
       const challengerScore = scoreOf(challengerRoll.dice);
@@ -392,22 +400,35 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
     }
   };
 
-  // ─── Annuler son propre défi (récupère la mise) ───
+  // ─── Annuler son propre défi (avec pénalité 50% anti-metaplay) ───
   const handleCancelChallenge = async (challenge) => {
     if (challenge.challenger_email !== profile.user_email) return;
+    // Anti-metaplay : si on rendait 100% de la mise, le challenger qui a fait
+    // un mauvais lancer pourrait annuler et reroll gratuitement. La pénalité
+    // de 50% rend le reroll non-rentable sur la durée.
+    const refund = Math.floor(challenge.mise * (1 - CANCEL_PENALTY_RATE));
+    const penalty = challenge.mise - refund;
+
+    if (!window.confirm(
+      `Annuler ce défi ? Vous récupérerez ${refund}💰 sur votre mise de ${challenge.mise}💰. ` +
+      `Le tavernier garde ${penalty}💰 pour le dérangement.`
+    )) {
+      return;
+    }
+
     try {
       await base44.entities.TavernDiceChallenge.update(challenge.id, {
         status: "cancelled",
       });
       await base44.entities.PlayerProfile.update(profile.id, {
-        gold: (profile.gold || 0) + challenge.mise,
+        gold: (profile.gold || 0) + refund,
       });
       await logGold({
         profile, city,
-        amount: challenge.mise, type: "jeu_tavern",
-        description: `Annulation défi hazart (mise rendue)`,
+        amount: refund, type: "jeu_tavern",
+        description: `Annulation défi hazart (${refund}💰 rendus, ${penalty}💰 retenus par le tavernier)`,
       });
-      toast.success(`🍺 Votre mise vous est rendue (${challenge.mise}💰).`);
+      toast.success(`🍺 ${refund}💰 vous sont rendus (le tavernier garde ${penalty}💰).`);
       onRefresh?.();
       loadData();
     } catch (e) {
@@ -416,7 +437,6 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
   };
 
   // ─── Rendu ───
-  const tableOpen = presentCount >= PRESENCE_THRESHOLD;
 
   return (
     <Card className="flex flex-col" style={{ minHeight: 360 }}>
@@ -438,36 +458,24 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
             >
               ❓ Règles
             </Button>
-            <Badge variant="secondary" className="font-body text-xs">
-              {presentCount} ici
-            </Badge>
           </div>
         </div>
 
-        {/* État de la table */}
-        {!tableOpen && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-body text-amber-800 italic">
-            🍺 La taverne est trop calme ce soir... Le tavernier remballe les dés. Il en faut au moins {PRESENCE_THRESHOLD} pour ouvrir la table (vous êtes {presentCount}).
-          </div>
-        )}
-
         {/* Quota du jour */}
-        {tableOpen && (
-          <div className={`text-xs font-body px-3 py-2 rounded-lg border ${
-            quotaAtteint
-              ? "bg-red-50 border-red-200 text-red-800"
-              : "bg-amber-50 border-amber-200 text-amber-800"
-          }`}>
-            🎲 Parties du jour : <span className="font-semibold">{partiesAujourdhui}/{MAX_PARTIES_PAR_JOUR}</span>
-            {quotaAtteint
-              ? <span className="italic"> · le tavernier vous coupe le passage. Repassez demain !</span>
-              : <span className="italic"> · au-delà, le tavernier vous mettra dehors.</span>
-            }
-          </div>
-        )}
+        <div className={`text-xs font-body px-3 py-2 rounded-lg border ${
+          quotaAtteint
+            ? "bg-red-50 border-red-200 text-red-800"
+            : "bg-amber-50 border-amber-200 text-amber-800"
+        }`}>
+          🎲 Parties du jour : <span className="font-semibold">{partiesAujourdhui}/{MAX_PARTIES_PAR_JOUR}</span>
+          {quotaAtteint
+            ? <span className="italic"> · le tavernier vous coupe le passage. Repassez demain !</span>
+            : <span className="italic"> · au-delà, le tavernier vous mettra dehors.</span>
+          }
+        </div>
 
         {/* Formulaire de défi */}
-        {tableOpen && !quotaAtteint && (
+        {!quotaAtteint && (
           <div className="bg-muted/30 rounded-lg p-3 space-y-2 border border-border">
             <div className="text-xs font-body font-semibold">Lancer un défi</div>
             <div className="flex gap-2 items-center">
