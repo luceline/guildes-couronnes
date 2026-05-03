@@ -296,14 +296,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       lingots_cumul:  currentCumul + 1,
     });
 
-    try {
-      await base44.entities.GoldTransaction.create({
-        player_email: profile.user_email, player_name: profile.character_name || "",
-        city_id: city?.id || "", city_name: city?.name || "",
-        amount: price, type: "vente_lingot",
-        description: `Vente lingot royal à la mairie (trésorerie −${price}💰)`,
-      });
-    } catch(e) {}
+    await logGold({
+      profile, city,
+      amount: price, type: "vente_lingot",
+      description: `Vente lingot royal à la mairie (trésorerie −${price}💰)`,
+    });
     toast.success(`👑 Le maire reçoit votre lingot royal avec faste ! +${price}💰. La cité compte désormais ${currentRoyalStock + 1} lingot(s) royal/aux.`);
     onRefresh?.();
   };
@@ -417,14 +414,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         updates.gold = (freshP2?.gold || profile.gold || 0) + gambleGold;
         const flavor = gambleGold > gambleMax * 0.6 ? "📖 Votre ouvrage fait fureur !" : gambleGold > 20 ? "📖 Succès modeste..." : "📖 Un flop, hélas...";
         toast.success(`${itemDef.icon} ${flavor} +${gambleGold}💰`);
-        try {
-          await base44.entities.GoldTransaction.create({
-            player_email: profile.user_email, player_name: profile.character_name || '',
-            city_id: city?.id || '', city_name: city?.name || '',
-            amount: gambleGold, type: 'objectif',
-            description: `Gamble ${itemDef.name || itemDef.key} : +${gambleGold}💰 (max ${gambleMax})`,
-          });
-        } catch (_) {}
+        await logGold({
+          profile, city,
+          amount: gambleGold, type: 'objectif',
+          description: `Gamble ${itemDef.name || itemDef.key} : +${gambleGold}💰 (max ${gambleMax})`,
+        });
       } else {
         toast(`📖 Votre livre est resté dans les cartons... Personne n'a mordu.`);
       }

@@ -18,6 +18,7 @@
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { getQuestNarration } from './questNarration';
+import { logGold } from './goldLog';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -82,17 +83,12 @@ export async function checkAndAwardObjective({ obj, addedQty, profile, city = nu
     });
 
     // Log transaction
-    try {
-      await base44.entities.GoldTransaction.create({
-        player_email: profile.user_email,
-        player_name:  profile.character_name || '',
-        city_id:      city?.id   || '',
-        city_name:    city?.name || '',
-        amount:       reward,
-        type:         'objectif',
-        description:  `Quête accomplie : ${obj.title || obj.target_item || obj.type}`,
-      });
-    } catch (_) {}
+    await logGold({
+      profile, city,
+      amount: reward,
+      type: 'objectif',
+      description: `Quête accomplie : ${obj.title || obj.target_item || obj.type}`,
+    });
 
     toast.success(getQuestNarration(obj.type, reward, obj.id), { duration: 8000 });
   } else {

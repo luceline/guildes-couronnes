@@ -3,19 +3,11 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { logGold } from "../lib/goldLog";
 
 const PROFESSIONS = ["Marchand","Producteur","Forgeron","Tisserand","Alchimiste","Bûcheron","Mineur","Fermier","Orfèvre"];
 
-
-async function logGold(playerEmail, playerName, cityId, cityName, amount, type, description) {
-  try {
-    await base44.entities.GoldTransaction.create({
-      player_email: playerEmail, player_name: playerName || "",
-      city_id: cityId || "", city_name: cityName || "",
-      amount, type, description,
-    });
-  } catch (e) { console.warn("logGold:", e); }
-}
+// logGold local retiré : utiliser @/lib/goldLog (source de vérité unique).
 
 export default function ProfessionChangePanel({ profile, city, onRefresh }) {
   const [changing, setChanging] = useState(false);
@@ -36,14 +28,11 @@ export default function ProfessionChangePanel({ profile, city, onRefresh }) {
       gold: (profile.gold || 0) - PROFESSION_CHANGE_COST,
     });
     // L'or est détruit (n'est pas versé à la trésorerie de la ville).
-    try {
-      await base44.entities.GoldTransaction.create({
-        player_email: profile.user_email, player_name: profile.character_name || "",
-        city_id: city.id, city_name: city.name || "",
-        amount: -PROFESSION_CHANGE_COST, type: "changement_metier",
-        description: `Changement de métier : ${profile.profession} → ${chosen}`,
-      });
-    } catch(e) {}
+    await logGold({
+      profile, city,
+      amount: -PROFESSION_CHANGE_COST, type: "changement_metier",
+      description: `Changement de métier : ${profile.profession} → ${chosen}`,
+    });
     toast.success(`✅ Métier changé ! Vous êtes maintenant ${chosen}.`);
     setChanging(false);
     setChosen("");

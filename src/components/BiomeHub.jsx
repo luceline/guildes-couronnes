@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRandomActionCost } from "../lib/gameData";
 import { addToInventory } from "../lib/inventoryHelpers";
+import { logGold } from "../lib/goldLog";
 import CombatEpic from "./combat/CombatEpic";
 import HelpTooltip from "./HelpTooltip";
 
@@ -225,14 +226,12 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   await base44.entities.PlayerProfile.update(profile.id, profileUpdates);
 
   if (goldReward > 0) {
-    await base44.entities.GoldTransaction.create({
-      player_email: profile.user_email,
-      player_name: profile.character_name || "",
-      city_id: "", city_name: "",
+    await logGold({
+      profile,
       amount: goldReward,
       type: "objectif",
       description: `Combat biome : victoire contre ${monster.name} (${biomeKey})`,
-    }).catch(() => {});
+    });
   }
 
   const newMonstres = (biomeData.monstres_du_jour || []).map(m =>
@@ -497,14 +496,12 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         harvest_gold_spent: 0,
       });
 
-      await base44.entities.GoldTransaction.create({
-        player_email: profile.user_email,
-        player_name: profile.character_name || "",
-        city_id: "", city_name: "",
+      await logGold({
+        profile,
         amount: -actualQty * HARVEST_COST_PER_UNIT,
         type: "objectif",
         description: `Récolte AFK biome ${biomeKey} : −${actualQty * HARVEST_COST_PER_UNIT} 💰 pour ${actualQty} ${harvest.item_name}`,
-      }).catch(() => {});
+      });
 
       toast.success(`🎒 Vos serfs rentrent les bras chargés ! +${actualQty} ${harvest.icon} ${harvest.item_name} : −${actualQty * HARVEST_COST_PER_UNIT} 💰 de gages.`);
       onRefresh?.();

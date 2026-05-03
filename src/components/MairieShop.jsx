@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { logGold } from "@/lib/goldLog";
 import { toast } from "sonner";
 
 function getPriceMultiplier(orMoyen) {
@@ -85,14 +86,11 @@ export default function MairieShop({ profile, city, onRefresh }) {
       treasury_cumulative: (city.treasury_cumulative || 0) + finalPrice,
     });
 
-    try {
-      await base44.entities.GoldTransaction.create({
-        player_email: profile.user_email, player_name: profile.character_name || "",
-        city_id: city.id, city_name: city.name || "",
-        amount: -finalPrice, type: "achat",
-        description: `Achat mairie : 1× ${item.name} (indisponible sur le marché)`,
-      });
-    } catch(e) {}
+    await logGold({
+      profile, city,
+      amount: -finalPrice, type: "achat",
+      description: `Achat mairie : 1× ${item.name} (indisponible sur le marché)`,
+    });
 
     toast.success(`✅ Acheté 1× ${item.icon} ${item.name} pour ${finalPrice} 💰`);
     setBuying(null);

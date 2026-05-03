@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,15 +48,13 @@ export default function BountyBoard({ profile, cityId, cityName }) {
     await base44.entities.PlayerProfile.update(profile.id, {
       gold: (profile.gold || 0) - rewardGold,
     });
-    await base44.entities.GoldTransaction.create({
-      player_email: profile.user_email,
-      player_name: profile.character_name,
-      city_id: cityId,
-      city_name: cityName,
+    await logGold({
+      profile,
+      city: { id: cityId, name: cityName },
       amount: -rewardGold,
       type: "peage",
       description: `Prime posée sur ${target.character_name} (${rewardGold} 💰 bloqués)`,
-    }).catch(() => {});
+    });
     await base44.entities.Bounty.create({
       poster_email: profile.user_email,
       poster_name: profile.character_name,

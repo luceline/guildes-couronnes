@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { BUILDING_TYPES, getTodayDateStr, generateDailyTax, HOUSING_MAINTENANCE, getCityDailyMaintenance, PARCHEMIN_REWARDS } from "./gameData";
+import { logGold } from "./goldLog";
 
 // Mayor AI decision-making logic
 
@@ -145,12 +146,11 @@ export async function runWealthTax(players, city) {
     if (taxed <= 0) continue;
     totalCollected += taxed;
     await base44.entities.PlayerProfile.update(player.id, { gold: gold - taxed });
-    await base44.entities.GoldTransaction.create({
-      player_email: player.user_email, player_name: player.character_name || "",
-      city_id: city.id, city_name: city.name,
+    await logGold({
+      profile: player, city,
       amount: -taxed, type: "impot",
       description: `Impôt journalier (${city.tax_rate}%) : ${city.name}`,
-    }).catch(() => {});
+    });
     results.push({ name: player.character_name, taxed });
   }
 
@@ -182,12 +182,11 @@ export async function runMaintenanceCosts(players) {
     if (hasMeuble) cost = Math.max(0, Math.floor(cost * 0.7));
     const newGold = Math.max(0, (player.gold || 0) - cost);
     await base44.entities.PlayerProfile.update(player.id, { gold: newGold });
-    await base44.entities.GoldTransaction.create({
-      player_email: player.user_email, player_name: player.character_name || "",
-      city_id: "", city_name: "",
+    await logGold({
+      profile: player,
       amount: -cost, type: "logement",
       description: `Entretien logement (${player.housing_level})${hasMeuble ? " -30% meuble" : ""}`,
-    }).catch(() => {});
+    });
     results.push({ name: player.character_name, cost, housing: player.housing_level, meubleBonus: hasMeuble });
   }
   return results;

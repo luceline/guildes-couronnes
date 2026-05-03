@@ -18,6 +18,7 @@
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -130,24 +131,20 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
 
       if (resolution.gold_stolen > 0) {
         ops.push(
-          base44.entities.GoldTransaction.create({
-            player_email: freshAttacker.user_email,
-            player_name: freshAttacker.character_name || "",
-            city_id: challenge.city_id || "",
-            city_name: challenge.city_name || "",
+          logGold({
+            profile: freshAttacker,
+            city: { id: challenge.city_id, name: challenge.city_name },
             amount: resolution.gold_stolen,
             type: "combat_pvp_gain",
             description: `Vol PvP : ${freshDefender.character_name || ""} (${ZONE_LABELS[challenge.attack_zone]})`,
-          }).catch(() => {}),
-          base44.entities.GoldTransaction.create({
-            player_email: freshDefender.user_email,
-            player_name: freshDefender.character_name || "",
-            city_id: challenge.city_id || "",
-            city_name: challenge.city_name || "",
+          }),
+          logGold({
+            profile: freshDefender,
+            city: { id: challenge.city_id, name: challenge.city_name },
             amount: -resolution.gold_stolen,
             type: "combat_pvp_loss",
             description: `Or volé par ${freshAttacker.character_name || ""}`,
-          }).catch(() => {}),
+          }),
         );
       }
 

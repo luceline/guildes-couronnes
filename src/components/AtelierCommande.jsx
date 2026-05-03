@@ -6,6 +6,7 @@
 import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { logGold } from "@/lib/goldLog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -265,24 +266,20 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       // Le dashboard se basant sur gold_transactions, le producteur ne voyait
       // rien et soupçonnait un vol. Ces deux create() en parallèle règlent ça.
       await Promise.all([
-        base44.entities.GoldTransaction.create({
-          player_email: clientProfile.user_email,
-          player_name:  clientProfile.character_name || "",
-          city_id:      clientProfile.city_id || "",
-          city_name:    "",
-          amount:       -price,
-          type:         "service_atelier",
-          description:  `Service d'atelier : ${outputItem?.name || outputKey} par ${producer.character_name} (${artisanShare}💰 artisan, ${cityShare}💰 ville)`,
-        }).catch(() => {}),
-        base44.entities.GoldTransaction.create({
-          player_email: producer.user_email,
-          player_name:  producer.character_name || "",
-          city_id:      producer.city_id || "",
-          city_name:    "",
-          amount:       artisanShare,
-          type:         "service_atelier",
-          description:  `Service d'atelier rendu à ${clientProfile.character_name || "un client"} : ${outputItem?.name || outputKey}`,
-        }).catch(() => {}),
+        logGold({
+          profile: clientProfile,
+          city: { id: clientProfile.city_id, name: "" },
+          amount: -price,
+          type: "service_atelier",
+          description: `Service d'atelier : ${outputItem?.name || outputKey} par ${producer.character_name} (${artisanShare}💰 artisan, ${cityShare}💰 ville)`,
+        }),
+        logGold({
+          profile: producer,
+          city: { id: producer.city_id, name: "" },
+          amount: artisanShare,
+          type: "service_atelier",
+          description: `Service d'atelier rendu à ${clientProfile.character_name || "un client"} : ${outputItem?.name || outputKey}`,
+        }),
       ]);
 
       const itemName = isT1 ? (outputItem?.name || outputKey) : (outputItem?.name || recipe.output.key);

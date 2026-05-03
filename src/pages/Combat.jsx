@@ -11,6 +11,7 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "@/lib/goldLog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -107,24 +108,20 @@ async function autoResolveTimeoutChallenge(challenge) {
   if (resolution.gold_stolen > 0) {
     const ZONE_LABELS_LOCAL = { head: "Tête", torso: "Torse", arms: "Bras", legs: "Jambes" };
     ops.push(
-      base44.entities.GoldTransaction.create({
-        player_email: attacker.user_email,
-        player_name: attacker.character_name || "",
-        city_id: challenge.city_id || "",
-        city_name: challenge.city_name || "",
+      logGold({
+        profile: attacker,
+        city: { id: challenge.city_id, name: challenge.city_name },
         amount: resolution.gold_stolen,
         type: "combat_pvp_gain",
         description: `Vol PvP (timeout) : ${defender.character_name || ""} (${ZONE_LABELS_LOCAL[challenge.attack_zone] || challenge.attack_zone})`,
-      }).catch(() => {}),
-      base44.entities.GoldTransaction.create({
-        player_email: defender.user_email,
-        player_name: defender.character_name || "",
-        city_id: challenge.city_id || "",
-        city_name: challenge.city_name || "",
+      }),
+      logGold({
+        profile: defender,
+        city: { id: challenge.city_id, name: challenge.city_name },
         amount: -resolution.gold_stolen,
         type: "combat_pvp_loss",
         description: `Or volé par ${attacker.character_name || ""} (timeout)`,
-      }).catch(() => {}),
+      }),
     );
   }
 

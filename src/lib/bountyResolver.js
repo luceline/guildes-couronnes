@@ -11,6 +11,7 @@
  *     attacker, defender, combatResult: resolution.result, cityId, cityName,
  *   });
  */
+import { logGold } from "./goldLog";
 
 export async function claimBountiesIfApplicable(base44, params) {
   const { attacker, defender, combatResult, cityId = "", cityName = "" } = params;
@@ -76,17 +77,13 @@ export async function claimBountiesIfApplicable(base44, params) {
 
   // Log gold transactions et messages taverne (1 entrée par bounty)
   for (const b of claimedBounties) {
-    try {
-      await base44.entities.GoldTransaction.create({
-        player_email: attacker.user_email,
-        player_name: attacker.character_name || "",
-        city_id: cityId,
-        city_name: cityName,
-        amount: b.reward_gold || 0,
-        type: "combat_pvp_gain",
-        description: `Prime touchée sur ${defender.character_name || ""} (posée par ${b.poster_name || "inconnu"})`,
-      });
-    } catch (e) { /* silent */ }
+    await logGold({
+      profile: attacker,
+      city: { id: cityId, name: cityName },
+      amount: b.reward_gold || 0,
+      type: "combat_pvp_gain",
+      description: `Prime touchée sur ${defender.character_name || ""} (posée par ${b.poster_name || "inconnu"})`,
+    });
 
     try {
       await base44.entities.TavernMessage.create({

@@ -151,14 +151,11 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
           updates.gold = (profile.gold || 0) + gambleGold;
           const flavor = gambleGold > gambleMax * 0.6 ? "📖 Votre ouvrage fait fureur !" : gambleGold > 20 ? "📖 Succès modeste..." : "📖 Un flop, hélas...";
           toast.success(`${itemDef.icon || "🖋️"} ${flavor} +${gambleGold}💰`);
-          try {
-            await base44.entities.GoldTransaction.create({
-              player_email: profile.user_email, player_name: profile.character_name || '',
-              city_id: city?.id || '', city_name: city?.name || '',
-              amount: gambleGold, type: 'objectif',
-              description: `Gamble ${itemDef.name || itemDef.key} : +${gambleGold}💰 (max ${gambleMax})`,
-            });
-          } catch (_) {}
+          await logGold({
+            profile, city,
+            amount: gambleGold, type: 'objectif',
+            description: `Gamble ${itemDef.name || itemDef.key} : +${gambleGold}💰 (max ${gambleMax})`,
+          });
         } else {
           toast(`📖 Votre livre est resté dans les cartons... Personne n'a mordu.`);
         }

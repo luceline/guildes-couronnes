@@ -10,6 +10,7 @@
 
 import { base44 } from '@/api/base44Client';
 import { checkAndAwardObjective } from '@/lib/questRewards';
+import { logGold } from '@/lib/goldLog';
 import { toast } from 'sonner';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -61,14 +62,12 @@ export async function handleTravelArrival(p) {
         treasury_cumulative: (arrivalCity.treasury_cumulative || 0) + actualToll,
       });
       // Log péage
-      try {
-        await base44.entities.GoldTransaction.create({
-          player_email: p.user_email, player_name: p.character_name || '',
-          city_id: arrivalCity.id, city_name: arrivalCity.name || '',
-          amount: -actualToll, type: 'peage',
-          description: `Péage remparts de ${arrivalCity.name}`,
-        });
-      } catch (_) {}
+      await logGold({
+        profile: p,
+        city: arrivalCity,
+        amount: -actualToll, type: 'peage',
+        description: `Péage remparts de ${arrivalCity.name}`,
+      });
       toast.info(`🏰 Péage : −${actualToll} 💰 pour entrer dans ${arrivalCity.name}.`);
     }
   }

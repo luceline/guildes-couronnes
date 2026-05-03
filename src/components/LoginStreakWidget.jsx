@@ -1,6 +1,7 @@
 import { STREAK_REWARDS } from "../lib/gameData";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { logGold } from "../lib/goldLog";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 
@@ -102,10 +103,9 @@ export default function LoginStreakWidget({ profile, onProfileUpdate }) {
     };
 
     await base44.entities.PlayerProfile.update(profile.id, updates);
-    await base44.entities.GoldTransaction.create({
-      player_email: profile.user_email,
-      player_name: profile.character_name,
-      city_id: profile.city_id,
+    await logGold({
+      profile,
+      city: { id: profile.city_id, name: "" },
       amount: goldEarned,
       type: "objectif",
       description: `🔥 Connexion jour ${newStreak} : Récompense streak +${goldEarned}💰`,

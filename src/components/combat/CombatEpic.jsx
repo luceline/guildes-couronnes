@@ -38,6 +38,7 @@ import { MAX_WAVES_PER_DAY, getPlayerMaxHP } from "@/lib/combatPvE";
 import { BIOMES } from "@/lib/biomes";
 import { getRareResourceFromBiome } from "@/lib/rareResources";
 import { grantXP, XP_REWARDS } from "@/lib/playerLevelSystem";
+import { logGold } from "@/lib/goldLog";
 
 // BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
@@ -226,17 +227,13 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
 
       // Tx d'or
       if ((rewards?.gold || 0) > 0) {
-        try {
-          await base44.entities.GoldTransaction.create({
-            player_email: profile.user_email,
-            player_name: profile.character_name || "",
-            city_id: profile.city_id || "",
-            city_name: "",
-            amount: rewards.gold,
-            type: "objectif",
-            description: `Combat épique ${biomeInfo.name} V${waveIndex + 1} : +${rewards.gold}💰 (${rewards.killCount}/${3} mobs)`,
-          });
-        } catch (_) {}
+        await logGold({
+          profile,
+          city: { id: profile.city_id, name: "" },  // CombatEpic n'a pas l'objet city, juste l'id
+          amount: rewards.gold,
+          type: "objectif",
+          description: `Combat épique ${biomeInfo.name} V${waveIndex + 1} : +${rewards.gold}💰 (${rewards.killCount}/${3} mobs)`,
+        });
       }
 
       setLocalProfile(prev => ({

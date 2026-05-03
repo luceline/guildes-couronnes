@@ -499,14 +499,11 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     await base44.entities.City.update(city.id, {
       sceaux_en_vente: Math.max(0, stock - 1),
     });
-    try {
-      await base44.entities.GoldTransaction.create({
-        player_email: profile.user_email, player_name: profile.character_name || "",
-        city_id: city.id, city_name: city.name || "",
-        amount: -SCEAU_PRICE, type: "sceau_royal",
-        description: `Achat Sceau royal : ${SCEAU_PRICE}💰 détruits, solde Sceau : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰`,
-      });
-    } catch(e) {}
+    await logGold({
+      profile, city,
+      amount: -SCEAU_PRICE, type: "sceau_royal",
+      description: `Achat Sceau royal : ${SCEAU_PRICE}💰 détruits, solde Sceau : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰`,
+    });
     toast.success(`🏵️ Sceau royal acquis ! Solde : ${(profile.sceau_balance || 0) + SCEAU_VALUE}💰 (absorbe taxes et impôts).`);
     setBuyingSceau(false);
     onRefresh?.();
