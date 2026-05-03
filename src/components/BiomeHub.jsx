@@ -71,14 +71,18 @@ const MONSTERS_DATA = [
   { name: "Troll", icon: "👺" },
 ];
 
-// Ressources rares par biome avec métiers associés
+// Ressources rares par biome avec métiers associés.
+// IMPORTANT : les `key` doivent matcher exactement les clés de `RARE_RESOURCES`
+// dans @/lib/rareResources, sinon les XP rares ne s'activent pas et l'inventaire
+// ne reconnait pas les drops. Si vous ajoutez une ressource rare, créez-la en
+// premier dans rareResources.js puis ici.
 const BIOME_RARES = {
   foret:   { key: "essence_foret",      name: "Essence forestière",  icon: "🌿", professions: ["Bûcheron", "Alchimiste"] },
   champs:  { key: "poussiere_moisson",  name: "Poussière de récolte",icon: "🌾", professions: ["Fermier"] },
   mine:    { key: "fragment_cristal",   name: "Fragment cristallin", icon: "💎", professions: ["Mineur"] },
-  atelier: { key: "fil_enchante",       name: "Fil enchanté",        icon: "✨", professions: ["Tisserand"] },
-  forge:   { key: "cendre_forge",       name: "Cendre de forge",     icon: "🔥", professions: ["Forgeron", "Orfèvre"] },
-  guilde:  { key: "piece_ancienne",     name: "Pièce d'or ancienne", icon: "🪙", professions: ["Marchand"] },
+  atelier: { key: "fil_or",             name: "Fil d'or",            icon: "🧵", professions: ["Tisserand"] },
+  forge:   { key: "lingot_runique",     name: "Lingot runique",      icon: "🔥", professions: ["Forgeron", "Orfèvre"] },
+  guilde:  { key: "sceau_guilde",       name: "Sceau de la guilde",  icon: "🏛️", professions: ["Marchand"] },
 };
 
 function generateMonstresForDay(biomeKey) {

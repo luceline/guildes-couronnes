@@ -4,8 +4,12 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { logGold } from "../lib/goldLog";
+import { getProfessionsList } from "../lib/professions";
 
-const PROFESSIONS = ["Marchand","Producteur","Forgeron","Tisserand","Alchimiste","Bûcheron","Mineur","Fermier","Orfèvre"];
+// La liste est centralisée dans @/lib/professions (source : gameData.js).
+// L'ancienne liste codée en dur ici contenait "Producteur" qui n'existe plus
+// dans le jeu — utiliser la liste centralisée évite ce genre de divergence.
+const PROFESSIONS = getProfessionsList();
 
 // logGold local retiré : utiliser @/lib/goldLog (source de vérité unique).
 

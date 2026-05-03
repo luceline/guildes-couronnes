@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Search, Edit2, Save, X, Plus, Trash2, RefreshCw } from "lucide-react";
+import { getProfessionsList } from "@/lib/professions";
 
 // ── Éditeur inline d'une ligne ──
 function EditableRow({ record, fields, onSave, onDelete }) {
@@ -295,7 +296,7 @@ function RecipesTab() {
     toast.success("Recette supprimée");
   };
 
-  const professions = ["Bûcheron","Mineur","Fermier","Tisserand","Forgeron","Alchimiste","Orfèvre","Marchand"];
+  const professions = getProfessionsList();
 
   if (loading) return <div className="p-4 text-muted-foreground text-sm">Chargement...</div>;
 
