@@ -37,6 +37,32 @@ const RECIPES_BY_OUTPUT = (() => {
   return m;
 })();
 
+// Index inverse : pour chaque item, liste des recettes qui le CONSOMMENT
+// (en input) ou le REQUIÈRENT (requiresItems, non consommé). Permet d'afficher
+// dans le Codex "cet objet est nécessaire pour fabriquer : ...".
+const RECIPES_USING_ITEM = (() => {
+  const m = {};
+  for (const r of CRAFTING_RECIPES_REFACTORED) {
+    const outputKey = r.output?.key || r.outputKey;
+    if (!outputKey) continue;
+
+    // Inputs consommés
+    for (const inp of (r.inputs || [])) {
+      if (!inp?.key) continue;
+      if (!m[inp.key]) m[inp.key] = [];
+      m[inp.key].push({ recipe: r, outputKey, role: "consumed", quantity: inp.quantity });
+    }
+
+    // Items requis mais non consommés (requiresItems, ex: outils en T4)
+    for (const req of (r.requiresItems || [])) {
+      if (!req?.key) continue;
+      if (!m[req.key]) m[req.key] = [];
+      m[req.key].push({ recipe: r, outputKey, role: "required", quantity: req.quantity });
+    }
+  }
+  return m;
+})();
+
 // Pour chaque monstre, calcule la liste des vagues où il peut apparaître,
 // dérivée à 100% de WAVE_MONSTER_POOLS. Si on modifie le pool, ça suit.
 const MONSTER_WAVES_BY_INDEX = (() => {
@@ -342,6 +368,36 @@ function ItemsTab() {
                   <div>
                     <div className="font-semibold text-xs uppercase text-muted-foreground mb-1">Fabrication</div>
                     <p className="text-muted-foreground italic">Recette non disponible.</p>
+                  </div>
+                )}
+
+                {/* Utilisé pour fabriquer : liste des recettes qui consomment cet item */}
+                {(RECIPES_USING_ITEM[selectedKey] || []).length > 0 && (
+                  <div>
+                    <div className="font-semibold text-xs uppercase text-muted-foreground mb-1">
+                      Utilisé pour fabriquer
+                    </div>
+                    <ul className="space-y-1">
+                      {RECIPES_USING_ITEM[selectedKey].map((entry, i) => {
+                        const outDef = ITEMS[entry.outputKey];
+                        if (!outDef) return null;
+                        return (
+                          <li key={i} className="flex items-center gap-2 text-sm">
+                            <span>{outDef.icon || "📦"}</span>
+                            <button
+                              onClick={() => setSelectedKey(entry.outputKey)}
+                              className="underline decoration-dotted hover:text-primary"
+                            >
+                              {outDef.name}
+                            </button>
+                            <span className="text-muted-foreground text-xs">
+                              ×{entry.quantity}
+                              {entry.role === "required" && " (non consommé)"}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 )}
               </CardContent>
