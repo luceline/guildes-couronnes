@@ -1,5 +1,5 @@
 /**
- * TavernDicePanel.jsx — Table de jeux de la taverne (hazart asynchrone).
+ * TavernDicePanel.jsx : Table de jeux de la taverne (hazart asynchrone).
  *
  * Inspiré du jeu de hazart médiéval (XIIIe siècle) : 3 dés, 1 vs 1, plus haut
  * total gagne. Une "tierce" (3 dés identiques) bat tout et paie ×3.
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { logGold } from "@/lib/goldLog";
 import { toast } from "sonner";
 
@@ -155,6 +156,7 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
   const [submitting, setSubmitting] = useState(false);
   const [accepting, setAccepting] = useState(null);
   const [resolveModal, setResolveModal] = useState(null); // { challenger_dice, accepter_dice, won, gain }
+  const [showRules, setShowRules] = useState(false);
 
   const partiesAujourdhui = getPartiesAujourdhui(profile);
   const quotaAtteint = partiesAujourdhui >= MAX_PARTIES_PAR_JOUR;
@@ -236,7 +238,7 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
         expires_at: expiresAt,
       });
 
-      toast.success(`🎲 Votre défi est lancé ! ${mise}💰 sur la table — qui osera relever le gant ?`);
+      toast.success(`🎲 Votre défi est lancé ! ${mise}💰 sur la table : qui osera relever le gant ?`);
       onRefresh?.();
       loadData();
     } catch (e) {
@@ -420,16 +422,26 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
     <Card className="flex flex-col" style={{ minHeight: 360 }}>
       <CardContent className="pt-4 space-y-3">
         {/* En-tête */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
             <h3 className="font-heading text-base">🎲 Table de hazart</h3>
             <p className="text-xs text-muted-foreground font-body italic">
-              Trois dés, une mise, le hasard tranche. Tierce paie triple.
+              Trois dés, une mise, le hasard tranche.
             </p>
           </div>
-          <Badge variant="secondary" className="font-body text-xs">
-            {presentCount} ici
-          </Badge>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="font-body text-xs h-7 px-2"
+              onClick={() => setShowRules(true)}
+            >
+              ❓ Règles
+            </Button>
+            <Badge variant="secondary" className="font-body text-xs">
+              {presentCount} ici
+            </Badge>
+          </div>
         </div>
 
         {/* État de la table */}
@@ -448,8 +460,8 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
           }`}>
             🎲 Parties du jour : <span className="font-semibold">{partiesAujourdhui}/{MAX_PARTIES_PAR_JOUR}</span>
             {quotaAtteint
-              ? <span className="italic"> — le tavernier vous coupe le passage. Repassez demain !</span>
-              : <span className="italic"> — au-delà, le tavernier vous mettra dehors.</span>
+              ? <span className="italic"> · le tavernier vous coupe le passage. Repassez demain !</span>
+              : <span className="italic"> · au-delà, le tavernier vous mettra dehors.</span>
             }
           </div>
         )}
@@ -574,7 +586,7 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
                   : "bg-red-50 border border-red-200"
             }`}>
               <div className="font-heading text-lg">
-                {resolveModal.winner === "tie" && "🤝 Égalité — mises rendues"}
+                {resolveModal.winner === "tie" && "🤝 Égalité, mises rendues"}
                 {resolveModal.winner === "accepter" && `🏆 Vous l'emportez ! +${resolveModal.payout - resolveModal.mise}💰 net`}
                 {resolveModal.winner === "challenger" && `💀 ${resolveModal.challenger_name} l'emporte. -${resolveModal.mise}💰`}
               </div>
@@ -586,6 +598,35 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
           </div>
         </div>
       )}
+
+      {/* Dialog des règles du jeu */}
+      <Dialog open={showRules} onOpenChange={setShowRules}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-heading">🎲 Le jeu du hazart</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm font-body">
+            <p className="italic text-muted-foreground">
+              Le tavernier vous tend trois dés et explique :
+            </p>
+            <p>
+              Vous misez entre <strong>{MIN_MISE} et {MAX_MISE} deniers d'or</strong>. Votre adversaire mise pareil. Chacun lance 3 dés. <strong>Le plus haut total l'emporte.</strong> En cas d'égalité, chacun récupère sa mise.
+            </p>
+            <p>
+              Si vous sortez <strong>trois dés identiques</strong> (une "tierce"), vous remportez la mise quel que soit le résultat de votre adversaire, et le pot est <strong>majoré</strong>.
+            </p>
+            <p>
+              Le tavernier prend <strong>{Math.round(TAVERN_COMMISSION * 100)}%</strong> du pot pour entretenir la maison. Le reste va au gagnant.
+            </p>
+            <p>
+              <strong>Maximum {MAX_PARTIES_PAR_JOUR} parties par jour.</strong> C'est pour votre bien.
+            </p>
+            <p className="italic text-muted-foreground border-t border-border pt-3">
+              Note du tavernier : l'Église réprouve, le Roi tolère, et moi je sers à boire.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
