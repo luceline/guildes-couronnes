@@ -24,7 +24,6 @@ import {
   WAVE_MONSTER_POOLS,
   WAVE_STATS,
   describePattern,
-  MONSTERS_PER_WAVE,
 } from "@/lib/combatPvE";
 
 // Construit un index recipe.outputKey -> recette pour récupérer rapidement
@@ -523,11 +522,6 @@ function BestiaryTab() {
                         : `V${selected.waves[0]} à V${selected.waves[selected.waves.length - 1]}`}
                     </span>{" "}
                     de l'épopée quotidienne (n'importe quel biome).
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Chaque vague tire {MONSTERS_PER_WAVE} mobs distincts dans son pool autorisé.
-                    Plus la vague est haute, plus les mobs ont de PV (V1 : {WAVE_STATS[0].hp} →
-                    V5 : {WAVE_STATS[4].hp}).
                   </p>
                 </div>
 
