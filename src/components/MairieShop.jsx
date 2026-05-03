@@ -4,6 +4,25 @@ import { Button } from "@/components/ui/button";
 import { logGold } from "@/lib/goldLog";
 import { toast } from "sonner";
 
+// ── Quota anti-scalping du stock d'urgence ──
+// Le stock d'urgence est un FILET DE SÉCURITÉ : il existe pour dépanner les
+// joueurs quand aucun producteur ne vend l'item en question. Sans plafond, un
+// joueur peut vider le stock à 6 or et tout revendre à 15 or au marché → farm.
+// On limite à N achats par joueur, par jour, toutes catégories confondues.
+//
+// 5/jour permet de se dépanner sur plusieurs ressources (ex : 2 bois + 1 fer + 2 herbes)
+// mais bloque la constitution d'un stock revendable.
+const MAX_ACHATS_URGENCE_PAR_JOUR = 5;
+
+// Lit le compteur d'achats du jour pour ce profil. Si la date stockée n'est pas
+// aujourd'hui, on considère qu'un nouveau jour commence (compteur = 0).
+function getAchatsUrgenceAujourdhui(profile) {
+  const today = new Date().toISOString().split("T")[0];
+  const data = profile?.urgence_bought_today;
+  if (!data || data.date !== today) return 0;
+  return data.count || 0;
+}
+
 function getPriceMultiplier(orMoyen) {
   if (!orMoyen || orMoyen < 200) return 0.8;
   if (orMoyen < 500)  return 1.0;
@@ -62,6 +81,14 @@ export default function MairieShop({ profile, city, onRefresh }) {
 
   const handleBuy = async (item) => {
     const finalPrice = Math.round(item.basePrice * priceMultiplier);
+
+    // Anti-scalping : limite d'achats au stock d'urgence par jour
+    const achatsAujourdhui = getAchatsUrgenceAujourdhui(profile);
+    if (achatsAujourdhui >= MAX_ACHATS_URGENCE_PAR_JOUR) {
+      toast.error(`📜 La mairie a déjà honoré ${MAX_ACHATS_URGENCE_PAR_JOUR} de vos commandes aujourd'hui. Le stock d'urgence est un dépannage, pas un fournisseur. Revenez demain !`);
+      return;
+    }
+
     if ((profile.gold || 0) < finalPrice) {
       toast.error(`Pas assez d'or ! Il vous faut ${finalPrice} 💰.`);
       return;
@@ -76,9 +103,17 @@ export default function MairieShop({ profile, city, onRefresh }) {
       newInventory.push({ item_key: item.key, item_name: item.name, item_category: item.category, quantity: 1 });
     }
 
+    // Incrémente le compteur quotidien (ou crée-le si nouveau jour)
+    const today = new Date().toISOString().split("T")[0];
+    const newUrgenceCount = {
+      date: today,
+      count: achatsAujourdhui + 1,
+    };
+
     await base44.entities.PlayerProfile.update(profile.id, {
       gold: (profile.gold || 0) - finalPrice,
       inventory: newInventory,
+      urgence_bought_today: newUrgenceCount,
     });
 
     await base44.entities.City.update(city.id, {
@@ -110,6 +145,10 @@ export default function MairieShop({ profile, city, onRefresh }) {
   // Items disponibles sur le marché (non affichés dans l'urgence)
   const availableItems = T1_ITEMS_MAIRIE.filter(item => !unavailableItems.find(u => u.key === item.key));
 
+  // Compteur d'achats urgence du jour (pour affichage UI)
+  const achatsAujourdhui = getAchatsUrgenceAujourdhui(profile);
+  const quotaAtteint = achatsAujourdhui >= MAX_ACHATS_URGENCE_PAR_JOUR;
+
   return (
     <div className="space-y-3">
       {availableItems.length > 0 && (
@@ -117,6 +156,20 @@ export default function MairieShop({ profile, city, onRefresh }) {
           🎶 <em>Le ménestrel chuchote :</em> «{availableItems.map(i => i.icon + " " + i.name).join(", ")} ont été aperçu{availableItems.length > 1 ? "s" : "e"} sur les marchés du royaume : la mairie n'en point besoin de les proposer. Si vous n'en trouvez pas, regardez mieux, un marchand les a peut-être cachés dans sa besace !»
         </div>
       )}
+
+      {/* Badge quota d'achats urgence */}
+      <div className={`text-xs font-body px-3 py-2 rounded-lg border ${
+        quotaAtteint
+          ? "bg-red-50 border-red-200 text-red-800"
+          : "bg-amber-50 border-amber-200 text-amber-800"
+      }`}>
+        📜 Commandes du jour à la mairie : <span className="font-semibold">{achatsAujourdhui}/{MAX_ACHATS_URGENCE_PAR_JOUR}</span>
+        {quotaAtteint
+          ? <span className="italic"> — la mairie ne sert plus aujourd'hui, revenez demain.</span>
+          : <span className="italic"> — limite anti-spéculation, le stock d'urgence dépanne plus qu'il ne fournit.</span>
+        }
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {unavailableItems.map(item => {
           const finalPrice = Math.round(item.basePrice * priceMultiplier);
@@ -130,10 +183,10 @@ export default function MairieShop({ profile, city, onRefresh }) {
                 size="sm"
                 className="w-full h-7 text-xs font-heading"
                 variant={canAfford ? "default" : "outline"}
-                disabled={!canAfford || buying === item.key}
+                disabled={!canAfford || buying === item.key || quotaAtteint}
                 onClick={() => handleBuy(item)}
               >
-                {buying === item.key ? "..." : canAfford ? "Acheter ×1" : "Pas assez d'or"}
+                {buying === item.key ? "..." : quotaAtteint ? "Quota atteint" : canAfford ? "Acheter ×1" : "Pas assez d'or"}
               </Button>
             </div>
           );
