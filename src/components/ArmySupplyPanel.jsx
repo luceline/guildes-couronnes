@@ -30,9 +30,13 @@ export default function ArmySupplyPanel({ city, isMayor, onRefresh }) {
   // Affiché comme info au maire
 
   const handleDeposit = async (resourceKey, type) => {
+    // Trouve le label affichable depuis les listes locales
+    const allResources = [...FOOD_RESOURCES, ...ENERGY_RESOURCES];
+    const resourceLabel = allResources.find(r => r.key === resourceKey)?.label || resourceKey;
+
     const available = warehouse[resourceKey] || 0;
     if (available <= 0) {
-      toast.error(`Pas de ${resourceKey} en entrepôt.`);
+      toast.error(`Pas de ${resourceLabel} en entrepôt.`);
       return;
     }
     setLoading(resourceKey);
@@ -55,7 +59,7 @@ export default function ArmySupplyPanel({ city, isMayor, onRefresh }) {
       });
 
       const label = isFood ? "nourriture" : "énergie";
-      toast.success(`🏰 +${points} ${label} pour l'armée (${qty} ${resourceKey} déposés)`);
+      toast.success(`🏰 +${points} ${label} pour l'armée (${qty} ${resourceLabel} déposés)`);
       onRefresh?.();
     } catch {
       toast.error("Erreur lors du dépôt.");

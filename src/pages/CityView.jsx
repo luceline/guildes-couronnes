@@ -571,7 +571,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
 
     for (const [res, qty] of Object.entries(cost)) {
       if ((warehouse[res] || 0) < qty) {
-        toast.error(`L'entrepôt manque de ${WAREHOUSE_LABELS[res] || res} (${warehouse[res] || 0}/${qty}).`);
+        toast.error(`L'entrepôt manque de ${WAREHOUSE_LABELS[res] || GAME_ITEMS[res]?.name || res} (${warehouse[res] || 0}/${qty}).`);
         return;
       }
     }
@@ -966,7 +966,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                         {canUpgrade && (
                           <div className="mt-2 space-y-1">
                             <div className="text-[10px] font-body text-muted-foreground">
-                              Niv. {lvl + 1} : {Object.entries(upgradeCost).map(([res, qty]) => `${qty} ${WAREHOUSE_LABELS[res] || res}`).join(" · ")}
+                              Niv. {lvl + 1} : {Object.entries(upgradeCost).map(([res, qty]) => `${qty} ${WAREHOUSE_LABELS[res] || GAME_ITEMS[res]?.name || res}`).join(" · ")}
                             </div>
                             <Button
                               size="sm"
@@ -1059,7 +1059,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                             <span key={res} className={`text-xs px-2 py-0.5 rounded-full border font-body ${
                               ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
                             }`}>
-                              {ITEM_CATEGORIES[res]?.icon} {WAREHOUSE_LABELS[res] || res} {has}/{qty}
+                              {ITEM_CATEGORIES[res]?.icon} {WAREHOUSE_LABELS[res] || GAME_ITEMS[res]?.name || res} {has}/{qty}
                             </span>
                           );
                         })}
@@ -1072,11 +1072,14 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
                            <span>
                              {Object.entries(bType.maintenance).map(([r, q]) => {
                                const mult = Math.pow(2, currentLevel - 1);
-                               return `${Math.ceil(q * mult)} ${r}`;
+                               const label = WAREHOUSE_LABELS[r] || GAME_ITEMS[r]?.name || r;
+                               return `${Math.ceil(q * mult)} ${label}`;
                              }).join(", ")} (T{currentLevel})
                            </span>
                          ) : (
-                           Object.entries(bType.maintenance).map(([r, q]) => `${q} ${r}`).join(", ")
+                           Object.entries(bType.maintenance).map(([r, q]) =>
+                             `${q} ${WAREHOUSE_LABELS[r] || GAME_ITEMS[r]?.name || r}`
+                           ).join(", ")
                          )}
                        </p>
                      )}
