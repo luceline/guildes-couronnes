@@ -97,13 +97,13 @@ function DiceDisplay({ values, animating = false, label = null, isWinner = false
       ]);
     }, 80);
 
-    // Stoppe les dés un par un (effet "roulé puis arrêt")
-    const stop1 = setTimeout(() => setDisplayValues(prev => [values[0], prev[1], prev[2]]), 1000);
-    const stop2 = setTimeout(() => setDisplayValues(prev => [values[0], values[1], prev[2]]), 1400);
+    // Stoppe les dés un par un (effet "roulé puis arrêt") sur ~3 secondes
+    const stop1 = setTimeout(() => setDisplayValues(prev => [values[0], prev[1], prev[2]]), 1700);
+    const stop2 = setTimeout(() => setDisplayValues(prev => [values[0], values[1], prev[2]]), 2350);
     const stop3 = setTimeout(() => {
       clearInterval(interval);
       setDisplayValues(values);
-    }, 1800);
+    }, 3000);
 
     return () => {
       clearInterval(interval);
@@ -154,6 +154,8 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
   const [submitting, setSubmitting] = useState(false);
   const [accepting, setAccepting] = useState(null);
   const [resolveModal, setResolveModal] = useState(null); // { challenger_dice, accepter_dice, won, gain }
+  const [publishModal, setPublishModal] = useState(null); // { dice, score, mise } : animation lors de la publication
+  const [publishRolled, setPublishRolled] = useState(false); // false = pas encore cliqué sur "Lancer", true = animation en cours/finie
   const [showRules, setShowRules] = useState(false);
 
   const partiesAujourdhui = getPartiesAujourdhui(profile);
@@ -236,12 +238,14 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
         expires_at: expiresAt,
       });
 
-      // Affiche au challenger son propre lancer (il garde son score secret pour les autres)
-      toast.success(
-        `🎲 Vos dés : ${challengerRoll.dice.join(" · ")} (score ${scoreOf(challengerRoll.dice)}). ` +
-        `${mise}💰 sur la table : qui osera relever le gant ?`,
-        { duration: 6000 }
-      );
+      // Ouvre la modale en mode "pas encore lancé" : le joueur doit cliquer
+      // sur "Lancer les dés !" pour déclencher l'animation (3 secondes).
+      setPublishRolled(false);
+      setPublishModal({
+        dice: challengerRoll.dice,
+        score: scoreOf(challengerRoll.dice),
+        mise: mise,
+      });
       onRefresh?.();
       loadData();
     } catch (e) {
@@ -555,6 +559,69 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
           })}
         </div>
       </CardContent>
+
+      {/* Modal d'animation à la publication d'un défi.
+          État 1 (publishRolled=false) : invitation à cliquer sur "Lancer les dés"
+          État 2 (publishRolled=true) : animation 3s puis révélation du score */}
+      {publishModal && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => publishRolled && setPublishModal(null)}
+        >
+          <div
+            className="bg-background rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border-2 border-amber-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <div className="font-heading text-lg mb-1">
+                {publishRolled ? "🎲 Le sort est jeté..." : "🎲 À vous de jouer"}
+              </div>
+              <div className="text-xs text-muted-foreground font-body italic">
+                Mise : {publishModal.mise}💰 sur la table
+              </div>
+            </div>
+
+            {!publishRolled && (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center">
+                  <div className="text-5xl mb-2">🎲 🎲 🎲</div>
+                  <div className="text-sm font-body text-amber-800 italic">
+                    Le tavernier vous tend les dés. Saisissez-les bien, le hasard vous attend.
+                  </div>
+                </div>
+                <Button
+                  className="w-full font-heading text-base py-6"
+                  onClick={() => setPublishRolled(true)}
+                >
+                  🎲 Lancer les dés !
+                </Button>
+              </>
+            )}
+
+            {publishRolled && (
+              <>
+                <div className="flex justify-center py-2">
+                  <DiceDisplay
+                    values={publishModal.dice}
+                    animating={true}
+                    label={profile.character_name}
+                  />
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+                  <div className="text-xs font-body text-amber-700 italic">
+                    Votre score reste secret. {publishModal.mise}💰 sur la table : qui osera relever le gant ?
+                  </div>
+                </div>
+
+                <Button className="w-full font-heading" onClick={() => setPublishModal(null)}>
+                  Fermer
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modal de résolution (animation des dés) */}
       {resolveModal && (
