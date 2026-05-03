@@ -25,7 +25,10 @@ import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "../lib/rareResources";
 // n'étaient en réalité jamais alimentées par le combat → bug XP corrigé.
 
 const CONTRAT_DEFS = {
-  parchemin:         { label: "📜 Activer contrat", type: "quest_activate",   parchemin_type: "parchemin" },
+  // L'entrée "parchemin" a été retirée car elle créait un double bouton dans l'inventaire :
+  //   - "+100 XP" via la branche effect:"xp_reward" (vraie action utile)
+  //   - "📜 Activer contrat" via cette table (ne faisait rien de fonctionnel)
+  // On garde uniquement "contrat_artisan" qui a son propre flow de quête.
   contrat_artisan:   { label: "⚒️ Activer contrat",  type: "quest_activate",   parchemin_type: "contrat_artisan" },
 };
 
