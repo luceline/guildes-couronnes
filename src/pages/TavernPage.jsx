@@ -10,6 +10,7 @@ import { Send, Lock } from "lucide-react";
 import BountyBoard from "../components/BountyBoard";
 import PlayerRanking from "../components/PlayerRanking";
 import TavernDicePanel from "../components/TavernDicePanel";
+import TavernLotteryPanel from "../components/TavernLotteryPanel";
 import { FOOD_ITEMS_WITH_FATIGUE, computeFatigueWithDailyReset, getTodayStr } from "../lib/craftingData";
 import { PROFESSIONS, getMaxFatigue, getCityFatigueBonus } from "../lib/gameData";
 import { toast } from "sonner";
@@ -433,7 +434,10 @@ export default function TavernPage() {
               <BountyBoard profile={profile} cityId={city?.id} cityName={city?.name} />
             </TabsContent>
             <TabsContent value="jeux" className="mt-2">
-              <TavernDicePanel profile={profile} city={city} isResident={isResident} onRefresh={refresh} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <TavernDicePanel profile={profile} city={city} isResident={isResident} onRefresh={refresh} />
+                <TavernLotteryPanel profile={profile} city={city} onRefresh={refresh} />
+              </div>
             </TabsContent>
             <TabsContent value="classement" className="mt-2">
               <PlayerRanking />
