@@ -16,7 +16,7 @@ import {
 } from "../lib/gameData";
 
 // Données des biomes
-import { BIOMES } from "../lib/biomeData";
+import { BIOMES } from "../lib/biomes";
 
 
 

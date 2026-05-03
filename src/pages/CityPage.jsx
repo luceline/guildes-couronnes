@@ -1,6 +1,6 @@
 import { usePlayerData } from "../lib/usePlayerData";
 import BiomeHub from "../components/BiomeHub";
-import { BIOMES } from "../lib/biomeData";
+import { BIOMES } from "../lib/biomes";
 import { MAX_HUNGER } from "@/lib/gameData";
 import { base44 } from "@/api/base44Client";
 import CityView from "./CityView";
