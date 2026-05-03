@@ -15,7 +15,7 @@ import {
 import {
   ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY,
 } from "../lib/craftingData";
-import { getLevelFromXP } from "../lib/playerLevelSystem";
+import { getLevelFromXP, grantXP } from "../lib/playerLevelSystem";
 import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "../lib/rareResources";
 
 // RARE_RESOURCES retiré : utiliser la source de vérité @/lib/rareResources.
@@ -162,8 +162,10 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
       } else if (itemDef.effect === "xp_reward") {
         // REFONTE v5 : Parchemin — récompense XP pure
         const xpAmount = itemDef.value || 100;
-        updates.player_xp_total = (profile.player_xp_total || 0) + xpAmount;
+        const xpGain = grantXP(profile, xpAmount);
+        Object.assign(updates, xpGain.updates);  // ajoute player_xp_total + player_level si level-up
         toast.success(`${itemDef.icon || "📜"} +${xpAmount} XP !`);
+        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
       } else if (itemDef.effect === "army_food" || itemDef.effect === "army_energy") {
         // REFONTE v5 : Ragoût T4 / Potion d'endurance T4 — ressources militaires.
         // Le joueur ne peut pas les consommer individuellement — elles passent par le maire
