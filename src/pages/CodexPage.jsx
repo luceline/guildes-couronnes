@@ -320,18 +320,6 @@ export default function CodexPage() {
                     <p className="text-muted-foreground italic">Recette non disponible.</p>
                   </div>
                 )}
-
-                {/* Détails techniques (cachés en petit) */}
-                <details className="text-xs text-muted-foreground">
-                  <summary className="cursor-pointer hover:text-foreground">Détails techniques</summary>
-                  <div className="mt-2 space-y-0.5 font-mono">
-                    <div>clé : {selectedKey}</div>
-                    {selectedItem.trigger && <div>déclencheur : {selectedItem.trigger}</div>}
-                    {selectedItem.effect && <div>effet : {selectedItem.effect}</div>}
-                    {selectedItem.value !== undefined && selectedItem.value !== null && <div>valeur : {selectedItem.value}</div>}
-                    {selectedItem.duration_h && <div>durée : {selectedItem.duration_h}h</div>}
-                  </div>
-                </details>
               </CardContent>
             </Card>
           )}
