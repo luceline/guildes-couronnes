@@ -142,8 +142,11 @@ export const WAVE_MONSTER_POOLS = [
 
 /** Or de base d'un mob (G1) selon sa position dans la vague (0=1er, 1=2e, 2=3e). */
 export const MOB_GOLD_BASE = [0, 1, 2];
-/** Drop de base d'un mob (G1) selon sa position. */
-export const MOB_DROP_BASE = [0.00, 0.02, 0.05];
+/** Drop de base d'un mob (G1) selon sa position.
+ *  Réajusté en mai 2026 pour rendre la progression XP via ressources rares
+ *  visible (avant : 0/2/5%, désormais 5/10/15%). À grade 5, le 1er mob passe
+ *  de 8% à 13%, le 2e de 10% à 18%, le 3e de 13% à 23%. */
+export const MOB_DROP_BASE = [0.05, 0.10, 0.15];
 /** Bonus or par grade au-dessus de G1. */
 export const GOLD_PER_GRADE = 3;
 /** Bonus drop par grade au-dessus de G1. */

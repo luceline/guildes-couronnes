@@ -96,4 +96,74 @@ export function consumeRareResource(profile) {
   };
 }
 
+// ─────────────────────────────────────────────
+// Tableau central des récompenses XP
+// Pour ajuster le rythme global de progression, modifier ici.
+// ─────────────────────────────────────────────
+export const XP_REWARDS = {
+  // Production / récolte
+  HARVEST_T1:        1,   // récolte sur biome (handleFarm dans Production.jsx)
+  CRAFT_T2:          2,
+  CRAFT_T3:          3,
+  CRAFT_T4:          5,
+  CRAFT_T5:          8,
+  // Combat
+  COMBAT_KILL:       1,   // par mob tué
+  COMBAT_WAVE_DONE:  2,   // bonus pour vague complète
+  COMBAT_EPIC_DONE: 10,   // bonus pour épopée complète (toutes vagues)
+  // Consommation d'aliments
+  CONSUME_BLE:       1,
+  CONSUME_HERBES:    1,
+  // Activation ressource rare (déjà défini dans rareResources.js comme XP_PER_RARE_RESOURCE)
+};
+
+/**
+ * Récompense d'XP de craft selon le tier produit.
+ * @param {number} tier
+ * @returns {number} Gain XP, ou 0 si tier non standard
+ */
+export function getCraftXPReward(tier) {
+  switch (tier) {
+    case 2: return XP_REWARDS.CRAFT_T2;
+    case 3: return XP_REWARDS.CRAFT_T3;
+    case 4: return XP_REWARDS.CRAFT_T4;
+    case 5: return XP_REWARDS.CRAFT_T5;
+    default: return 0;
+  }
+}
+
+/**
+ * Calcule l'effet d'un gain d'XP sur un profil.
+ * Ne modifie pas le profil — retourne juste les données à passer à PlayerProfile.update
+ * et au toast.
+ *
+ * @param {object} profile - Le profil joueur courant (lecture uniquement)
+ * @param {number} xpAmount - Le nombre d'XP à ajouter
+ * @returns {{
+ *   newXPTotal: number,
+ *   oldLevel: number,
+ *   newLevel: number,
+ *   leveledUp: boolean,
+ *   updates: { player_xp_total: number, player_level?: number }
+ * }}
+ *
+ * Usage typique :
+ *   const xp = grantXP(profile, XP_REWARDS.HARVEST_T1);
+ *   await base44.entities.PlayerProfile.update(profile.id, { ...otherUpdates, ...xp.updates });
+ *   toast.success(`✨ +${xpAmount} XP`);
+ *   if (xp.leveledUp) toast.success(`🌟 Niveau ${xp.newLevel} atteint !`);
+ */
+export function grantXP(profile, xpAmount) {
+  const oldXP = profile?.player_xp_total || 0;
+  const newXPTotal = oldXP + xpAmount;
+  const oldLevel = getLevelFromXP(oldXP);
+  const newLevel = getLevelFromXP(newXPTotal);
+  const leveledUp = newLevel > oldLevel;
+
+  const updates = { player_xp_total: newXPTotal };
+  if (leveledUp) updates.player_level = newLevel;
+
+  return { newXPTotal, oldLevel, newLevel, leveledUp, updates };
+}
+
 export const MAX_PLAYER_LEVEL_EXPORT = MAX_PLAYER_LEVEL;

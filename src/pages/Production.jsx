@@ -32,7 +32,7 @@ import ItemTooltip from "../components/ItemTooltip";
 import HelpTooltip from "../components/HelpTooltip";
 import AtelierVitrine from "../components/AtelierVitrine";
 import InventoryPanel from "../components/InventoryPanel";
-import { getPlayerLevelBonuses } from "../lib/playerLevelSystem";
+import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "../lib/playerLevelSystem";
 
 
 
@@ -195,17 +195,20 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       msgs.push(`+${fatBonus}⚡`);
     }
 
-    // XP reward (pain, ragoût, ...)
-    const itemDef = ITEMS[itemKey];
-    if (itemDef?.xp_reward) {
-      const freshPxp = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-      const currentXp = freshPxp?.player_xp_total ?? profile.player_xp_total ?? 0;
-      upd.player_xp_total = currentXp + itemDef.xp_reward;
-      msgs.push(`+${itemDef.xp_reward} XP`);
+    // ── Gain XP : +1 XP si on mange du blé (action favorite, encourage la consommation T1) ──
+    let xpGain = null;
+    if (itemKey === "ble") {
+      xpGain = grantXP(profile, XP_REWARDS.CONSUME_BLE);
+      Object.assign(upd, xpGain.updates);
     }
 
     await base44.entities.PlayerProfile.update(profile.id, upd);
     toast.success(`${hungerDef?.icon || '🍽️'} ${msgs.join(' · ')} !`);
+    // Toast XP séparé
+    if (xpGain) {
+      toast.success(`✨ +${XP_REWARDS.CONSUME_BLE} XP`);
+      if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+    }
     setConsumingFood(null);
     onRefresh?.();
   };
@@ -319,10 +322,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       .map(i => (i.item_key === foodKey || i.item_name === foodDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
       .filter(i => i.quantity > 0);
     const xpUpdates = { fatigue: newFatigue, inventory: newInventory };
-    if (foodDef.xp_reward) {
-      const freshPxp = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-      const currentXp = freshPxp?.player_xp_total ?? profile.player_xp_total ?? 0;
-      xpUpdates.player_xp_total = currentXp + foodDef.xp_reward;
+    // ── Gain XP : +1 XP si on consomme des herbes ──
+    let xpGain = null;
+    if (foodKey === "herbes") {
+      xpGain = grantXP(profile, XP_REWARDS.CONSUME_HERBES);
+      Object.assign(xpUpdates, xpGain.updates);
     }
     // ── Buff biome harvest bonus pour les T1 fatigue_restore (herbes) ──
     const itemDefFatigue = ITEMS[foodKey];
@@ -335,8 +339,12 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       }
     }
     await base44.entities.PlayerProfile.update(profile.id, xpUpdates);
-    const xpMsg = foodDef.xp_reward ? ` · +${foodDef.xp_reward} XP` : "";
-    toast.success(`${foodDef.icon} ${foodDef.name} consommé ! +${foodDef.fatigue_restore}⚡ énergie (${newFatigue}/${maxFatigue})${xpMsg}`);
+    toast.success(`${foodDef.icon} ${foodDef.name} consommé ! +${foodDef.fatigue_restore}⚡ énergie (${newFatigue}/${maxFatigue})`);
+    // Toast XP séparé
+    if (xpGain) {
+      toast.success(`✨ +${XP_REWARDS.CONSUME_HERBES} XP`);
+      if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+    }
     setConsumingFood(null);
     onRefresh?.();
   };
@@ -426,11 +434,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     } else if (itemDef.effect === "xp_reward") {
       // REFONTE v5 : Parchemin : pure récompense XP
       const xpAmount = itemDef.value || 100;
-      const freshPxp = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-      const curXp = freshPxp?.player_xp_total || profile.player_xp_total || 0;
-      updates.player_xp_total = curXp + xpAmount;
-      toast.success(`${itemDef.icon} +${xpAmount} XP !`);
+      const xpGain = grantXP(profile, xpAmount);
+      Object.assign(updates, xpGain.updates);
       await base44.entities.PlayerProfile.update(profile.id, updates);
+      toast.success(`${itemDef.icon} +${xpAmount} XP !`);
+      if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
       onRefresh?.();
       return;
 
@@ -706,6 +714,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       }
     }
 
+    // ── Gain XP : +1 XP par récolte T1 sur biome ──
+    const xpGain = grantXP(profile, XP_REWARDS.HARVEST_T1);
+
     await base44.entities.PlayerProfile.update(profile.id, {
       inventory: updatedInventory,
       production_cooldowns: newCooldowns,
@@ -715,6 +726,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       hunger: newHunger,
       ...(newHunger < (profile.hunger ?? 10) ? { hunger_regen_at: new Date().toISOString() } : {}),
       ...(newFatigue < (profile.fatigue ?? 80) ? { fatigue_regen_at: new Date().toISOString() } : {}),
+      ...xpGain.updates,
     });
     // ── Mise à jour des objectifs produce via checkAndAwardObjective ──
     for (const obj of filterTodayActiveObjectives(objectives, "produce")) {
@@ -734,6 +746,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     if (newHunger <= 0) msg += " 🍽️ Vous avez faim !";
     else if (newHunger < HUNGER_WARNING_THRESHOLD) msg += ` 🍽️ Faim : ${newHunger}/${getMaxHunger(profile, cityHungerBonus)} : mangez bientôt !`;
     toast.success(msg);
+    // Toasts XP séparés
+    toast.success(`✨ +${XP_REWARDS.HARVEST_T1} XP`);
+    if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
     setProducing(null);
     onRefresh?.();
     loadObjectives();
@@ -940,6 +955,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       ? { bourse_uses_left: 5 }
       : {};
 
+    // ── Gain XP : +X selon tier crafté (T2=2, T3=3, T4=5, T5=8, T1=0) ──
+    const craftedTier = ITEMS[recipe.output.key]?.tier || recipe.tier || 1;
+    const craftXP = getCraftXPReward(craftedTier);
+    const xpGain = craftXP > 0 ? grantXP(profile, craftXP) : null;
+
     await base44.entities.PlayerProfile.update(profile.id, {
       inventory: finalInv,
       fatigue: newFatigue,
@@ -950,6 +970,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       production_cooldowns: { ...(profile.production_cooldowns || {}), [recipe.id]: new Date().toISOString() },
       ...(encreBonusConsumed ? { pending_t2_to_t1_bonus: false } : {}),
       ...bourseInitUpdate,
+      ...(xpGain?.updates || {}),
     });
 
     if (encreBonusConsumed) {
@@ -967,6 +988,12 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     ].filter(Boolean).join(", ");
     if (bonusDesc) toast.success(`⚒️ ${totalQty}× ${outItem.name} fabriqués (${bonusDesc}) !`);
     else toast.success(`⚒️ ${totalQty}× ${outItem.name} fabriqués !`);
+
+    // Toasts XP séparés
+    if (xpGain) {
+      toast.success(`✨ +${craftXP} XP`);
+      if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+    }
 
     // ── REFONTE v5 : toast bonus T3 aléa des Outils 🔧 ──
     if (outilsBonusT3) {

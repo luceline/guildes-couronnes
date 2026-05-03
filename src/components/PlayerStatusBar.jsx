@@ -5,7 +5,7 @@ import { computeFatigueWithDailyReset, ITEMS, FOOD_ITEMS_WITH_FATIGUE } from "..
 import HelpTooltip from "./HelpTooltip";
 import { getTotalDebt } from "../lib/debtRepayment";
 import PlayerLevelBadge from "./PlayerLevelBadge";
-import { getPlayerLevelInfo } from "../lib/playerLevelSystem";
+import { getPlayerLevelInfo, grantXP, XP_REWARDS } from "../lib/playerLevelSystem";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
@@ -358,16 +358,18 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
         upd.fatigue = Math.min(maxFatigue, (upd.fatigue ?? fatigue) + fatBonus);
         msgs.push(`+${fatBonus}⚡`);
       }
-      // XP reward
-      const itemDef = ITEMS[itemKey];
-      if (itemDef?.xp_reward) {
-        const fresh = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-        const currentXp = fresh?.player_xp_total ?? profile.player_xp_total ?? 0;
-        upd.player_xp_total = currentXp + itemDef.xp_reward;
-        msgs.push(`+${itemDef.xp_reward} XP`);
+      // ── Gain XP : +1 XP si on mange du blé ──
+      let xpGain = null;
+      if (itemKey === "ble") {
+        xpGain = grantXP(profile, XP_REWARDS.CONSUME_BLE);
+        Object.assign(upd, xpGain.updates);
       }
       await base44.entities.PlayerProfile.update(profile.id, upd);
       toast.success(`${hungerDef.icon} ${msgs.join(' · ')} !`);
+      if (xpGain) {
+        toast.success(`✨ +${XP_REWARDS.CONSUME_BLE} XP`);
+        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+      }
       onRefresh();
     } catch (e) {
       toast.error("Erreur lors de la consommation.");
@@ -395,16 +397,18 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
       const upd = { inventory: newInventory, fatigue: newFatigue };
       const msgs = [`+${food.fatigue_restore}⚡`];
 
-      // XP reward
-      const itemDef = ITEMS[foodKey];
-      if (itemDef?.xp_reward) {
-        const fresh = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-        const currentXp = fresh?.player_xp_total ?? profile.player_xp_total ?? 0;
-        upd.player_xp_total = currentXp + itemDef.xp_reward;
-        msgs.push(`+${itemDef.xp_reward} XP`);
+      // ── Gain XP : +1 XP si on consomme des herbes ──
+      let xpGain = null;
+      if (foodKey === "herbes") {
+        xpGain = grantXP(profile, XP_REWARDS.CONSUME_HERBES);
+        Object.assign(upd, xpGain.updates);
       }
       await base44.entities.PlayerProfile.update(profile.id, upd);
       toast.success(`${food.icon} ${msgs.join(' · ')} !`);
+      if (xpGain) {
+        toast.success(`✨ +${XP_REWARDS.CONSUME_HERBES} XP`);
+        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+      }
       onRefresh();
     } catch (e) {
       toast.error("Erreur lors de la consommation.");

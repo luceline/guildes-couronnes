@@ -37,6 +37,7 @@ import { ITEMS } from "@/lib/craftingData";
 import { MAX_WAVES_PER_DAY, getPlayerMaxHP } from "@/lib/combatPvE";
 import { BIOMES } from "@/lib/biomes";
 import { getRareResourceFromBiome } from "@/lib/rareResources";
+import { grantXP, XP_REWARDS } from "@/lib/playerLevelSystem";
 
 // BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
@@ -206,7 +207,22 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         updates.combat_wave_index = MAX_WAVES_PER_DAY;
       }
 
+      // ── Gain XP combat : +1 par mob tué, +2 si vague complète, +10 si épopée finie ──
+      const killCount = rewards?.killCount || 0;
+      const isEpicEnd = !continueEpic && isLastWave && isWaveCompleted; // toutes vagues réussies
+      let totalXP = killCount * XP_REWARDS.COMBAT_KILL;
+      if (isWaveCompleted) totalXP += XP_REWARDS.COMBAT_WAVE_DONE;
+      if (isEpicEnd)       totalXP += XP_REWARDS.COMBAT_EPIC_DONE;
+      const xpGain = totalXP > 0 ? grantXP(localProfile, totalXP) : null;
+      if (xpGain) Object.assign(updates, xpGain.updates);
+
       await base44.entities.PlayerProfile.update(profile.id, updates);
+
+      // Toasts XP séparés (après l'update pour ne pas bloquer)
+      if (xpGain) {
+        toast.success(`✨ +${totalXP} XP`);
+        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+      }
 
       // Tx d'or
       if ((rewards?.gold || 0) > 0) {
