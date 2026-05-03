@@ -7,6 +7,7 @@ import { getTotalDebt } from "../lib/debtRepayment";
 import PlayerLevelBadge from "./PlayerLevelBadge";
 import { getPlayerLevelInfo, grantXP, XP_REWARDS } from "../lib/playerLevelSystem";
 import { removeFromInventory } from "../lib/inventoryHelpers";
+import { showXPToast } from "../lib/xpToasts";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
@@ -366,8 +367,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
       await base44.entities.PlayerProfile.update(profile.id, upd);
       toast.success(`${hungerDef.icon} ${msgs.join(' · ')} !`);
       if (xpGain) {
-        toast.success(`✨ +${XP_REWARDS.CONSUME_BLE} XP`);
-        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+        showXPToast(XP_REWARDS.CONSUME_BLE, xpGain, { icon: "🌾", context: "alimentation" });
       }
       onRefresh();
     } catch (e) {
@@ -403,8 +403,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
       await base44.entities.PlayerProfile.update(profile.id, upd);
       toast.success(`${food.icon} ${msgs.join(' · ')} !`);
       if (xpGain) {
-        toast.success(`✨ +${XP_REWARDS.CONSUME_HERBES} XP`);
-        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+        showXPToast(XP_REWARDS.CONSUME_HERBES, xpGain, { icon: "🌿", context: "récupération" });
       }
       onRefresh();
     } catch (e) {

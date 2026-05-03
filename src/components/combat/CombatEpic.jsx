@@ -39,6 +39,7 @@ import { BIOMES } from "@/lib/biomes";
 import { getRareResourceFromBiome } from "@/lib/rareResources";
 import { grantXP, XP_REWARDS } from "@/lib/playerLevelSystem";
 import { logGold } from "@/lib/goldLog";
+import { showXPToast } from "@/lib/xpToasts";
 
 // BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
@@ -221,8 +222,7 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
 
       // Toasts XP séparés (après l'update pour ne pas bloquer)
       if (xpGain) {
-        toast.success(`✨ +${totalXP} XP`);
-        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+        showXPToast(totalXP, xpGain, { context: "combat épique" });
       }
 
       // Tx d'or

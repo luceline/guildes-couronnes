@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { logGold } from "@/lib/goldLog";
 import { getItemName } from "@/lib/itemHelpers";
 import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
+import { showXPToast } from "@/lib/xpToasts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -167,8 +168,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         const xpAmount = itemDef.value || 100;
         const xpGain = grantXP(profile, xpAmount);
         Object.assign(updates, xpGain.updates);  // ajoute player_xp_total + player_level si level-up
-        toast.success(`${itemDef.icon || "📜"} +${xpAmount} XP !`);
-        if (xpGain.leveledUp) toast.success(`🌟 Niveau ${xpGain.newLevel} atteint !`);
+        showXPToast(xpAmount, xpGain, { icon: itemDef.icon || "📜" });
       } else if (itemDef.effect === "army_food" || itemDef.effect === "army_energy") {
         // REFONTE v5 : Ragoût T4 / Potion d'endurance T4 — ressources militaires.
         // Le joueur ne peut pas les consommer individuellement — elles passent par le maire
