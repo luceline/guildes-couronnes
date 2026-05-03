@@ -13,6 +13,12 @@
  */
 import { toast } from "sonner";
 
+// ID du dernier toast XP affiché. On le ferme à chaque nouveau gain pour éviter
+// l'empilement quand le joueur enchaîne plusieurs actions XP rapidement (ex: 5
+// récoltes d'affilée). Le résultat : un seul toast XP visible à un instant
+// donné, qui s'actualise au lieu de se superposer.
+let _lastXPToastId = null;
+
 /**
  * Affiche le ou les toasts d'un gain d'XP.
  *
@@ -26,8 +32,14 @@ export function showXPToast(amount, xpGain, options = {}) {
   if (!amount || amount <= 0) return;
   const { icon = "✨", context = null } = options;
 
-  // Toast principal : gain XP avec style or scintillant
-  toast.custom(
+  // Ferme le toast XP précédent s'il est encore affiché (anti-empilement)
+  if (_lastXPToastId !== null) {
+    toast.dismiss(_lastXPToastId);
+  }
+
+  // Toast principal : gain XP avec style or scintillant (en HAUT-DROITE
+  // pour ne pas se superposer aux toasts d'action en bas-droite)
+  _lastXPToastId = toast.custom(
     (t) => (
       <div
         className="bg-gradient-to-r from-amber-500/95 to-yellow-400/95 text-amber-950 rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-3 border border-amber-300 backdrop-blur-sm"
@@ -40,10 +52,11 @@ export function showXPToast(amount, xpGain, options = {}) {
         </div>
       </div>
     ),
-    { duration: 1800 }
+    { duration: 1800, position: "top-right" }
   );
 
-  // Toast level-up : plus gros, plus long, effet "burst" or
+  // Toast level-up : plus gros, plus long, effet "burst" or — en HAUT-CENTRE
+  // pour un impact maximal (c'est un événement rare et important)
   if (xpGain?.leveledUp) {
     setTimeout(() => {
       toast.custom(
@@ -59,7 +72,7 @@ export function showXPToast(amount, xpGain, options = {}) {
             </div>
           </div>
         ),
-        { duration: 4000 }
+        { duration: 4000, position: "top-center" }
       );
     }, 400); // léger délai pour que l'enchaînement XP → level se ressente
   }
