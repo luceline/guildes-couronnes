@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
+import { removeFromInventory } from "@/lib/inventoryHelpers";
 
 const T2_ITEMS = [
   { key: "planches",    name: "Planches",     icon: "🪵", tier: 2, usedBy: "Construction" },
@@ -61,9 +62,7 @@ export default function WarehouseCraftedPanel({
     if (qty <= 0) return;
     setContributing(true);
     const newWarehouse = { ...warehouse, [item.key]: (warehouse[item.key] || 0) + qty };
-    const newInv = (profile.inventory || [])
-      .map(i => i.item_key === item.key ? { ...i, quantity: i.quantity - qty } : i)
-      .filter(i => i.quantity > 0);
+    const newInv = removeFromInventory(profile.inventory, item.key, qty);
     await Promise.all([
       base44.entities.City.update(city.id, { warehouse: newWarehouse }),
       base44.entities.PlayerProfile.update(profile.id, {

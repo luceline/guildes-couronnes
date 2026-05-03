@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { removeFromInventory } from "@/lib/inventoryHelpers";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ITEM_CATEGORIES } from "../lib/gameData";
@@ -130,9 +131,7 @@ export default function WarehouseUnified({
 
       const newInv = isGold
         ? (profile.inventory || [])
-        : (profile.inventory || [])
-          .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - actualQty } : i)
-          .filter(i => i.quantity > 0);
+        : removeFromInventory(profile.inventory, itemKey, actualQty);
       const newWarehouse = { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + actualQty };
       const newBought = { ...(city.rachat_t1_bought_today || {}), [itemKey]: boughtToday + actualQty };
 
@@ -186,9 +185,7 @@ export default function WarehouseUnified({
       // Mode dépôt libre
       const newInv = isGold
         ? (profile.inventory || [])
-        : (profile.inventory || [])
-          .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - qty } : i)
-          .filter(i => i.quantity > 0);
+        : removeFromInventory(profile.inventory, itemKey, qty);
       const newWarehouse = isGold
         ? { ...(warehouse || {}) }  // l'or va en trésorerie, pas dans warehouse
         : { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + qty };
@@ -266,9 +263,7 @@ export default function WarehouseUnified({
       const actualQty = Math.min(qty, offer.qty_max - alreadyBought);
       const actualGold = actualQty * pricePerUnit;
 
-      const newInv = (profile.inventory || [])
-        .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - actualQty } : i)
-        .filter(i => i.quantity > 0);
+      const newInv = removeFromInventory(profile.inventory, itemKey, actualQty);
       const newWarehouse = { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + actualQty };
       const newBought = { ...boughtToday, [itemKey]: alreadyBought + actualQty };
 
@@ -320,9 +315,7 @@ export default function WarehouseUnified({
       }
     } else {
       // Mode dépôt libre (sans offre ou pas de vente)
-      const newInv = (profile.inventory || [])
-        .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - qty } : i)
-        .filter(i => i.quantity > 0);
+      const newInv = removeFromInventory(profile.inventory, itemKey, qty);
       const newWarehouse = { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + qty };
 
       try {

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { getLevelFromXP, getPlayerLevelInfo } from "@/lib/playerLevelSystem";
 import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "@/lib/rareResources";
+import { removeFromInventory } from "@/lib/inventoryHelpers";
 
 // RARE_RESOURCES retiré : utiliser la source de vérité @/lib/rareResources.
 // Voir le commentaire dans InventoryPanel.jsx pour le contexte du bug fixé.
@@ -28,12 +29,7 @@ export default function RareResourceActivator({ profile, onProfileUpdate }) {
       const newLevel = getLevelFromXP(newXPTotal);
 
       // Mettre à jour l'inventaire (retirer 1 ressource)
-      const updatedInventory = profile.inventory.map(inv => {
-        if (inv.item_key === resourceKey) {
-          return { ...inv, quantity: inv.quantity - 1 };
-        }
-        return inv;
-      }).filter(inv => inv.quantity > 0);
+      const updatedInventory = removeFromInventory(profile.inventory, resourceKey, 1);
 
       // Mettre à jour le profil
       await base44.entities.PlayerProfile.update(profile.id, {

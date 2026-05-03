@@ -7,6 +7,7 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { logGold } from "@/lib/goldLog";
+import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -150,13 +151,11 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       // ── Déduire les ingrédients de l'inventaire client (T2+) ──
       if (!isT1 && recipe.inputs) {
         for (const req of recipe.inputs) {
-          const idx = clientInv.findIndex(i =>
-            i.item_key === req.key || i.item_name === ITEMS[req.key]?.name
-          );
-          if (idx < 0) { toast.error("Ingrédient manquant."); return; }
-          clientInv[idx] = { ...clientInv[idx], quantity: clientInv[idx].quantity - req.quantity };
+          if (!findInventoryItem(clientInv, req.key)) {
+            toast.error("Ingrédient manquant."); return;
+          }
+          clientInv = removeFromInventory(clientInv, req.key, req.quantity);
         }
-        clientInv = clientInv.filter(i => i.quantity > 0);
       }
 
       // ── Calculer la quantité produite avec les bonus du client ──

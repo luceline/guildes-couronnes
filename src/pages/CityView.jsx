@@ -21,6 +21,7 @@ import {
   isPlayerKO,
 } from "../lib/gameData";
 import { logGold } from '@/lib/goldLog';
+import { removeFromInventory } from '@/lib/inventoryHelpers';
 import { checkAndProclamWinner } from "../lib/electionLogic";
 import MairieShop from "../components/MairieShop";
 // SUSPENDU le 01/05/2026 : système T5 en refonte. Import désactivé.
@@ -649,9 +650,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     const actualQty = Math.min(qty, offer.qty_max - alreadyBought);
     const actualGold = actualQty * pricePerUnit;
 
-    const newInv = (profile.inventory || [])
-      .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - actualQty } : i)
-      .filter(i => i.quantity > 0);
+    const newInv = removeFromInventory(profile.inventory, itemKey, actualQty);
     const newWarehouse = { ...(city.warehouse || {}), [itemKey]: ((city.warehouse?.[itemKey]) || 0) + actualQty };
     const newBought = { ...boughtToday, [itemKey]: alreadyBought + actualQty };
 
@@ -700,9 +699,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     if (!invItem || invItem.quantity < actualQty) {
       toast.error(`Vous n'avez pas assez de ${itemKey}.`); return;
     }
-    const newInv = (profile.inventory || [])
-      .map(i => i.item_key === itemKey ? { ...i, quantity: i.quantity - actualQty } : i)
-      .filter(i => i.quantity > 0);
+    const newInv = removeFromInventory(profile.inventory, itemKey, actualQty);
 
     // Stocker dans l'entrepôt sous le nom de ressource correspondant
     // On utilise directement itemKey comme clé warehouse

@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────
 
 import { getCityTier } from "./gameData";
+import { hasInInventory } from "./inventoryHelpers";
 
 // ── Définition des unités ──────────────────────────────────────────────────
 // ── Coûts fixes militaires ──
@@ -271,8 +272,7 @@ export function canAffordRecruitment(inventory, gold, unitType, quantity) {
   const { resources, gold: goldNeeded } = getRecruitCost(unitType, quantity);
   if ((gold || 0) < goldNeeded) return false;
   for (const [res, qty] of Object.entries(resources)) {
-    const owned = inventory.find(i => i.item_key === res);
-    if (!owned || (owned.quantity || 0) < qty) return false;
+    if (!hasInInventory(inventory, res, qty)) return false;
   }
   return true;
 }

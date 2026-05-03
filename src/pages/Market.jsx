@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { getInventoryWeight, getEffectiveMaxWeight, wouldExceedCapacity, getMarketTaxDiscount } from "../lib/gameData";
 import { ITEMS, EQUIPMENT_KEYS } from "../lib/craftingData";
 import { getItemName, getCanonicalItemKey } from "../lib/itemHelpers";
+import { removeFromInventory } from "../lib/inventoryHelpers";
 import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice, calculateDynamicPrices } from "../lib/pricingData";
 import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
 import { Label } from "@/components/ui/label";
@@ -212,10 +213,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     // Consommer l'autorisation SAUF si c'est l'Autorisation qu'on vend
     let inventoryAfterPermit = [...(profile.inventory || [])];
     if (!isPermit(item)) {
-      const permitIdx = (profile.inventory || []).findIndex(isPermit);
-      const newInventoryWithPermit = [...inventoryAfterPermit];
-      newInventoryWithPermit[permitIdx] = { ...newInventoryWithPermit[permitIdx], quantity: newInventoryWithPermit[permitIdx].quantity - 1 };
-      inventoryAfterPermit = newInventoryWithPermit.filter(i => i.quantity > 0);
+      inventoryAfterPermit = removeFromInventory(inventoryAfterPermit, "autorisation_marche", 1);
     }
 
     // Construction du listing : on capture grade et durability si présents,
@@ -479,10 +477,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
     let finalInventory = newInventory;
     if (hasParchemin) {
-      finalInventory = finalInventory.map(i =>
-        (i.item_key === "parchemin" || i.item_name === "Parchemin")
-          ? { ...i, quantity: i.quantity - 1 } : i
-      ).filter(i => i.quantity > 0);
+      finalInventory = removeFromInventory(finalInventory, "parchemin", 1);
     }
 
     // ── Accumuler la taxe par ville (city_id → montant) ──

@@ -19,6 +19,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { findInventoryItem, getInventoryQty, removeFromInventory } from "@/lib/inventoryHelpers";
 import { useState } from "react";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
@@ -48,8 +49,8 @@ export default function RepairPanel({ profile, onRefresh }) {
   const inventory = profile.inventory || [];
 
   // Stock des matériaux de réparation
-  const stoneStock = inventory.find(i => i.item_key === REPAIR_RESOURCES.weapon)?.quantity || 0;
-  const woolStock  = inventory.find(i => i.item_key === REPAIR_RESOURCES.armor)?.quantity || 0;
+  const stoneStock = getInventoryQty(inventory, REPAIR_RESOURCES.weapon);
+  const woolStock  = getInventoryQty(inventory, REPAIR_RESOURCES.armor);
 
   // V6 — Quota journalier (pattern date-based, rollover automatique)
   const repairPointsMax  = getDailyRepairPoints(profile);
@@ -80,7 +81,7 @@ export default function RepairPanel({ profile, onRefresh }) {
       return;
     }
     const resKey = type === "weapon" ? REPAIR_RESOURCES.weapon : REPAIR_RESOURCES.armor;
-    const stock  = inventory.find(i => i.item_key === resKey)?.quantity || 0;
+    const stock  = getInventoryQty(inventory, resKey);
     // V6 : on plafonne aussi par le quota restant
     const toUse  = Math.min(units, missing, stock, repairPointsLeft);
     if (toUse <= 0) {
@@ -106,12 +107,7 @@ export default function RepairPanel({ profile, onRefresh }) {
     setBusy(true);
     try {
       // Décrémenter l'inventaire
-      let newInv = inventory.map(i => ({ ...i }));
-      const idx = newInv.findIndex(i => i.item_key === resKey);
-      if (idx >= 0) {
-        newInv[idx].quantity = (newInv[idx].quantity || 0) - toUse;
-      }
-      newInv = newInv.filter(i => (i.quantity || 0) > 0);
+      const newInv = removeFromInventory(inventory, resKey, toUse);
       // Mise à jour equipment
       const newEquipment = {
         ...equipment,

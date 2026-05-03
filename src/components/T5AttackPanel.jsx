@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { removeFromInventory } from "@/lib/inventoryHelpers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,9 +111,7 @@ export default function T5AttackPanel({ profile, city, onRefresh }) {
       await base44.entities.City.update(targetCity, { pending_effects: pending });
 
       // Retirer l'item, réduire la faim, enregistrer le cooldown
-      const newInv = (profile.inventory || [])
-        .map(i => i.item_key === item.item_key ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
+      const newInv = removeFromInventory(profile.inventory, item.item_key, 1);
       const newCooldowns = {
         ...(profile.competitive_cooldowns || {}),
         [getAttackCooldownKey(targetCity)]: true,

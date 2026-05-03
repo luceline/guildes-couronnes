@@ -6,6 +6,7 @@ import HelpTooltip from "./HelpTooltip";
 import { getTotalDebt } from "../lib/debtRepayment";
 import PlayerLevelBadge from "./PlayerLevelBadge";
 import { getPlayerLevelInfo, grantXP, XP_REWARDS } from "../lib/playerLevelSystem";
+import { removeFromInventory } from "../lib/inventoryHelpers";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 
@@ -339,9 +340,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
 
     setBusy(true);
     try {
-      const newInventory = inv
-        .map(i => (i.item_key === itemKey || i.item_name === hungerDef.label) ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
+      const newInventory = removeFromInventory(inv, itemKey, 1);
       const newHunger = Math.min(maxHungerVal, hunger + hungerDef.hunger_restore);
       const upd = { inventory: newInventory, hunger: newHunger };
       const msgs = [`+${hungerDef.hunger_restore}🍽️`];
@@ -390,9 +389,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
 
     setBusy(true);
     try {
-      const newInventory = inv
-        .map(i => (i.item_key === foodKey || i.item_name === food.name) ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
+      const newInventory = removeFromInventory(inv, foodKey, 1);
       const newFatigue = Math.min(maxFatigue, fatigue + food.fatigue_restore);
       const upd = { inventory: newInventory, fatigue: newFatigue };
       const msgs = [`+${food.fatigue_restore}⚡`];
