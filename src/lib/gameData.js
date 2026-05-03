@@ -539,25 +539,42 @@ export function getInventoryWeight(profile) {
   return (profile.inventory || []).reduce((sum, i) => sum + (i.quantity || 0), 0);
 }
 
-// ── Bonus passif cooldown (non cumulable — meilleur bonus) ──
-// Sources : planches T2 (−20%), outils T4 (−30%), armure/Tunique T4 (−40%)
+// ── Bonus passif cooldown ──
+// Règles de cumul :
+//   - Tunique / Outils / Planches = sources d'items, MAX entre elles (non cumulable)
+//   - Bonus item temporaire (cooldown_bonus_value) = MAX avec les passifs items
+//     (même catégorie : un seul item à la fois)
+//   - Bonus biome (combat épique, biome_cooldown_bonus_value) = CUMULABLE avec tout
+//     (catégorie distincte : récompense d'activité, pas un objet)
+//
+// Sources items : planches T2 (−20%), outils T4 (−30%), armure/Tunique T4 (−40%)
+// Source biome : −10% pendant 1h après combat épique réussi
 export function getPassiveCooldownBonus(profile) {
   const inv = profile.inventory || [];
-  let passifValue = 0;
+  let itemValue = 0;
   // Tunique (armure) : −40%
   if (inv.some(i => i.item_key === "armure" && (i.quantity || 0) > 0)) {
-    passifValue = Math.max(passifValue, 0.40);
+    itemValue = Math.max(itemValue, 0.40);
   }
   // Outils : −30% (durabilité, mais effet passif tant que présent)
   if (inv.some(i => i.item_key === "outils" && (i.quantity || 0) > 0 && (i.durability ?? 4) > 0)) {
-    passifValue = Math.max(passifValue, 0.30);
+    itemValue = Math.max(itemValue, 0.30);
   }
   // Planches : −20%
   if (inv.some(i => i.item_key === "planches" && (i.quantity || 0) > 0)) {
-    passifValue = Math.max(passifValue, 0.20);
+    itemValue = Math.max(itemValue, 0.20);
   }
-  const tempValue = getTemporaryCooldownBonus(profile);
-  return Math.max(passifValue, tempValue);
+  // Bonus item temporaire (planches activées, meuble) : même catégorie que les passifs items
+  if (profile.cooldown_bonus_expires_at && new Date(profile.cooldown_bonus_expires_at) > new Date()) {
+    itemValue = Math.max(itemValue, profile.cooldown_bonus_value || 0);
+  }
+  // Bonus biome (combat épique) : CUMULABLE avec les sources items
+  let biomeValue = 0;
+  if (profile.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date()) {
+    biomeValue = profile.biome_cooldown_bonus_value || 0;
+  }
+  // Plafond de sécurité à 0.85 pour éviter qu'un cooldown tombe à zéro
+  return Math.min(0.85, itemValue + biomeValue);
 }
 
 // Helper exposé : retourne la meilleure source passive cooldown active
@@ -1147,20 +1164,23 @@ export function getTemporaryInventoryBonus(profile) {
   return 0;
 }
 
-// ── Réduction cooldown production temporaire (bois_brut T1, planches T2, meuble T3 + bonus biome) ──
+// ── DEPRECATED ── Réduction cooldown production temporaire
+// Cette fonction a été absorbée dans getPassiveCooldownBonus pour gérer le
+// cumul correct entre items passifs et bonus biome. Conservée pour compat avec
+// d'éventuels appelants externes, mais à ne plus utiliser dans le nouveau code.
 export function getTemporaryCooldownBonus(profile) {
   let bonus = 0;
-  
+
   // Bonus cooldown items (planches, meuble, etc)
   if (profile.cooldown_bonus_expires_at && new Date(profile.cooldown_bonus_expires_at) > new Date()) {
     bonus = Math.max(bonus, profile.cooldown_bonus_value || 0);
   }
-  
+
   // Bonus cooldown biome (-15% si victoire dans biome compatible)
   if (profile.biome_cooldown_bonus_expires_at && new Date(profile.biome_cooldown_bonus_expires_at) > new Date()) {
     bonus = Math.max(bonus, profile.biome_cooldown_bonus_value || 0);
   }
-  
+
   return bonus;
 }
 
