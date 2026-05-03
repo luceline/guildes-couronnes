@@ -38,6 +38,9 @@ const COLLECTION_MAP = {
   BankDeposit:      'bank_deposits',
   WarehouseLog:     'WarehouseLog',
   CombatChallenge:  'combat_challenges',
+  TavernDiceChallenge:  'tavern_dice_challenges',
+  WeeklyLottery:        'weekly_lottery',
+  LotteryTicket:        'lottery_tickets',
 };
 
 // Collections qui stockent tout dans un champ JSON data
