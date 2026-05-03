@@ -3,6 +3,7 @@ import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settin
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DISCORD_INVITE_URL } from "@/lib/links";
 import { base44 } from "@/api/base44Client";
 import { updateLastActive } from "@/lib/inactivityCheck";
 import { ADMIN_EMAILS } from "@/lib/gameData";
@@ -123,7 +124,7 @@ export default function GameLayout() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-1">
-            <a href="https://discord.com/channels/1496627736553193782/1496627739594330143" target="_blank" rel="noopener noreferrer" title="Rejoindre le Discord">
+            <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" title="Rejoindre le Discord">
               <Button variant="ghost" size="sm" className="gap-2 font-body text-sm">
                 <MessageCircle className="h-4 w-4" />
                 Discord
@@ -215,7 +216,7 @@ export default function GameLayout() {
                 </Button>
               </Link>
             ))}
-            <a href="https://discord.com/channels/1496627736553193782/1496627739594330143" target="_blank" rel="noopener noreferrer" className="block">
+            <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="block">
               <Button
                 variant="ghost"
                 className="w-full justify-start gap-3 font-body"
@@ -259,7 +260,7 @@ export default function GameLayout() {
               </Link>
             ))}
             <a
-              href="https://discord.com/channels/1496627736553193782/1496627739594330143"
+              href={DISCORD_INVITE_URL}
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMoreOpen(false)}
