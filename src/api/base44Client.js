@@ -41,6 +41,8 @@ const COLLECTION_MAP = {
   TavernDiceChallenge:  'tavern_dice_challenges',
   WeeklyLottery:        'weekly_lottery',
   LotteryTicket:        'lottery_tickets',
+  RoyalStatue:          'royal_statue',
+  StatueContribution:   'statue_contributions',
 };
 
 // Collections qui stockent tout dans un champ JSON data

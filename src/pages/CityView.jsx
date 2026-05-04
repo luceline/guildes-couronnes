@@ -35,6 +35,8 @@ import ChallengeForm from "../components/ChallengeForm";
 import MairieTab from "../components/MairieTab";
 import MaireDashboard from "../components/MaireDashboard";
 import ProfessionChangePanel from "../components/ProfessionChangePanel";
+import RoyalStatuePanel from "../components/RoyalStatuePanel";
+import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
 
@@ -251,6 +253,13 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
    const [taxInput, setTaxInput] = useState(null);
    const [lingotPriceInput, setLingotPriceInput] = useState(null);
    const [salaryInput, setSalaryInput] = useState(null);
+   const [activeStatue, setActiveStatue] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadActiveStatue().then(s => { if (!cancelled) setActiveStatue(s); });
+    return () => { cancelled = true; };
+  }, [city?.id]);
 
   useEffect(() => {
     if (!city) return;
@@ -767,6 +776,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
           <TabsTrigger value="batiments">🏗️ Bâtiments</TabsTrigger>
 {hasTavern && <TabsTrigger value="taverne">🍺 Taverne</TabsTrigger>}
+{isStatueInCity(activeStatue, city?.id) && <TabsTrigger value="statue">🗿 Statue royale</TabsTrigger>}
         </TabsList>
 
         {/* ── MAIRIE ── */}
@@ -1140,6 +1150,12 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         <Button className="font-heading gap-2">🍺 Accéder à la Taverne</Button>
       </Link>
     </div>
+  </TabsContent>
+)}
+{/* Statue royale itinérante : visible uniquement si la statue est dans cette ville */}
+{isStatueInCity(activeStatue, city?.id) && (
+  <TabsContent value="statue" className="space-y-4 mt-4">
+    <RoyalStatuePanel profile={profile} city={city} onRefresh={onRefresh} />
   </TabsContent>
 )}
         {/* ── ITEMS COMPÉTITIFS ── */}
