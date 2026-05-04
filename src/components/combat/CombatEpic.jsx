@@ -41,6 +41,7 @@ import { grantXP, XP_REWARDS } from "@/lib/playerLevelSystem";
 import { logGold } from "@/lib/goldLog";
 import { showXPToast } from "@/lib/xpToasts";
 import { isBiomeBuffActive, activateBiomeBuff, getBiomeBuffRemainingMs } from "@/lib/playerBuffs";
+import { useCityEvents } from "@/lib/useCityEvents";
 
 // BIOME_NAMES retiré : utiliser BIOMES depuis @/lib/biomes (source de vérité unique).
 
@@ -53,6 +54,17 @@ function getTodayStr() {
 
 export default function CombatEpic({ profile, biomeKey, onExit }) {
   const today = useMemo(() => getTodayStr(), []);
+
+  // ── Sprint 5B : buff Course aux trésors (+1 épopée aujourd'hui) ──
+  // Permet une 2e épopée si :
+  //   - le joueur a fini sa 1ère épopée du jour (combat_wave_index >= MAX)
+  //   - un événement "treasure_hunt" est actif sur sa ville d'origine
+  //   - le joueur n'a pas encore utilisé son bonus aujourd'hui
+  const cityEvents = useCityEvents(profile?.home_city_id);
+  const treasureHuntActive = cityEvents.hasBuff("treasure_hunt");
+  const treasureHuntAlreadyUsed = profile?.treasure_hunt_used_date === today;
+  const canUseTreasureHunt = treasureHuntActive && !treasureHuntAlreadyUsed;
+
   const isResuming = profile?.combat_last_date === today
                   && profile?.combat_active_biome === biomeKey
                   && (profile?.combat_wave_index ?? 0) < MAX_WAVES_PER_DAY;
@@ -81,12 +93,16 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
   const biomeRare = getRareResourceFromBiome(biomeKey);
 
   // Conditions de blocage
-  const isCombatDoneToday = profile?.combat_last_date === today
-                          && profile?.combat_active_biome
-                          && (profile?.combat_wave_index ?? 0) >= MAX_WAVES_PER_DAY;
+  // Sprint 5B : si Course aux trésors active et non utilisée, on autorise une 2e épopée
+  const finished1stEpic = profile?.combat_last_date === today
+                       && profile?.combat_active_biome
+                       && (profile?.combat_wave_index ?? 0) >= MAX_WAVES_PER_DAY;
+  const isCombatDoneToday = finished1stEpic && !canUseTreasureHunt;
   const isLockedAnotherBiome = profile?.combat_last_date === today
                             && profile?.combat_active_biome
-                            && profile?.combat_active_biome !== biomeKey;
+                            && profile?.combat_active_biome !== biomeKey
+                            && !canUseTreasureHunt; // si on peut faire 2e épopée, autoriser autre biome
+  const isUsing2ndEpic = finished1stEpic && canUseTreasureHunt;
 
   // ── Démarrage / reprise ──
   const handleStart = async () => {
@@ -106,14 +122,21 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
     setBusy(true);
     try {
       // Démarrage initial : enregistre la date + le biome (premier lock)
-      if (!isResuming) {
-        await base44.entities.PlayerProfile.update(profile.id, {
+      // Sprint 5B : si on relance via Course aux trésors, on flag treasure_hunt_used_date
+      const startingFreshOr2ndEpic = !isResuming || isUsing2ndEpic;
+      if (startingFreshOr2ndEpic) {
+        const updates = {
           combat_last_date: today,
           combat_active_biome: biomeKey,
           combat_wave_index: 0,
           combat_total_gold: 0,
           combat_total_drops: 0,
-        });
+        };
+        if (isUsing2ndEpic) {
+          updates.treasure_hunt_used_date = today;
+          toast.success("🎯 Course aux trésors : 2e épopée lancée !");
+        }
+        await base44.entities.PlayerProfile.update(profile.id, updates);
         setWaveIndex(0);
         setTotalGold(0);
         setTotalDrops(0);
@@ -442,7 +465,11 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
                   disabled={busy || isPlayerKO(localProfile)}
                   className="flex-1 font-heading"
                 >
-                  {isResuming ? `🔄 Reprendre vague ${waveIndex + 1}/5` : "⚔️ Lancer le combat épique"}
+                  {isUsing2ndEpic
+                    ? "🎯 Lancer la 2e épopée (Course aux trésors)"
+                    : isResuming
+                    ? `🔄 Reprendre vague ${waveIndex + 1}/5`
+                    : "⚔️ Lancer le combat épique"}
                 </Button>
                 <Button onClick={handleExitBiome} variant="outline" className="font-body" disabled={busy}>
                   Quitter le biome

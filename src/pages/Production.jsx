@@ -9,6 +9,7 @@ import CauldronPanel from "@/components/CauldronPanel";
 import TargetCityModal from "@/components/TargetCityModal";
 import SpyReportModal from "@/components/SpyReportModal";
 import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
+import { useCityEvents } from "@/lib/useCityEvents";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import {
   PROFESSIONS, ITEM_CATEGORIES, getInventoryWeight, getMaxWeight, getMaxFatigue,
@@ -47,6 +48,12 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   const [objectives, setObjectives] = useState([]);
   const [cityBuildings, setCityBuildings] = useState([]);
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
+
+  // ── Sprint 5B : buffs de mairie (Fête du travail, Bénédiction, etc.) ──
+  // On lit les buffs sur la ville d'origine (homeCity) car les événements
+  // de mairie s'appliquent aux résidents de la ville où ils sont organisés.
+  const cityEventsHookId = homeCity?.id || city?.id;
+  const cityEvents = useCityEvents(cityEventsHookId);
 
   useEffect(() => {
     base44.entities.EconomySettings.filter({ setting_key: "global" }).then(res => {
@@ -698,11 +705,14 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     // ── Hook chaudron : 🔥 Pierre de feu : -30% durée crafts pendant 4h ──
     const pierreFeuActive = profile?.craft_speed_buff_until && new Date(profile.craft_speed_buff_until) > new Date();
     const pierreFeuBonus = pierreFeuActive ? (profile.craft_speed_buff_value || 0.30) : 0;
+    // ── Hook événement mairie : 🛠️ Fête du travail : -50% durée crafts (cumul multiplicatif) ──
+    const workFestivalActive = cityEvents.hasBuff("work_festival");
+    const workFestivalBonus = workFestivalActive ? 0.50 : 0;
     // REFONTE : la fonderie ne réduit plus le cooldown forgeron. Son seul effet est désormais
     // le bonus quantité quartz scalé par niveau (cf. plus bas).
     const levelBonuses = getPlayerLevelBonuses(profile?.player_level || 1);
     const levelCooldownBonus = levelBonuses.cooldownBonus / 100; // −1% par niveau
-    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
+    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - workFestivalBonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
     const elapsed = (Date.now() - new Date(lastProduced).getTime()) / 1000;
     return Math.max(0, effectiveCooldown - elapsed);
   };
@@ -782,7 +792,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const levelBonusesProd       = getPlayerLevelBonuses(profile?.player_level || 1);
     const doubleChanceLevel      = levelBonusesProd.doubleProductionBonus / 100;
     const charbonBonus = getPassiveCharbonDoubleProdBonus(profile); // 0.05 si charbon en stock, sinon 0
-    const doubleChance = doubleChanceLevel + biomeDoubleChanceProd + charbonBonus;
+    // ── Hook événement mairie : 💰 Bénédiction de l'abondance : +5% double prod ──
+    const blessingBonus = cityEvents.hasBuff("abundance_blessing") ? 0.05 : 0;
+    const doubleChance = doubleChanceLevel + biomeDoubleChanceProd + charbonBonus + blessingBonus;
     const doubleBonus  = (!isNaN(doubleChance) && doubleChance > 0 && Math.random() < doubleChance) ? recipe.quantity : 0;
     const biomeBonusQty = 0; // absorbé dans doubleBonus
     if (doubleBonus > 0) {
@@ -790,6 +802,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
         doubleChanceLevel     > 0 ? `rang ${profile?.player_level || 1}` : null,
         biomeDoubleChanceProd > 0 ? `biome` : null,
         charbonBonus          > 0 ? `charbon` : null,
+        blessingBonus         > 0 ? `bénédiction` : null,
       ].filter(Boolean).join(" + ");
       setCoupDeMaitre({ qty: doubleBonus, itemName: item?.name || recipe.name, sources });
     }

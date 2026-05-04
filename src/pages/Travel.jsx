@@ -8,6 +8,7 @@ import BiomeHub from "../components/BiomeHub";
 import { toast } from "sonner";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { logGold } from '@/lib/goldLog';
+import { useCityEvents } from "@/lib/useCityEvents";
 import {
   ROAD_TYPES, ROAD_COLORS,
   getDailyRouteCost, computeTravelCost, computeWallToll, getRouteType,
@@ -29,6 +30,10 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
   const [worldEvents, setWorldEvents] = useState(null);
   const [selectedBiome, setSelectedBiome] = useState(null);
   const completingRef = useRef(false);
+
+  // ── Sprint 5B : buff Procession des routes (-50% temps voyage) ──
+  // On lit les buffs sur la ville d'origine du joueur (pas la ville actuelle si en visite)
+  const cityEvents = useCityEvents(homeCity?.id || city?.id);
 
   useEffect(() => {
     async function load() {
@@ -233,9 +238,11 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     const passiveTravelDiscount = getPassiveTravelDiscount(profile);
     const legacyTravelDiscount = profile.travel_discount || 0;
     const travelDiscount = Math.max(passiveTravelDiscount, legacyTravelDiscount);
+    // ── Hook événement mairie : 🛣️ Procession des routes (-50% temps voyage, cumul multiplicatif) ──
+    const processionMultiplier = cityEvents.hasBuff("road_procession") ? 0.50 : 1.0;
     const actualMinutes = travelDiscount > 0
-      ? Math.max(1, Math.round(baseMinutes * (1 - travelDiscount)))
-      : baseMinutes;
+      ? Math.max(1, Math.round(baseMinutes * (1 - travelDiscount) * processionMultiplier))
+      : Math.max(1, Math.round(baseMinutes * processionMultiplier));
     const arrivalTime = new Date(Date.now() + actualMinutes * 60 * 1000).toISOString();
 
     // Système unifié : 1 point aléatoire faim/énergie
