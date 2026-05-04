@@ -565,9 +565,11 @@ export const TEMP_EFFECT_ITEMS = Object.entries(ITEMS)
     key,
     name: v.name,
     icon: v.icon,
+    category: v.category,   // Sprint 4 : indispensable pour que le helper applyCauldronEffect intercepte les items du chaudron
     trigger: v.trigger,
     effect: v.effect,
     value: v.value,
+    alt_value: v.alt_value ?? null,   // Sprint 4 : Pierre énergétique a value+alt_value
     gamble_max: v.gamble_max ?? null,
     duration_h: v.duration_h ?? null,
     duration_days: v.duration_days ?? null,

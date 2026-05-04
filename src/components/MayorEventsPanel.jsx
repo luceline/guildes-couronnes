@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ITEMS } from "@/lib/craftingData";
+import { getMaxFatigue, getMaxHunger, getCityHungerBonus, getCityFatigueBonus } from "@/lib/gameData";
 import {
   CITY_EVENTS_CATALOG,
   ACCEPTED_T1_KEYS,
@@ -48,6 +49,7 @@ function formatTimeLeft(expiresAt) {
 export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) {
   const [activeEvents, setActiveEvents] = useState([]);
   const [launchedToday, setLaunchedToday] = useState(false);
+  const [activeDome, setActiveDome] = useState(null); // { protected: bool, expiresAt: Date }
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -68,12 +70,14 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
     if (!city?.id) return;
     setLoading(true);
     try {
-      const [evs, today] = await Promise.all([
+      const [evs, today, dome] = await Promise.all([
         loadActiveEventsForCity(city.id),
         hasMayorLaunchedToday(city.id),
+        checkCityDome(city.id),
       ]);
       setActiveEvents(evs);
       setLaunchedToday(today);
+      setActiveDome(dome);
     } catch (e) {
       console.error("[MayorEventsPanel] load error:", e);
     } finally {
@@ -143,27 +147,50 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
       // Effets instantanés sur les résidents : on les marque avec un flag
       // que les hooks frontend liront au prochain refresh
       let effectsApplied = false;
+      let effectsApplyErrors = 0;
       if (confirmEvent === "royal_feast") {
         // Boucle sur les résidents : régénération faim & énergie
+        // Sprint 5 fix : utilise les VRAIS max (housing + bâtiments + perma bonus)
+        // au lieu d'un hardcode 20. Logue les erreurs au lieu de les masquer.
+        const cityHungerBonus = getCityHungerBonus(city.buildings || []);
+        const cityFatigueBonus = getCityFatigueBonus(city.buildings || []);
         const residents = await base44.entities.PlayerProfile.filter({ home_city_id: city.id });
         for (const res of (residents || [])) {
-          const updates = {
-            hunger: Math.min(20, (res.hunger || 0) + 10),
-            fatigue: Math.min(20 + (res.energy_max_perma_bonus || 0), (res.fatigue || 0) + 10),
-          };
-          await base44.entities.PlayerProfile.update(res.id, updates).catch(() => {});
+          try {
+            const maxH = getMaxHunger(res, cityHungerBonus);
+            const maxF = getMaxFatigue(res, cityFatigueBonus);
+            const updates = {
+              hunger: Math.min(maxH, (res.hunger ?? maxH) + 10),
+              fatigue: Math.min(maxF, (res.fatigue ?? maxF) + 10),
+            };
+            await base44.entities.PlayerProfile.update(res.id, updates);
+          } catch (e) {
+            console.error("[royal_feast] update", res.user_email, ":", e.message);
+            effectsApplyErrors++;
+          }
         }
         effectsApplied = true;
+        if (effectsApplyErrors > 0) {
+          toast.error(`⚠️ ${effectsApplyErrors} résident(s) n'ont pas pu être mis à jour.`);
+        }
       } else if (confirmEvent === "forge_collective") {
         // Reset compteur réparations à 5/5 pour tous les résidents
         const residents = await base44.entities.PlayerProfile.filter({ home_city_id: city.id });
         for (const res of (residents || [])) {
-          await base44.entities.PlayerProfile.update(res.id, {
-            daily_repairs_count: 0,
-            daily_repairs_date: new Date().toISOString().split("T")[0],
-          }).catch(() => {});
+          try {
+            await base44.entities.PlayerProfile.update(res.id, {
+              daily_repairs_count: 0,
+              daily_repairs_date: new Date().toISOString().split("T")[0],
+            });
+          } catch (e) {
+            console.error("[forge_collective] update", res.user_email, ":", e.message);
+            effectsApplyErrors++;
+          }
         }
         effectsApplied = true;
+        if (effectsApplyErrors > 0) {
+          toast.error(`⚠️ ${effectsApplyErrors} résident(s) n'ont pas pu être mis à jour.`);
+        }
       }
 
       // 3. Créer le record event
@@ -384,6 +411,27 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
           )}
         </CardContent>
       </Card>
+
+      {/* Bandeau dôme de protection actif */}
+      {activeDome?.protected && activeDome.expiresAt && (
+        <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-300">
+          <CardContent className="pt-3 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🛡️</span>
+              <div className="flex-1">
+                <div className="font-heading text-sm text-blue-900">
+                  Votre ville est protégée par un Talisman
+                </div>
+                <p className="text-xs font-body text-blue-800">
+                  Aucune razzia, aucun parchemin marchand ni étoile filante ne peut vous atteindre
+                  jusqu'à <strong>{new Date(activeDome.expiresAt).toLocaleString('fr-FR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</strong>
+                  {' '}({formatTimeLeft(activeDome.expiresAt)} restant{formatTimeLeft(activeDome.expiresAt)?.endsWith('min') ? 'es' : ''}).
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Événements actifs */}
       {activeEvents.filter(e => e.effect_until && new Date(e.effect_until) > new Date()).length > 0 && (
