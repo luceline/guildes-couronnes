@@ -10,6 +10,7 @@ import TargetCityModal from "@/components/TargetCityModal";
 import SpyReportModal from "@/components/SpyReportModal";
 import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
 import { useCityEvents } from "@/lib/useCityEvents";
+import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import {
   PROFESSIONS, ITEM_CATEGORIES, getInventoryWeight, getMaxWeight, getMaxFatigue,
@@ -54,6 +55,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   // de mairie s'appliquent aux résidents de la ville où ils sont organisés.
   const cityEventsHookId = homeCity?.id || city?.id;
   const cityEvents = useCityEvents(cityEventsHookId);
+
+  // ── Sprint 2C : paliers de la statue royale ──
+  // La statue royale, si présente dans la ville d'origine du joueur, accorde
+  // 5 paliers progressifs de bonus. On utilise un hook qui se rafraîchit toutes les 2 min.
+  const royalStatue = useRoyalStatue(profile?.home_city_id);
 
   useEffect(() => {
     base44.entities.EconomySettings.filter({ setting_key: "global" }).then(res => {
@@ -708,11 +714,13 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     // ── Hook événement mairie : 🛠️ Fête du travail : -50% durée crafts (cumul multiplicatif) ──
     const workFestivalActive = cityEvents.hasBuff("work_festival");
     const workFestivalBonus = workFestivalActive ? 0.50 : 0;
+    // ── Sprint 2C : Palier 1 statue royale : -10% cooldown crafts (cumul multiplicatif) ──
+    const statuePalier1Bonus = royalStatue.hasPalier(1) ? 0.10 : 0;
     // REFONTE : la fonderie ne réduit plus le cooldown forgeron. Son seul effet est désormais
     // le bonus quantité quartz scalé par niveau (cf. plus bas).
     const levelBonuses = getPlayerLevelBonuses(profile?.player_level || 1);
     const levelCooldownBonus = levelBonuses.cooldownBonus / 100; // −1% par niveau
-    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - workFestivalBonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
+    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - workFestivalBonus) * (1 - statuePalier1Bonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
     const elapsed = (Date.now() - new Date(lastProduced).getTime()) / 1000;
     return Math.max(0, effectiveCooldown - elapsed);
   };

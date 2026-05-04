@@ -156,15 +156,16 @@ export const DROP_PCT_PER_GRADE = 0.02;
  * Calcule la récompense d'un mob tué selon sa position et son grade.
  * @param {number} position - 0, 1 ou 2 (1er, 2e, 3e mob tué dans la vague)
  * @param {number} grade    - grade DE BASE du mob (1-5), pas le grade enragé
+ * @param {number} bonusDropFlat - bonus drop additif (ex: 0.05 = +5%) — utilisé par Sprint 2C palier 3 statue
  * @returns {{ gold: number, dropChance: number }}
  */
-export function getMobReward(position, grade) {
+export function getMobReward(position, grade, bonusDropFlat = 0) {
   const safePos = Math.max(0, Math.min(2, position));
   const safeGrade = Math.max(1, Math.min(5, grade));
   const gradeBonus = safeGrade - 1;
   return {
     gold: MOB_GOLD_BASE[safePos] + gradeBonus * GOLD_PER_GRADE,
-    dropChance: MOB_DROP_BASE[safePos] + gradeBonus * DROP_PCT_PER_GRADE,
+    dropChance: Math.min(1, MOB_DROP_BASE[safePos] + gradeBonus * DROP_PCT_PER_GRADE + bonusDropFlat),
   };
 }
 
@@ -731,7 +732,8 @@ export function applyCounters(state, profile, targetIndices, options = {}) {
 
       m.alive = false;
       // Calcul de la récompense pour ce mob, à sa position de kill
-      const reward = getMobReward(alreadyKilled, m.grade);
+      // Sprint 2C : palier 3 statue royale ajoute +5% drop (bonusDropFlat)
+      const reward = getMobReward(alreadyKilled, m.grade, options.bonusDropFlat || 0);
       const dropped = rng() < reward.dropChance;
       killRewards.push({
         monsterIdx: targetIdx,

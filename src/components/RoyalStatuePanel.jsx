@@ -35,7 +35,7 @@ import { toast } from "sonner";
 // Catégorie de paliers : titre et description
 const PALIER_INFOS = [
   { num: 1, label: "Cooldown craft -10%", icon: "⚡" },
-  { num: 2, label: "Quête bonus loterie quotidienne", icon: "🎰" },
+  { num: 2, label: "+5 💰 quotidiens (reset 06:00 UTC)", icon: "💰" },
   { num: 3, label: "Drop combat biome +5%", icon: "🎯" },
   { num: 4, label: "Voyage -20% (péage détruit)", icon: "🐴" },
   { num: 5, label: "Stockage récolte AFK 4 → 10", icon: "📦" },

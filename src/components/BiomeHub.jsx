@@ -10,6 +10,7 @@ import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRa
 import { addToInventory } from "../lib/inventoryHelpers";
 import { logGold } from "../lib/goldLog";
 import { isBiomeBuffActive, activateBiomeBuff } from "../lib/playerBuffs";
+import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import CombatEpic from "./combat/CombatEpic";
 import HelpTooltip from "./HelpTooltip";
 
@@ -30,7 +31,7 @@ const HARVEST_COST_PER_UNIT = 3;   // or détruit par unité récoltée
 const HARVEST_RATE_MS = 7200000;   // 1 ressource toutes les 2h (en ms)
 
 /** Calcule les ressources récoltées depuis harvest_started_at, limitées par l'inventaire et l'or */
-function computeHarvestAccumulated(profile, biomeKey) {
+function computeHarvestAccumulated(profile, biomeKey, harvestMax = 4) {
   if (!profile.harvest_started_at || profile.harvest_biome_key !== biomeKey) return 0;
   const elapsed = Date.now() - new Date(profile.harvest_started_at).getTime();
   const hoursRaw = Math.floor(elapsed / HARVEST_RATE_MS);
@@ -44,8 +45,8 @@ function computeHarvestAccumulated(profile, biomeKey) {
   const maxWeight = getMaxWeight(profile);
   const freeSlots = Math.max(0, maxWeight - currentWeight);
 
-  const HARVEST_MAX = 4; // plafond session AFK
-  return Math.min(hoursRaw, maxByGold, freeSlots, HARVEST_MAX);
+  // Plafond session AFK : 4 par défaut, 10 si palier 5 statue royale actif (Sprint 2C)
+  return Math.min(hoursRaw, maxByGold, freeSlots, harvestMax);
 }
 
 /** Retourne les heures effectivement facturables (or suffisant) */
@@ -267,6 +268,10 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
   const profileRef = useRef(profile);
   const biomeDataRef = useRef(null);
 
+  // ── Sprint 2C : palier 5 statue royale (stockage récolte AFK 4 → 10) ──
+  const royalStatue = useRoyalStatue(profile?.home_city_id);
+  const harvestMax = royalStatue.hasPalier(5) ? 10 : 4;
+
   // Tenir les refs à jour pour accès dans les intervalles
   useEffect(() => { profileRef.current = profile; }, [profile]);
   useEffect(() => { biomeDataRef.current = biomeData; }, [biomeData]);
@@ -282,7 +287,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
     }
     const tick = () => {
       const p = profileRef.current;
-      setHarvestAccumulated(computeHarvestAccumulated(p, biomeKey));
+      setHarvestAccumulated(computeHarvestAccumulated(p, biomeKey, harvestMax));
       const elapsed = Date.now() - new Date(p.harvest_started_at).getTime();
       const msIntoSlot = elapsed % HARVEST_RATE_MS;
       setHarvestNextIn(Math.ceil((HARVEST_RATE_MS - msIntoSlot) / 1000));
@@ -471,7 +476,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
     setCollectingHarvest(true);
     try {
       const freshProfile = await base44.entities.PlayerProfile.get(profile.id);
-      const qty = computeHarvestAccumulated(freshProfile, biomeKey);
+      const qty = computeHarvestAccumulated(freshProfile, biomeKey, harvestMax);
       const hours = computeHarvestHours(freshProfile, biomeKey);
       const goldCost = Math.min(hours, Math.floor((freshProfile.gold || 0) / HARVEST_COST_PER_UNIT));
       const actualQty = Math.min(qty, goldCost);
