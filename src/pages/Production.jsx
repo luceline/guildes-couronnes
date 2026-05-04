@@ -574,6 +574,14 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     }
     const cooldown = getCooldownLeft(recipe.id);
     if (cooldown > 0) { toast.error(`Encore ${formatCooldown(cooldown)} avant de produire.`); return; }
+
+    // ── Check précoce faim/énergie (avant toute manipulation) ──
+    const earlyFarmCost = TIER_ACTION_COST?.[recipe.tier || 1] || 1;
+    if (currentHunger + currentFatigue < earlyFarmCost) {
+      toast.error(`💤 Pas assez d'énergie ni de faim pour récolter (besoin de ${earlyFarmCost} points, vous avez ${currentHunger + currentFatigue}).`);
+      return;
+    }
+
     if (recipe.requiresItems) {
       for (const req of recipe.requiresItems) {
         const has = getInventoryQty(req.key);
@@ -760,6 +768,16 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
     const cooldownLeft = getCooldownLeft(recipe.id);
     if (cooldownLeft > 0) { toast.error(`⏳ Encore ${formatCooldown(cooldownLeft)} avant de pouvoir fabriquer.`); return; }
+
+    // ── Check précoce faim/énergie (avant toute manipulation) ──
+    // Évite que le joueur clique, voie son bouton "Fabrication...", et reçoive
+    // une erreur en aval. On bloque dès l'entrée si pas assez de réserves.
+    const earlyCraftTier = ITEMS[recipe.output?.key]?.tier || 1;
+    const earlyCraftCost = TIER_ACTION_COST?.[earlyCraftTier] || 1;
+    if (currentHunger + currentFatigue < earlyCraftCost) {
+      toast.error(`💤 Pas assez d'énergie ni de faim pour ce craft (besoin de ${earlyCraftCost} points, vous avez ${currentHunger + currentFatigue}).`);
+      return;
+    }
 
     const inputWeight = recipe.inputs.reduce((s, i) => s + i.quantity, 0);
     const outputWeight = recipe.output.quantity;
@@ -1186,7 +1204,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
               const ready = cooldown <= 0;
               const item = ITEMS[recipe.outputKey];
               const reqsMet = !recipe.requiresItems || recipe.requiresItems.every(req => getInventoryQty(req.key) >= req.quantity);
-              const blocked = currentHunger + currentFatigue <= 0;
+              const farmCost = TIER_ACTION_COST?.[recipe.tier || 1] || 1;
+              const blocked = (currentHunger + currentFatigue) < farmCost;
               const buildingRequired = recipe.requiresBuilding
                 ? !(cityBuildings || []).some(b => b.building_type === recipe.requiresBuilding)
                 : false;
@@ -1223,7 +1242,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                     <div className="flex flex-col items-end gap-1">
                       {ready && reqsMet && !blocked
                         ? <Badge className="bg-green-100 text-green-800">Prêt</Badge>
-                        : <Badge variant="secondary">{hungryBlocked ? "🍽️ Faim" : !ready ? formatCooldown(cooldown) : "Ingrédients"}</Badge>
+                        : <Badge variant="secondary">{blocked ? "💤 Pas d'énergie" : !ready ? formatCooldown(cooldown) : "Ingrédients"}</Badge>
                       }
                       <Button size="sm" className="font-heading" onClick={() => handleFarm(recipe)}
                         disabled={!ready || !reqsMet || producing === recipe.id || blocked}>
@@ -1264,7 +1283,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
               {getTodayPvpRecipes().filter(recipe => recipe.profession === profile?.profession).map(recipe => {
                 const possible = canCraft(recipe);
                 const outItem = ITEMS[recipe.output.key];
-                const blocked = currentHunger + currentFatigue <= 0;
+                const pvpCraftCost = TIER_ACTION_COST?.[1] || 1; // T1.5 = coût T1
+                const blocked = (currentHunger + currentFatigue) < pvpCraftCost;
                 return (
                   <Card key={recipe.id} className={possible && !blocked ? "border-accent/30 bg-accent/5" : "opacity-60"}>
                     <CardContent className="p-4">
@@ -1296,7 +1316,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                       </div>
                       <Button size="sm" className="w-full font-heading bg-accent hover:bg-accent/90" onClick={() => handleCraft(recipe)}
                         disabled={!possible || crafting === recipe.id || blocked}>
-                        {crafting === recipe.id ? "Fabrication..." : hungryBlocked ? "💤 Épuisé" : possible ? "Fabriquer" : "Ressources manquantes"}
+                        {crafting === recipe.id ? "Fabrication..." : blocked ? "💤 Pas assez d'énergie" : possible ? "Fabriquer" : "Ressources manquantes"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1312,7 +1332,8 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
               {CRAFTING_RECIPES.filter(recipe => !recipe.profession || recipe.profession === profile?.profession).map(recipe => {
                 const possible = canCraft(recipe);
                 const outItem = ITEMS[recipe.output.key];
-                const blocked = currentHunger + currentFatigue <= 0;
+                const recipeCraftCost = TIER_ACTION_COST?.[outItem?.tier || 1] || 1;
+                const blocked = (currentHunger + currentFatigue) < recipeCraftCost;
                 const buildingRequired = recipe.requiresBuilding
                   ? !(cityBuildings || []).some(b => b.building_type === recipe.requiresBuilding)
                   : false;
@@ -1355,7 +1376,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
                       {!ready && <Progress value={100 - (cooldown / recipe.cooldown) * 100} className="h-1.5 mb-2" />}
                       <Button size="sm" className="w-full font-heading" onClick={() => handleCraft(recipe)}
                         disabled={!possible || crafting === recipe.id || blocked || !ready}>
-                        {crafting === recipe.id ? "Fabrication..." : !ready ? formatCooldown(cooldown) : hungryBlocked ? "💤 Épuisé" : possible ? "Fabriquer" : "Ressources manquantes"}
+                        {crafting === recipe.id ? "Fabrication..." : !ready ? formatCooldown(cooldown) : blocked ? "💤 Pas assez d'énergie" : possible ? "Fabriquer" : "Ressources manquantes"}
                       </Button>
                     </CardContent>
                   </Card>
