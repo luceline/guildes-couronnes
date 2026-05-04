@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CauldronPanel from "@/components/CauldronPanel";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import {
   PROFESSIONS, ITEM_CATEGORIES, getInventoryWeight, getMaxWeight, getMaxFatigue,
@@ -1182,6 +1183,9 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
           </Card>
         );
       })()}
+
+      {/* ── Panneau Chaudron magique (Sprint 4) ── */}
+      <CauldronPanel profile={profile} city={city} onRefresh={onRefresh} />
 
       <Tabs defaultValue="farm">
         <TabsList className="font-heading">
