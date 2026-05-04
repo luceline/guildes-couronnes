@@ -441,6 +441,95 @@ export const ITEMS = {
     trigger: "passive", effect: "tax_absorb", value: 110,
     use: "100💰 → 110💰 de couverture fiscale (absorbe impôts/taxes). 1/jour, réservé aux joueurs ≥ 300💰.",
   },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ── ITEMS DU CHAUDRON MAGIQUE (Sprint 4) ──
+  // Ces 15 items ne sont obtenus QUE via le chaudron magique (utilisation
+  // quotidienne), jamais craftés directement. Chacun a un effet spécifique
+  // appliqué à la consommation, géré dans Production.jsx (handleConsume).
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── Pool Rang 1 (4 items T1) ──
+  tisane_revigorante: {
+    name: "Tisane revigorante", icon: "🍵", category: "chaudron", tier: 1,
+    trigger: "consumed", effect: "fatigue_restore", value: 5,
+    use: "+5 énergie instant. Obtenu via le chaudron magique (rang 1+).",
+  },
+  botte_paille: {
+    name: "Botte de paille", icon: "🌾", category: "chaudron", tier: 1,
+    trigger: "consumed", effect: "hunger_restore", value: 5,
+    use: "+5 faim instant. Obtenu via le chaudron magique (rang 1+).",
+  },
+  trefle_chance: {
+    name: "Trèfle de chance", icon: "🍀", category: "chaudron", tier: 1,
+    trigger: "consumed", effect: "next_epopee_drop_bonus", value: 0.05,
+    use: "+5% drop sur ta prochaine épopée. Obtenu via le chaudron magique.",
+  },
+  plume_vent: {
+    name: "Plume de vent", icon: "💨", category: "chaudron", tier: 1,
+    trigger: "consumed", effect: "next_travel_free", value: 1,
+    use: "Prochain voyage gratuit (péage 0). Obtenu via le chaudron magique.",
+  },
+
+  // ── Pool Rang 2 (5 items T2) ──
+  piece_porte_bonheur: {
+    name: "Pièce porte-bonheur", icon: "🪙", category: "chaudron", tier: 2,
+    trigger: "consumed", effect: "next_epopee_gold_bonus", value: 0.20,
+    use: "+20% gain d'or sur ta prochaine épopée. Obtenu via le chaudron magique (rang 2+).",
+  },
+  pierre_feu: {
+    name: "Pierre de feu", icon: "🔥", category: "chaudron", tier: 2,
+    trigger: "consumed", effect: "craft_speed_buff", value: 0.30, duration_h: 4,
+    use: "-30% durée crafts pendant 4h. Obtenu via le chaudron magique (rang 2+).",
+  },
+  parchemin_marchand: {
+    name: "Parchemin marchand", icon: "📜", category: "chaudron", tier: 2,
+    trigger: "consumed_target_city", effect: "steal_treasury", value: 20,
+    use: "Vole 20💰 à la mairie d'une ville cible (autre que la tienne). Obtenu via le chaudron magique (rang 2+).",
+  },
+  miel_fees: {
+    name: "Miel des fées", icon: "🍯", category: "chaudron", tier: 2,
+    trigger: "consumed", effect: "hunger_and_fatigue", value: 10,
+    use: "+10 faim et +10 énergie. Obtenu via le chaudron magique (rang 2+).",
+  },
+  pierre_energetique: {
+    name: "Pierre énergétique", icon: "⚡", category: "chaudron", tier: 2,
+    trigger: "consumed", effect: "energy_max_or_gold", value: 1, alt_value: 30,
+    use: "+1 énergie max permanent (cap +3), sinon +30💰. Obtenu via le chaudron magique (rang 2+).",
+  },
+
+  // ── Pool Rang 3 (6 items T3) ──
+  hibou_messager: {
+    name: "Hibou messager", icon: "🦉", category: "chaudron", tier: 3,
+    trigger: "consumed_target_city", effect: "spy_city",
+    use: "Espionne une ville cible : révèle son or et son entrepôt + statut dôme. Obtenu via le chaudron magique (rang 3).",
+  },
+  sablier_ages: {
+    name: "Sablier des âges", icon: "⏳", category: "chaudron", tier: 3,
+    trigger: "consumed", effect: "reset_all_cooldowns",
+    use: "Réinitialise tous tes cooldowns de récolte et craft. Obtenu via le chaudron magique (rang 3).",
+  },
+  etoile_filante: {
+    name: "Étoile filante", icon: "🌟", category: "chaudron", tier: 3,
+    trigger: "consumed_target_city", effect: "steal_treasury", value: 50,
+    use: "Vole 50💰 à la mairie d'une ville cible. Obtenu via le chaudron magique (rang 3).",
+  },
+  talisman_protection: {
+    name: "Talisman de protection", icon: "🛡️", category: "chaudron", tier: 3,
+    trigger: "consumed", effect: "city_protect", duration_h: 2,
+    use: "Pose un dôme de protection sur ta ville pendant 2h (bloque Parchemin marchand et Étoile filante). Obtenu via le chaudron magique (rang 3).",
+  },
+  parchemin_craft: {
+    name: "Parchemin de craft", icon: "🪄", category: "chaudron", tier: 3,
+    trigger: "consumed", effect: "next_t4_no_tool",
+    use: "Économise 1 charge d'outil sur ton prochain T4. Obtenu via le chaudron magique (rang 3).",
+  },
+  oeil_archer: {
+    name: "Œil de l'archer", icon: "🎯", category: "chaudron", tier: 3,
+    trigger: "consumed", effect: "reset_epopee",
+    use: "Réinitialise ton épopée du jour (2 épopées possibles). Obtenu via le chaudron magique (rang 3).",
+  },
+
 };
 
 // ── TEMP_EFFECT_ITEMS — dérivé automatique de ITEMS ──

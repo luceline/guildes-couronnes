@@ -43,6 +43,10 @@ const COLLECTION_MAP = {
   LotteryTicket:        'lottery_tickets',
   RoyalStatue:          'royal_statue',
   StatueContribution:   'statue_contributions',
+  MagicCauldron:        'magic_cauldron',
+  CauldronDailyInputs:  'cauldron_daily_inputs',
+  CauldronUses:         'cauldron_uses',
+  ProtectionDome:       'protection_dome',
 };
 
 // Collections qui stockent tout dans un champ JSON data
