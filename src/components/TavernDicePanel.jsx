@@ -156,6 +156,8 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
   const [resolveModal, setResolveModal] = useState(null); // { challenger_dice, accepter_dice, won, gain }
   const [publishModal, setPublishModal] = useState(null); // { dice, score, mise } : animation lors de la publication
   const [publishRolled, setPublishRolled] = useState(false); // false = pas encore cliqué sur "Lancer", true = animation en cours/finie
+  const [acceptModal, setAcceptModal] = useState(null); // { challenge } : invitation à relever le défi
+  const [acceptPhase, setAcceptPhase] = useState("invite"); // "invite" | "rolling" | "result"
   const [showRules, setShowRules] = useState(false);
 
   const partiesAujourdhui = getPartiesAujourdhui(profile);
@@ -257,7 +259,10 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
   };
 
   // ─── Accepter un défi (résout immédiatement) ───
-  const handleAcceptChallenge = async (challenge) => {
+  // ─── Cliquer sur "Relever" : ouvre la modale d'invitation ───
+  // L'accepteur voit "[Challenger] vous attend, ferez-vous mieux ?" + bouton "Lancer les dés".
+  // La résolution effective est déclenchée par handleConfirmAccept au clic du bouton.
+  const handleAcceptClick = (challenge) => {
     if (challenge.challenger_email === profile.user_email) {
       toast.error("Vous ne pouvez pas accepter votre propre défi !");
       return;
@@ -270,7 +275,17 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
       toast.error(`Pas assez d'or pour relever ce défi (${challenge.mise} 💰).`);
       return;
     }
+    setAcceptPhase("invite");
+    setAcceptModal({ challenge });
+  };
 
+  // ─── Accepter un défi (résout immédiatement) ───
+  // Appelée depuis la modale d'invitation, après que l'accepteur a cliqué "Lancer les dés".
+  // Calcule la résolution, met à jour la DB, et passe la modale en phase "rolling" puis "result".
+  const handleConfirmAccept = async () => {
+    if (!acceptModal?.challenge) return;
+    const challenge = acceptModal.challenge;
+    setAcceptPhase("rolling");
     setAccepting(challenge.id);
     try {
       // Recharge le défi pour vérifier qu'il est toujours ouvert (anti-race)
@@ -382,7 +397,10 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
         commission: isTie ? 0 : commission,
       });
 
-      // Affiche le modal de résolution avec animation
+      // Ferme la modale d'invitation et bascule sur la modale de résolution
+      // (animation des 2 séries de dés simultanée, durée 3s, puis verdict).
+      setAcceptModal(null);
+      setAcceptPhase("invite"); // reset pour la prochaine fois
       setResolveModal({
         challenger_name: challenge.challenger_name,
         accepter_name: profile.character_name,
@@ -399,6 +417,8 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
     } catch (e) {
       console.error("[TavernDice] accept error:", e);
       toast.error("Le tavernier renverse une chope : la partie n'a pu se faire.");
+      setAcceptModal(null);
+      setAcceptPhase("invite");
     } finally {
       setAccepting(null);
     }
@@ -548,7 +568,7 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
                   <Button
                     size="sm"
                     className="font-heading text-xs"
-                    onClick={() => handleAcceptChallenge(c)}
+                    onClick={() => handleAcceptClick(c)}
                     disabled={accepting === c.id || quotaAtteint || (profile.gold || 0) < c.mise}
                   >
                     {accepting === c.id ? "..." : "Relever"}
@@ -559,6 +579,54 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
           })}
         </div>
       </CardContent>
+
+      {/* Modal d'invitation à relever un défi.
+          Affiché quand l'accepteur clique "Relever" : il voit qui l'a défié et la mise,
+          puis doit cliquer "Lancer les dés" pour déclencher la résolution. */}
+      {acceptModal && acceptPhase === "invite" && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          onClick={() => { setAcceptModal(null); setAcceptPhase("invite"); }}
+        >
+          <div
+            className="bg-background rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border-2 border-amber-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center">
+              <div className="font-heading text-lg mb-1">⚔️ Vous relevez le défi</div>
+              <div className="text-xs text-muted-foreground font-body italic">
+                Mise : {acceptModal.challenge.mise}💰 chacun
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-center space-y-2">
+              <div className="text-4xl">🎲 🎲 🎲</div>
+              <div className="text-sm font-body text-amber-800">
+                <span className="font-semibold">{acceptModal.challenge.challenger_name}</span> a déjà lancé ses dés.
+              </div>
+              <div className="text-sm font-body text-amber-800 italic">
+                Son score reste secret. Saurez-vous faire mieux ?
+              </div>
+            </div>
+
+            <Button
+              className="w-full font-heading text-base py-6"
+              disabled={accepting === acceptModal.challenge.id}
+              onClick={handleConfirmAccept}
+            >
+              🎲 Lancer les dés !
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full font-body text-xs"
+              onClick={() => { setAcceptModal(null); setAcceptPhase("invite"); }}
+            >
+              Reculer prudemment
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Modal d'animation à la publication d'un défi.
           État 1 (publishRolled=false) : invitation à cliquer sur "Lancer les dés"
