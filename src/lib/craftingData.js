@@ -468,7 +468,7 @@ export const ITEMS = {
   plume_vent: {
     name: "Plume de vent", icon: "💨", category: "chaudron", tier: 1,
     trigger: "consumed", effect: "next_travel_free", value: 1,
-    use: "Prochain voyage gratuit (péage 0). Obtenu via le chaudron magique.",
+    use: "Prochain voyage entièrement gratuit (frais de route et péage à 0). Obtenu via le chaudron magique.",
   },
 
   // ── Pool Rang 2 (5 items T2) ──
@@ -495,7 +495,7 @@ export const ITEMS = {
   pierre_energetique: {
     name: "Pierre énergétique", icon: "⚡", category: "chaudron", tier: 2,
     trigger: "consumed", effect: "energy_max_or_gold", value: 1, alt_value: 30,
-    use: "+1 énergie max permanent (cap +3), sinon +30💰. Obtenu via le chaudron magique (rang 2+).",
+    use: "+30💰 à l'activation. Obtenu via le chaudron magique (rang 2+).",
   },
 
   // ── Pool Rang 3 (6 items T3) ──

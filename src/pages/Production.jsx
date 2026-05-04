@@ -1695,6 +1695,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
             : `Choisissez la ville à voler. Vous dérobez ${targetModal.value}💰 à la trésorerie de la mairie. Si la ville est protégée par un dôme, votre item sera consommé sans effet.`
         }
         excludeCityId={profile?.home_city_id}
+        hideTreasury={targetModal.type === "spy"}
         submitting={targetSubmitting}
       />
     )}

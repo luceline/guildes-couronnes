@@ -226,6 +226,14 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     const palier4TollWaived = royalStatue.hasPalier(4) && toll > 0;
     if (palier4TollWaived) toll = 0;
 
+    // ── Hook chaudron 💨 Plume de vent : prochain voyage GRATUIT (frais ET péage à 0) ──
+    let plumeUsed = false;
+    if (profile.next_travel_free && (travelCost > 0 || toll > 0)) {
+      plumeUsed = true;
+      travelCost = 0;
+      toll = 0;
+    }
+
     if (travelCost > 0 && (profile.gold || 0) < travelCost) {
       toast.error(`Pas assez d'or pour les frais de route ! Il faut ${travelCost} 💰${peageActive ? " (péage doublé)" : ""}.`);
       return;
@@ -285,6 +293,12 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
             -travelCost, "frais_voyage", `Frais de route vers ${arrivalCity.name}`);
         }
       }
+    }
+
+    // Consomme le flag plume après usage (frais ET péage offerts)
+    if (plumeUsed) {
+      updates.next_travel_free = false;
+      toast.success(`💨 La Plume de vent souffle pour vous : voyage entièrement offert !`);
     }
 
     await base44.entities.PlayerProfile.update(profile.id, updates);

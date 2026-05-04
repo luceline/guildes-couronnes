@@ -91,16 +91,9 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
   }
 
   if (itemDef.effect === "energy_max_or_gold") {
-    // Pierre énergétique : +1 max perma (cap 3) ou +30 or
-    const currentBonus = profile.energy_max_perma_bonus || 0;
-    const cap = 3;
-    if (currentBonus < cap) {
-      updates.energy_max_perma_bonus = currentBonus + (itemDef.value || 1);
-      toastMessage = `⚡ +1 énergie max permanente ! (total : +${currentBonus + 1}/${cap})`;
-    } else {
-      updates.gold = (profile.gold || 0) + (itemDef.alt_value || 30);
-      toastMessage = `⚡ Cap d'énergie max atteint : +${itemDef.alt_value || 30}💰 à la place !`;
-    }
+    // Pierre énergétique : +30 or fixe (simplification : on ne donne plus +1 énergie max permanente)
+    updates.gold = (profile.gold || 0) + (itemDef.alt_value || 30);
+    toastMessage = `⚡ +${itemDef.alt_value || 30}💰 ! La Pierre énergétique vous récompense.`;
     return { handled: true, updates, toastMessage };
   }
 
@@ -222,8 +215,8 @@ export async function executeStealTreasury(profile, targetCity, value, itemName)
   }
 
   // Vol effectif
-  const stealAmount = Math.min(value, targetCity.gold_treasury || 0);
-  if (stealAmount <= 0) {
+  const stolenAmount = Math.min(value, targetCity.gold_treasury || 0);
+  if (stolenAmount <= 0) {
     return {
       success: true,
       stolenAmount: 0,
@@ -234,15 +227,15 @@ export async function executeStealTreasury(profile, targetCity, value, itemName)
   // Mettre à jour la ville cible
   try {
     await base44.entities.City.update(targetCity.id, {
-      gold_treasury: (targetCity.gold_treasury || 0) - stealAmount,
+      gold_treasury: (targetCity.gold_treasury || 0) - stolenAmount,
     });
     // Le profile est mis à jour côté appelant (pour cohérence avec l'inventaire)
     return {
       success: true,
       stolenAmount,
-      goldUpdate: stealAmount,
-      toastMessage: `💸 Vous dérobez ${stealAmount}💰 à la trésorerie de ${targetCity.name} !`,
-      logDescription: `🗡️ Vol via ${itemName} sur ${targetCity.name} : +${stealAmount}💰`,
+      goldUpdate: stolenAmount,
+      toastMessage: `💸 Vous dérobez ${stolenAmount}💰 à la trésorerie de ${targetCity.name} !`,
+      logDescription: `🗡️ Vol via ${itemName} sur ${targetCity.name} : +${stolenAmount}💰`,
     };
   } catch (e) {
     console.error("[Cauldron] steal failed:", e);

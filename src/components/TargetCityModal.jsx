@@ -23,6 +23,7 @@ export default function TargetCityModal({
   itemName,
   description,         // texte du contexte ("Vous allez voler 20 or à...", etc.)
   excludeCityId,       // city_id à exclure (la ville du joueur)
+  hideTreasury = false, // pour Hibou messager : masquer la trésorerie qui doit être révélée APRÈS sélection
   submitting = false,
 }) {
   const [cities, setCities] = useState([]);
@@ -102,12 +103,19 @@ export default function TargetCityModal({
                         Niveau {c.level || 1} · Tier {c.tier || 1}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-heading text-amber-700">
-                        {c.gold_treasury || 0} 💰
+                    {!hideTreasury && (
+                      <div className="text-right">
+                        <div className="text-sm font-heading text-amber-700">
+                          {c.gold_treasury || 0} 💰
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-body">trésorerie</div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-body">trésorerie</div>
-                    </div>
+                    )}
+                    {hideTreasury && (
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground font-body italic">?</div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
