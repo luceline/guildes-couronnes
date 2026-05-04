@@ -38,6 +38,7 @@ import ProfessionChangePanel from "../components/ProfessionChangePanel";
 import RoyalStatuePanel from "../components/RoyalStatuePanel";
 import MayorEventsPanel from "../components/MayorEventsPanel";
 import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
+import { checkCityDome } from "@/lib/cauldronEffects";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
 
@@ -255,12 +256,28 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
    const [lingotPriceInput, setLingotPriceInput] = useState(null);
    const [salaryInput, setSalaryInput] = useState(null);
    const [activeStatue, setActiveStatue] = useState(null);
+   const [activeDome, setActiveDome] = useState(null); // { protected: bool, expiresAt }
 
   useEffect(() => {
     let cancelled = false;
     loadActiveStatue().then(s => { if (!cancelled) setActiveStatue(s); });
     return () => { cancelled = true; };
   }, [city?.id]);
+
+  // Charge l'état du dôme de la ville + rafraîchissement automatique toutes les 60s
+  useEffect(() => {
+    if (!city?.id) return;
+    let cancelled = false;
+    const reload = () => {
+      checkCityDome(city.id).then(d => { if (!cancelled) setActiveDome(d); }).catch(() => {});
+    };
+    reload();
+    const timer = setInterval(reload, 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [city?.id]);
+
+  // Le dôme est-il actif ET pas expiré ? (vérifie aussi expiresAt côté frontend pour réagir vite)
+  const domeActive = activeDome?.protected && activeDome?.expiresAt && new Date(activeDome.expiresAt) > new Date();
 
   useEffect(() => {
     if (!city) return;
@@ -771,8 +788,18 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       {/* Onglets en haut */}
       <Tabs defaultValue="mairie" className="sticky top-0 z-20 bg-background border-b">
         <TabsList className="font-heading flex-wrap h-auto gap-1 w-full justify-center rounded-none border-b-0">
-          <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
-          <TabsTrigger value="gouvernance">👑 Gouvernance</TabsTrigger>
+          <TabsTrigger
+            value="mairie"
+            className={domeActive ? "shadow-lg shadow-cyan-400/60 ring-1 ring-cyan-300" : ""}
+          >
+            🏛️ Mairie{domeActive && <span className="ml-1">🛡️</span>}
+          </TabsTrigger>
+          <TabsTrigger
+            value="gouvernance"
+            className={domeActive ? "shadow-lg shadow-cyan-400/60 ring-1 ring-cyan-300" : ""}
+          >
+            👑 Gouvernance{domeActive && <span className="ml-1">🛡️</span>}
+          </TabsTrigger>
           <TabsTrigger value="evenements">🎉 Événements</TabsTrigger>
           <TabsTrigger value="competitif">🛠️ T5 (refonte)</TabsTrigger>
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
