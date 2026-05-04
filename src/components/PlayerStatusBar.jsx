@@ -310,6 +310,67 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
     });
   }
 
+  // ── Buffs du chaudron magique (Sprint 4) ──
+
+  // 💨 Plume de vent : prochain voyage gratuit
+  if (profile.next_travel_free) {
+    buffs.push({
+      icon: "💨",
+      label: "Plume de vent",
+      detail: "voyage gratuit",
+      tooltip: "Plume de vent active : votre prochain voyage est entièrement gratuit (frais de route et péage à 0).",
+      color: "text-cyan-700 bg-cyan-50 border-cyan-200",
+    });
+  }
+
+  // 🔥 Pierre de feu : -30% durée crafts pendant 4h
+  if (profile.craft_speed_buff_until && new Date(profile.craft_speed_buff_until) > new Date(now)) {
+    const t = formatDuration(new Date(profile.craft_speed_buff_until).getTime() - now);
+    const pct = Math.round((profile.craft_speed_buff_value || 0.30) * 100);
+    buffs.push({
+      icon: "🔥",
+      label: "Pierre de feu",
+      detail: `−${pct}% CD (${t})`,
+      tooltip: `Pierre de feu active encore ${t}. Réduit la durée de tous vos crafts de ${pct}%.`,
+      color: "text-red-700 bg-red-50 border-red-200",
+    });
+  }
+
+  // 🍀 Trèfle de chance : +5% drop sur la prochaine épopée
+  if (profile.next_epopee_drop_bonus && profile.next_epopee_drop_bonus > 0) {
+    const pct = Math.round(profile.next_epopee_drop_bonus * 100);
+    buffs.push({
+      icon: "🍀",
+      label: "Trèfle de chance",
+      detail: `+${pct}% drop épopée`,
+      tooltip: `Trèfle de chance actif : votre prochaine épopée aura +${pct}% de chance de drop.`,
+      color: "text-green-700 bg-green-50 border-green-200",
+    });
+  }
+
+  // 💰 Pièce porte-bonheur : +20% or sur la prochaine épopée
+  if (profile.next_epopee_gold_bonus && profile.next_epopee_gold_bonus > 0) {
+    const pct = Math.round(profile.next_epopee_gold_bonus * 100);
+    buffs.push({
+      icon: "💰",
+      label: "Pièce porte-bonheur",
+      detail: `+${pct}% or épopée`,
+      tooltip: `Pièce porte-bonheur active : votre prochaine épopée rapportera ${pct}% d'or en plus.`,
+      color: "text-amber-700 bg-amber-50 border-amber-200",
+    });
+  }
+
+  // 👁️ Œil d'archer : prochain T4 sans outil
+  if (profile.next_t4_no_tool) {
+    buffs.push({
+      icon: "👁️",
+      label: "Œil d'archer",
+      detail: "prochain T4 sans outil",
+      tooltip: "Œil d'archer actif : votre prochain craft T4 ne consommera pas de charge d'outil.",
+      color: "text-indigo-700 bg-indigo-50 border-indigo-200",
+    });
+  }
+
   // Rangs prestige
   const vRank = getVendeurRank(profile.cumul_ventes_or || 0);
   const cRank = getContributeurRank(profile.cumul_contributions_warehouse || 0);
