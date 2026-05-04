@@ -98,9 +98,7 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
   }
 
   if (itemDef.effect === "reset_all_cooldowns") {
-    // Sablier des âges
-    updates.last_harvest_at = null;
-    updates.last_craft_at = null;
+    // Sablier des âges : reset tous les cooldowns de production (record JSON)
     updates.production_cooldowns = {};
     return { handled: true, updates };
   }
@@ -112,9 +110,9 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
   }
 
   if (itemDef.effect === "reset_epopee") {
-    // Œil de l'archer
-    updates.epopee_played_today = null;
-    updates.epopee_state = null;
+    // Trèfle de chance / Œil d'archer : reset complet de l'épopée du jour pour permettre d'en relancer une
+    updates.combat_last_date = "";
+    updates.combat_active_biome = "";
     updates.combat_wave_index = 0;
     updates.combat_total_gold = 0;
     updates.combat_total_drops = 0;
