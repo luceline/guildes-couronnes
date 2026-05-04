@@ -70,7 +70,7 @@ export default function RoyalStatuePanel({ profile, city, onRefresh }) {
   const todayStr = new Date().toISOString().split("T")[0];
   const alreadyDonatedToday = myContribution?.offered_today === todayStr;
 
-  // ─── Inventaire filtré : T1 à T4, hors T5 ───
+  // ─── Inventaire filtré : T1 à T4, hors T5 et hors items du chaudron magique ───
   const eligibleInventory = useMemo(() => {
     const inv = profile?.inventory || [];
     return inv
@@ -78,7 +78,12 @@ export default function RoyalStatuePanel({ profile, city, onRefresh }) {
         ...slot,
         def: ITEMS[slot.item_key],
       }))
-      .filter(slot => slot.def && (slot.def.tier || 1) <= 4 && (slot.quantity || 0) > 0)
+      .filter(slot =>
+        slot.def
+        && (slot.def.tier || 1) <= 4
+        && slot.def.category !== "chaudron"  // Sprint 2C : items chaudron non donnables (effets actifs, pas de valeur économique standard)
+        && (slot.quantity || 0) > 0
+      )
       .sort((a, b) => {
         // Tri : tier croissant puis nom
         const tierDiff = (a.def.tier || 1) - (b.def.tier || 1);
@@ -376,7 +381,7 @@ export default function RoyalStatuePanel({ profile, city, onRefresh }) {
           <div className="bg-card border border-border rounded-lg p-3 space-y-2">
             <div className="font-heading text-sm">🎁 Composer votre offrande</div>
             <p className="text-xs italic text-muted-foreground font-body">
-              Acceptés : items T1 à T4. Une seule offrande par jour, pas de limite de quantité.
+              Acceptés : items T1 à T4 du système classique (hors items du chaudron magique). Une seule offrande par jour, pas de limite de quantité.
             </p>
 
             {pricesLoading && (
