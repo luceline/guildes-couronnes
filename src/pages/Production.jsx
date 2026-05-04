@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CauldronPanel from "@/components/CauldronPanel";
 import TargetCityModal from "@/components/TargetCityModal";
 import SpyReportModal from "@/components/SpyReportModal";
-import { executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
+import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import {
   PROFESSIONS, ITEM_CATEGORIES, getInventoryWeight, getMaxWeight, getMaxFatigue,
@@ -376,6 +376,67 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const invItem = (profile.inventory || []).find(i => i.item_key === itemDef.key || i.item_name === itemDef.name);
     if (!invItem || invItem.quantity <= 0) { toast.error(`Vous n'avez plus de ${itemDef.name} !`); return; }
 
+    // ── Sprint 4C : items du chaudron magique ──
+    // Délègue au helper centralisé pour ne pas dupliquer la logique entre
+    // Production.jsx et InventoryPanel.jsx.
+    if (itemDef.category === "chaudron") {
+      const result = applyCauldronEffect(itemDef, profile, city, {
+        cityHungerBonus,
+        getMaxHunger,
+        getMaxFatigue,
+      });
+
+      // Items à cible : ouvre la modale au lieu de consommer ici
+      if (result?.needsTarget) {
+        setTargetModal({
+          itemDef,
+          type: result.needsTarget === "spy_city" ? "spy" : "steal",
+          value: result.value || 0,
+        });
+        return;
+      }
+
+      // Talisman de protection : appel async dédié
+      if (result?.needsAsync === "city_protect") {
+        try {
+          const protectResult = await applyCityProtect(profile, city, result.duration_h);
+          if (protectResult.error) {
+            toast.error(protectResult.error);
+            return;
+          }
+          const newInv = (profile.inventory || [])
+            .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+            .filter(i => i.quantity > 0);
+          await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv });
+          toast.success(protectResult.toastMessage);
+          onRefresh?.();
+        } catch (e) {
+          console.error("[Cauldron] talisman:", e);
+          toast.error("Erreur lors de l'activation du talisman.");
+        }
+        return;
+      }
+
+      // Effet local appliqué : on consomme + applique
+      if (result?.handled) {
+        try {
+          const newInv = (profile.inventory || [])
+            .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+            .filter(i => i.quantity > 0);
+          await base44.entities.PlayerProfile.update(profile.id, {
+            inventory: newInv,
+            ...(result.updates || {}),
+          });
+          toast.success(result.toastMessage || `${itemDef.icon} ${itemDef.name} consommé !`);
+          onRefresh?.();
+        } catch (e) {
+          console.error("[Cauldron] consume:", e);
+          toast.error("Erreur lors de la consommation.");
+        }
+        return;
+      }
+    }
+
     const now = new Date();
     const expiresAt = itemDef.duration_h
       ? new Date(now.getTime() + itemDef.duration_h * 3600000).toISOString()
@@ -493,99 +554,6 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     } else if (itemDef.effect === "quest_activate") {
       // Contrat artisan : géré par handleActivateContrat
       toast("📋 Utilisez le bouton 'Activer' dédié pour le Contrat artisan.");
-      return;
-
-    // ═══════════════════════════════════════════════════════════════════
-    // ── EFFETS DU CHAUDRON MAGIQUE (Sprint 4) ──
-    // ═══════════════════════════════════════════════════════════════════
-
-    } else if (itemDef.effect === "hunger_and_fatigue") {
-      // 🍯 Miel des fées : +10 faim ET +10 énergie
-      const maxH = getMaxHunger(profile, cityHungerBonus);
-      const maxF = getMaxFatigue(profile, 0);
-      const value = itemDef.value || 10;
-      updates.hunger = Math.min(maxH, (profile.hunger ?? maxH) + value);
-      updates.fatigue = Math.min(maxF, (profile.fatigue ?? maxF) + value);
-
-    } else if (itemDef.effect === "next_epopee_drop_bonus") {
-      // 🍀 Trèfle de chance : flag pour la prochaine épopée (+5% drop)
-      updates.next_epopee_drop_bonus = itemDef.value || 0.05;
-
-    } else if (itemDef.effect === "next_epopee_gold_bonus") {
-      // 🪙 Pièce porte-bonheur : flag pour la prochaine épopée (+20% or)
-      updates.next_epopee_gold_bonus = itemDef.value || 0.20;
-
-    } else if (itemDef.effect === "next_travel_free") {
-      // 💨 Plume de vent : flag pour le prochain voyage gratuit
-      updates.next_travel_free = true;
-
-    } else if (itemDef.effect === "craft_speed_buff") {
-      // 🔥 Pierre de feu : -30% durée crafts pendant 4h (timer)
-      updates.craft_speed_buff_until = expiresAt;
-      updates.craft_speed_buff_value = itemDef.value || 0.30;
-
-    } else if (itemDef.effect === "energy_max_or_gold") {
-      // ⚡ Pierre énergétique : +1 énergie max permanent (cap +3) sinon +30 or
-      const currentBonus = profile.energy_max_perma_bonus || 0;
-      const cap = 3;
-      if (currentBonus < cap) {
-        updates.energy_max_perma_bonus = currentBonus + (itemDef.value || 1);
-        toast.success(`⚡ +1 énergie max permanente ! (total : +${currentBonus + 1}/${cap})`);
-      } else {
-        updates.gold = (profile.gold || 0) + (itemDef.alt_value || 30);
-        toast.success(`⚡ Cap d'énergie max atteint : +${itemDef.alt_value || 30}💰 à la place !`);
-      }
-
-    } else if (itemDef.effect === "reset_all_cooldowns") {
-      // ⏳ Sablier des âges : reset tous les cooldowns récolte/craft
-      updates.last_harvest_at = null;
-      updates.last_craft_at = null;
-      // Cooldowns par recipe stockés dans recipe_cooldowns (objet)
-      updates.recipe_cooldowns = {};
-
-    } else if (itemDef.effect === "next_t4_no_tool") {
-      // 🪄 Parchemin de craft : flag pour le prochain craft T4 (économise 1 charge d'outil)
-      updates.next_t4_no_tool = true;
-
-    } else if (itemDef.effect === "reset_epopee") {
-      // 🎯 Œil de l'archer : réinitialise l'épopée du jour
-      updates.epopee_played_today = null;
-      updates.epopee_state = null;
-
-    } else if (itemDef.effect === "city_protect") {
-      // 🛡️ Talisman de protection : crée un dôme 2h sur la ville du joueur
-      // (gestion via collection ProtectionDome, pas un flag joueur)
-      if (!profile.home_city_id) {
-        toast.error("🛡️ Vous devez avoir une ville d'origine pour invoquer un dôme.");
-        return;
-      }
-      const placedAt = new Date();
-      const domeExpiresAt = new Date(placedAt.getTime() + (itemDef.duration_h || 2) * 3600 * 1000).toISOString();
-      try {
-        await base44.entities.ProtectionDome.create({
-          city_id: profile.home_city_id,
-          placed_by_email: profile.user_email,
-          placed_by_name: profile.character_name || "",
-          expires_at: domeExpiresAt,
-          status: "active",
-        });
-        toast.success(`🛡️ Un dôme de protection enveloppe ${city?.name || "votre ville"} pour 2h.`);
-      } catch (e) {
-        console.error("[Cauldron] dome create failed:", e);
-        toast.error("Le talisman s'effrite : le dôme n'a pas pu être posé.");
-        return;
-      }
-
-    } else if (itemDef.effect === "steal_treasury" || itemDef.effect === "spy_city") {
-      // 📜 Parchemin marchand, 🌟 Étoile filante, 🦉 Hibou messager
-      // Ces items demandent une cible : on ouvre la modale TargetCityModal.
-      // L'item n'est PAS consommé ici, il le sera après confirmation de la cible
-      // par handleConfirmTarget. On ferme juste la modale de confirmation.
-      setTargetModal({
-        itemDef,
-        type: itemDef.effect === "spy_city" ? "spy" : "steal",
-        value: itemDef.value || 0,
-      });
       return;
 
     }

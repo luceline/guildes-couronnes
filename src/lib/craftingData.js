@@ -541,7 +541,7 @@ export const ITEMS = {
 //     - hunger_restore / hunger_and_regen → bouton "Manger" séparé
 //     - quest_activate (contrats) → bouton "📜 Activer" séparé
 //     - housing_maintenance (meuble) → bouton "🪑 Installer" séparé
-const _ACTIVATABLE_TRIGGERS = new Set(["consumed", "attack"]);
+const _ACTIVATABLE_TRIGGERS = new Set(["consumed", "attack", "consumed_target_city"]);
 const _COVERED_ELSEWHERE_EFFECTS = new Set([
   "hunger_restore",
   "hunger_and_regen",
@@ -551,11 +551,15 @@ const _COVERED_ELSEWHERE_EFFECTS = new Set([
   "combat_attack",      // équipé, géré dans Combat
   "combat_defense_zone", // équipé, géré dans Combat
 ]);
+// Sprint 4 : les items du chaudron magique ont leurs effets gérés par le helper
+// centralisé applyCauldronEffect (pas par le bouton "Manger" / "Installer" / etc.).
+// On les inclut tous dans TEMP_EFFECT_ITEMS quel que soit leur effet (bypass de
+// la blacklist _COVERED_ELSEWHERE_EFFECTS) pour qu'ils aient un bouton "Activer".
 export const TEMP_EFFECT_ITEMS = Object.entries(ITEMS)
   .filter(([, v]) =>
     v.trigger && v.effect
     && _ACTIVATABLE_TRIGGERS.has(v.trigger)
-    && !_COVERED_ELSEWHERE_EFFECTS.has(v.effect)
+    && (v.category === "chaudron" || !_COVERED_ELSEWHERE_EFFECTS.has(v.effect))
   )
   .map(([key, v]) => ({
     key,
