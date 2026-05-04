@@ -36,6 +36,7 @@ import MairieTab from "../components/MairieTab";
 import MaireDashboard from "../components/MaireDashboard";
 import ProfessionChangePanel from "../components/ProfessionChangePanel";
 import RoyalStatuePanel from "../components/RoyalStatuePanel";
+import MayorEventsPanel from "../components/MayorEventsPanel";
 import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
@@ -772,6 +773,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         <TabsList className="font-heading flex-wrap h-auto gap-1 w-full justify-center rounded-none border-b-0">
           <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
           <TabsTrigger value="gouvernance">👑 Gouvernance</TabsTrigger>
+          <TabsTrigger value="evenements">🎉 Événements</TabsTrigger>
           <TabsTrigger value="competitif">🛠️ T5 (refonte)</TabsTrigger>
           <TabsTrigger value="habitants">👥 Habitants</TabsTrigger>
           <TabsTrigger value="batiments">🏗️ Bâtiments</TabsTrigger>
@@ -941,6 +943,11 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
 
         <TabsContent value="gouvernance" className="space-y-4 mt-4">
           <MairieTab city={city} profile={profile} homeCity={homeCity} isMayor={isMayor} mayorActive={mayorActive} isAdmin={isAdmin} onRefresh={onRefresh} routes={routes} cities={allCitiesForMilitary} cityPlayers={cityPlayers} />
+        </TabsContent>
+
+        {/* ── ÉVÉNEMENTS DE MAIRIE (Sprint 5) ── */}
+        <TabsContent value="evenements" className="space-y-4 mt-4">
+          <MayorEventsPanel city={city} profile={profile} isMayor={isMayor} onRefresh={onRefresh} />
         </TabsContent>
 
         {/* ── BÂTIMENTS ── */}
