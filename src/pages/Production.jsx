@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CauldronPanel from "@/components/CauldronPanel";
+import TargetCityModal from "@/components/TargetCityModal";
+import SpyReportModal from "@/components/SpyReportModal";
+import { executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import {
   PROFESSIONS, ITEM_CATEGORIES, getInventoryWeight, getMaxWeight, getMaxFatigue,
@@ -64,6 +67,11 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
   const [now, setNow] = useState(Date.now());
   const [confirmConsume, setConfirmConsume] = useState(null); // { type: "food"|"temp"|"meuble"|"contrat", key, def }
   const [consumingFood, setConsumingFood] = useState(null);
+
+  // ── Sprint 4C.2 : modales chaudron items à cible ──
+  const [targetModal, setTargetModal] = useState(null); // { itemDef, type: "steal" | "spy", value }
+  const [spyReport, setSpyReport] = useState(null);
+  const [targetSubmitting, setTargetSubmitting] = useState(false);
   // REFONTE église : passe d'un compteur 1/2 à un random 10% par action.
   // Plus besoin de compteur de session.
 
@@ -570,8 +578,14 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
 
     } else if (itemDef.effect === "steal_treasury" || itemDef.effect === "spy_city") {
       // 📜 Parchemin marchand, 🌟 Étoile filante, 🦉 Hibou messager
-      // Ces items demandent une cible : géré par une modale dédiée (Session 4C.2).
-      toast("🎯 Cet item demande une cible : ouvrez le panneau dédié (à venir).");
+      // Ces items demandent une cible : on ouvre la modale TargetCityModal.
+      // L'item n'est PAS consommé ici, il le sera après confirmation de la cible
+      // par handleConfirmTarget. On ferme juste la modale de confirmation.
+      setTargetModal({
+        itemDef,
+        type: itemDef.effect === "spy_city" ? "spy" : "steal",
+        value: itemDef.value || 0,
+      });
       return;
 
     }
@@ -594,6 +608,83 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const xpMsg = itemDef.xp_reward ? ` · +${itemDef.xp_reward} XP` : "";
     toast.success(`${itemDef.icon} ${itemDef.name} consommé !${xpMsg}`);
     onRefresh?.();
+  };
+
+  // ── Sprint 4C.2 : confirmation de la cible pour Parchemin/Étoile/Hibou ──
+  const handleConfirmTarget = async (selectedCity) => {
+    if (!targetModal) return;
+    const { itemDef, type, value } = targetModal;
+    setTargetSubmitting(true);
+
+    try {
+      if (type === "steal") {
+        const result = await executeStealTreasury(profile, selectedCity, value, itemDef.name);
+        if (result.error) {
+          toast.error(result.error);
+          setTargetSubmitting(false);
+          return;
+        }
+        // Consomme l'item dans tous les cas (réussite, blocage par dôme, ou trésorerie vide)
+        const newInventory = (profile.inventory || [])
+          .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+          .filter(i => i.quantity > 0);
+        const updates = { inventory: newInventory };
+        if (result.success && result.goldUpdate) {
+          updates.gold = (profile.gold || 0) + result.goldUpdate;
+        }
+        await base44.entities.PlayerProfile.update(profile.id, updates);
+
+        // Log côté ville cible (pour dashboard maire)
+        if (result.success && result.stolenAmount > 0) {
+          await base44.entities.GoldTransaction.create({
+            player_email: profile.user_email,
+            player_name: profile.character_name || "",
+            city_id: selectedCity.id,
+            city_name: selectedCity.name || "",
+            amount: -result.stolenAmount,
+            type: "vol_chaudron",
+            description: `🗡️ Vol par ${profile.character_name || profile.user_email} via ${itemDef.icon} ${itemDef.name} : -${result.stolenAmount}💰`,
+          }).catch(() => {});
+
+          // Log côté joueur (gain)
+          await base44.entities.GoldTransaction.create({
+            player_email: profile.user_email,
+            player_name: profile.character_name || "",
+            city_id: profile.home_city_id || "",
+            city_name: "",
+            amount: result.stolenAmount,
+            type: "vol_chaudron",
+            description: result.logDescription || `Vol via ${itemDef.name}`,
+          }).catch(() => {});
+        }
+
+        toast.success(result.toastMessage);
+
+      } else if (type === "spy") {
+        const result = await executeSpyCity(profile, selectedCity);
+        if (result.error) {
+          toast.error(result.error);
+          setTargetSubmitting(false);
+          return;
+        }
+        // Consomme l'item
+        const newInventory = (profile.inventory || [])
+          .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+          .filter(i => i.quantity > 0);
+        await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
+
+        // Affiche le rapport
+        setSpyReport(result.report);
+      }
+
+      setTargetModal(null);
+      onRefresh?.();
+    } catch (e) {
+      console.error("[Cauldron] target action failed:", e);
+      toast.error("L'action a échoué.");
+    } finally {
+      setTargetSubmitting(false);
+    }
   };
 
   useEffect(() => {
@@ -1599,6 +1690,31 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
           </div>
         </div>
       </div>
+    )}
+
+    {/* Sprint 4C.2 : modales chaudron items à cible */}
+    {targetModal && (
+      <TargetCityModal
+        open={!!targetModal}
+        onClose={() => !targetSubmitting && setTargetModal(null)}
+        onConfirm={handleConfirmTarget}
+        itemIcon={targetModal.itemDef.icon}
+        itemName={targetModal.itemDef.name}
+        description={
+          targetModal.type === "spy"
+            ? "Choisissez la ville sur laquelle envoyer le hibou. Il vous rapportera un rapport complet : trésorerie, entrepôt et statut de protection."
+            : `Choisissez la ville à voler. Vous dérobez ${targetModal.value}💰 à la trésorerie de la mairie. Si la ville est protégée par un dôme, votre item sera consommé sans effet.`
+        }
+        excludeCityId={profile?.home_city_id}
+        submitting={targetSubmitting}
+      />
+    )}
+    {spyReport && (
+      <SpyReportModal
+        open={!!spyReport}
+        onClose={() => setSpyReport(null)}
+        report={spyReport}
+      />
     )}
     </div>
   );

@@ -5,6 +5,9 @@ import { getItemName } from "@/lib/itemHelpers";
 import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
 import { showXPToast } from "@/lib/xpToasts";
 import { isBiomeBuffActive, activateBiomeHarvestBonus } from "@/lib/playerBuffs";
+import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
+import TargetCityModal from "@/components/TargetCityModal";
+import SpyReportModal from "@/components/SpyReportModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -45,6 +48,70 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
   const [activating, setActivating]       = useState(null);
   const [consumingFood, setConsumingFood] = useState(null);
   const [confirmConsume, setConfirmConsume] = useState(null); // { type, key, def }
+
+  // ── Sprint 4C.2 : items à cible du chaudron ──
+  const [targetModal, setTargetModal] = useState(null); // { itemDef, type: "steal"|"spy", value }
+  const [spyReport, setSpyReport] = useState(null);
+  const [targetSubmitting, setTargetSubmitting] = useState(false);
+
+  const handleConfirmTarget = async (selectedCity) => {
+    if (!targetModal) return;
+    const { itemDef, type, value } = targetModal;
+    setTargetSubmitting(true);
+    try {
+      if (type === "steal") {
+        const result = await executeStealTreasury(profile, selectedCity, value, itemDef.name);
+        if (result.error) { toast.error(result.error); setTargetSubmitting(false); return; }
+
+        const newInventory = (profile.inventory || [])
+          .map(i => (i.item_key === itemDef.key) ? { ...i, quantity: i.quantity - 1 } : i)
+          .filter(i => i.quantity > 0);
+        const updates = { inventory: newInventory };
+        if (result.success && result.goldUpdate) {
+          updates.gold = (profile.gold || 0) + result.goldUpdate;
+        }
+        await base44.entities.PlayerProfile.update(profile.id, updates);
+
+        if (result.success && result.stolenAmount > 0) {
+          await base44.entities.GoldTransaction.create({
+            player_email: profile.user_email,
+            player_name: profile.character_name || "",
+            city_id: selectedCity.id,
+            city_name: selectedCity.name || "",
+            amount: -result.stolenAmount,
+            type: "vol_chaudron",
+            description: `🗡️ Vol par ${profile.character_name || profile.user_email} via ${itemDef.icon} ${itemDef.name} : -${result.stolenAmount}💰`,
+          }).catch(() => {});
+          await base44.entities.GoldTransaction.create({
+            player_email: profile.user_email,
+            player_name: profile.character_name || "",
+            city_id: profile.home_city_id || "",
+            city_name: "",
+            amount: result.stolenAmount,
+            type: "vol_chaudron",
+            description: result.logDescription || `Vol via ${itemDef.name}`,
+          }).catch(() => {});
+        }
+        toast.success(result.toastMessage);
+
+      } else if (type === "spy") {
+        const result = await executeSpyCity(profile, selectedCity);
+        if (result.error) { toast.error(result.error); setTargetSubmitting(false); return; }
+        const newInventory = (profile.inventory || [])
+          .map(i => (i.item_key === itemDef.key) ? { ...i, quantity: i.quantity - 1 } : i)
+          .filter(i => i.quantity > 0);
+        await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
+        setSpyReport(result.report);
+      }
+      setTargetModal(null);
+      onRefresh?.();
+    } catch (e) {
+      console.error("[Cauldron] target action failed:", e);
+      toast.error("L'action a échoué.");
+    } finally {
+      setTargetSubmitting(false);
+    }
+  };
 
   if (!profile) return null;
 
@@ -127,6 +194,76 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     }
     const item = inventory.find(i => i.item_key === itemDef.key);
     if (!item || item.quantity <= 0) return;
+
+    // ── Sprint 4C : items du chaudron magique ──
+    // Délègue au helper centralisé pour ne pas dupliquer la logique entre
+    // Production.jsx et InventoryPanel.jsx.
+    if (itemDef.category === "chaudron") {
+      const result = applyCauldronEffect(itemDef, profile, city, {
+        cityHungerBonus,
+        getMaxHunger,
+        getMaxFatigue: (p, b) => (p.fatigue_max || 20) + (p.energy_max_bonus_value || 0) + (p.energy_max_perma_bonus || 0),
+      });
+
+      // Items à cible : ouvre la modale au lieu de consommer ici
+      if (result?.needsTarget) {
+        setTargetModal({
+          itemDef,
+          type: result.needsTarget === "spy_city" ? "spy" : "steal",
+          value: result.value || 0,
+        });
+        return;
+      }
+
+      // Talisman de protection : appel async dédié
+      if (result?.needsAsync === "city_protect") {
+        setActivating(itemDef.key);
+        try {
+          const protectResult = await applyCityProtect(profile, city, result.duration_h);
+          if (protectResult.error) {
+            toast.error(protectResult.error);
+            setActivating(null);
+            return;
+          }
+          // Consomme l'item
+          const newInv = inventory
+            .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+            .filter(i => i.quantity > 0);
+          await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv });
+          toast.success(protectResult.toastMessage);
+          onRefresh?.();
+        } catch (e) {
+          console.error("[Cauldron] talisman:", e);
+          toast.error("Erreur lors de l'activation du talisman.");
+        } finally {
+          setActivating(null);
+        }
+        return;
+      }
+
+      // Effet local appliqué : on consomme + applique
+      if (result?.handled) {
+        setActivating(itemDef.key);
+        try {
+          const newInv = inventory
+            .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+            .filter(i => i.quantity > 0);
+          await base44.entities.PlayerProfile.update(profile.id, {
+            inventory: newInv,
+            ...(result.updates || {}),
+          });
+          toast.success(result.toastMessage || `${itemDef.icon} ${itemDef.name} consommé !`);
+          onRefresh?.();
+        } catch (e) {
+          console.error("[Cauldron] consume:", e);
+          toast.error("Erreur lors de la consommation.");
+        } finally {
+          setActivating(null);
+        }
+        return;
+      }
+    }
+
     setActivating(itemDef.key);
     try {
       const newInv = inventory
@@ -490,6 +627,31 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sprint 4C.2 : modales chaudron items à cible */}
+      {targetModal && (
+        <TargetCityModal
+          open={!!targetModal}
+          onClose={() => !targetSubmitting && setTargetModal(null)}
+          onConfirm={handleConfirmTarget}
+          itemIcon={targetModal.itemDef.icon}
+          itemName={targetModal.itemDef.name}
+          description={
+            targetModal.type === "spy"
+              ? "Choisissez la ville sur laquelle envoyer le hibou. Il vous rapportera un rapport complet : trésorerie, entrepôt et statut de protection."
+              : `Choisissez la ville à voler. Vous dérobez ${targetModal.value}💰 à la trésorerie de la mairie. Si la ville est protégée par un dôme, votre item sera consommé sans effet.`
+          }
+          excludeCityId={profile?.home_city_id}
+          submitting={targetSubmitting}
+        />
+      )}
+      {spyReport && (
+        <SpyReportModal
+          open={!!spyReport}
+          onClose={() => setSpyReport(null)}
+          report={spyReport}
+        />
       )}
     </div>
   );
