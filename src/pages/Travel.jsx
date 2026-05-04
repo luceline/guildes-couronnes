@@ -97,7 +97,14 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
     const allCitiesNow = cities.length > 0 ? cities : await base44.entities.City.list();
     const arrivalCity = allCitiesNow.find(c => c.id === destId);
-    const toll = computeWallToll(arrivalCity, profile);
+    let toll = computeWallToll(arrivalCity, profile);
+
+    // ── Hook chaudron 💨 Plume de vent : prochain voyage gratuit (péage 0) ──
+    let plumeUsed = false;
+    if (profile.next_travel_free && toll > 0) {
+      plumeUsed = true;
+      toll = 0;
+    }
 
     const visited = [...new Set([...(profile.visited_cities || []), destId])];
 
@@ -108,6 +115,12 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       travel_arrival_time: "",
       visited_cities: visited,
     };
+
+    // Consomme le flag plume après usage
+    if (plumeUsed) {
+      profileUpdates.next_travel_free = false;
+      toast.success(`💨 La Plume de vent souffle pour vous : péage offert pour ce voyage !`);
+    }
 
     if (toll > 0) {
       const actualToll = Math.min(toll, profile.gold || 0);

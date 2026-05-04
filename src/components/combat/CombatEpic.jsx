@@ -136,21 +136,47 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       const isDead = finalState?.status === "dead";
       const isWaveCompleted = finalState?.status === "wave_complete";
 
+      // ── Hook chaudron : bonus or et drop pour l'épopée ──
+      // 🪙 Pièce porte-bonheur : +20% or
+      // 🍀 Trèfle de chance : +5% drop par mob tué
+      const goldBonus = localProfile.next_epopee_gold_bonus || 0;
+      const dropBonus = localProfile.next_epopee_drop_bonus || 0;
+      const killCountForBonus = rewards?.killCount || 0;
+
+      // Applique le bonus or sur la vague (arrondi entier)
+      let bonusGold = 0;
+      if (goldBonus > 0 && rewards?.gold) {
+        bonusGold = Math.floor((rewards.gold || 0) * goldBonus);
+      }
+
+      // Applique le bonus drop : pour chaque mob tué, on tire un dé supplémentaire
+      // avec proba = dropBonus. Si succès, on ajoute 1 drop bonus.
+      let bonusDrops = 0;
+      if (dropBonus > 0 && killCountForBonus > 0 && biomeRare?.key) {
+        for (let i = 0; i < killCountForBonus; i++) {
+          if (Math.random() < dropBonus) bonusDrops += 1;
+        }
+      }
+      // ── Fin Hook chaudron ──
+
       // CHOIX A (refonte v5) : le bonus PV de maîtrise est combat-only.
       // En BDD, on ne stocke jamais hp > COMBAT_MAX_HP (10) pour éviter que
       // les PV bonus "fuitent" hors du contexte de l'épopée (PvP, ville, etc.).
       // Mort = reset à 1 PV. Sinon, clamp à 10.
       const hpToStore = isDead ? 1 : Math.min(COMBAT_MAX_HP, playerEndHp);
 
-      // Cumul des récompenses
-      const newTotalGold = totalGold + (rewards?.gold || 0);
-      const newDropsCount = totalDrops + (rewards?.dropCount || 0);
-      // Drops à ajouter dans l'inventaire
+      // Cumul des récompenses (avec bonus chaudron)
+      const newTotalGold = totalGold + (rewards?.gold || 0) + bonusGold;
+      const newDropsCount = totalDrops + (rewards?.dropCount || 0) + bonusDrops;
+      // Drops à ajouter dans l'inventaire (bonus inclus)
       const dropsToAdd = (rewards?.drops || []).filter(d => d.key);
+      for (let i = 0; i < bonusDrops; i++) {
+        dropsToAdd.push({ key: biomeRare?.key, fromMonsterIdx: -1, position: -1 });
+      }
 
       // Construction des updates BDD
       const updates = {
-        gold: (localProfile.gold || 0) + (rewards?.gold || 0),
+        gold: (localProfile.gold || 0) + (rewards?.gold || 0) + bonusGold,
         hp: hpToStore,
         combat_total_gold: newTotalGold,
         combat_total_drops: newDropsCount,
@@ -205,6 +231,14 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       } else {
         // Épopée terminée : on marque combat_wave_index au max pour bloquer
         updates.combat_wave_index = MAX_WAVES_PER_DAY;
+
+        // ── Hook chaudron : consommer les flags à la fin de l'épopée ──
+        if (localProfile.next_epopee_gold_bonus) {
+          updates.next_epopee_gold_bonus = 0;
+        }
+        if (localProfile.next_epopee_drop_bonus) {
+          updates.next_epopee_drop_bonus = 0;
+        }
       }
 
       // ── Gain XP combat : +1 par mob tué, +2 si vague complète, +10 si épopée finie ──

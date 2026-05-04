@@ -486,6 +486,94 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       // Contrat artisan : géré par handleActivateContrat
       toast("📋 Utilisez le bouton 'Activer' dédié pour le Contrat artisan.");
       return;
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ── EFFETS DU CHAUDRON MAGIQUE (Sprint 4) ──
+    // ═══════════════════════════════════════════════════════════════════
+
+    } else if (itemDef.effect === "hunger_and_fatigue") {
+      // 🍯 Miel des fées : +10 faim ET +10 énergie
+      const maxH = getMaxHunger(profile, cityHungerBonus);
+      const maxF = getMaxFatigue(profile, 0);
+      const value = itemDef.value || 10;
+      updates.hunger = Math.min(maxH, (profile.hunger ?? maxH) + value);
+      updates.fatigue = Math.min(maxF, (profile.fatigue ?? maxF) + value);
+
+    } else if (itemDef.effect === "next_epopee_drop_bonus") {
+      // 🍀 Trèfle de chance : flag pour la prochaine épopée (+5% drop)
+      updates.next_epopee_drop_bonus = itemDef.value || 0.05;
+
+    } else if (itemDef.effect === "next_epopee_gold_bonus") {
+      // 🪙 Pièce porte-bonheur : flag pour la prochaine épopée (+20% or)
+      updates.next_epopee_gold_bonus = itemDef.value || 0.20;
+
+    } else if (itemDef.effect === "next_travel_free") {
+      // 💨 Plume de vent : flag pour le prochain voyage gratuit
+      updates.next_travel_free = true;
+
+    } else if (itemDef.effect === "craft_speed_buff") {
+      // 🔥 Pierre de feu : -30% durée crafts pendant 4h (timer)
+      updates.craft_speed_buff_until = expiresAt;
+      updates.craft_speed_buff_value = itemDef.value || 0.30;
+
+    } else if (itemDef.effect === "energy_max_or_gold") {
+      // ⚡ Pierre énergétique : +1 énergie max permanent (cap +3) sinon +30 or
+      const currentBonus = profile.energy_max_perma_bonus || 0;
+      const cap = 3;
+      if (currentBonus < cap) {
+        updates.energy_max_perma_bonus = currentBonus + (itemDef.value || 1);
+        toast.success(`⚡ +1 énergie max permanente ! (total : +${currentBonus + 1}/${cap})`);
+      } else {
+        updates.gold = (profile.gold || 0) + (itemDef.alt_value || 30);
+        toast.success(`⚡ Cap d'énergie max atteint : +${itemDef.alt_value || 30}💰 à la place !`);
+      }
+
+    } else if (itemDef.effect === "reset_all_cooldowns") {
+      // ⏳ Sablier des âges : reset tous les cooldowns récolte/craft
+      updates.last_harvest_at = null;
+      updates.last_craft_at = null;
+      // Cooldowns par recipe stockés dans recipe_cooldowns (objet)
+      updates.recipe_cooldowns = {};
+
+    } else if (itemDef.effect === "next_t4_no_tool") {
+      // 🪄 Parchemin de craft : flag pour le prochain craft T4 (économise 1 charge d'outil)
+      updates.next_t4_no_tool = true;
+
+    } else if (itemDef.effect === "reset_epopee") {
+      // 🎯 Œil de l'archer : réinitialise l'épopée du jour
+      updates.epopee_played_today = null;
+      updates.epopee_state = null;
+
+    } else if (itemDef.effect === "city_protect") {
+      // 🛡️ Talisman de protection : crée un dôme 2h sur la ville du joueur
+      // (gestion via collection ProtectionDome, pas un flag joueur)
+      if (!profile.home_city_id) {
+        toast.error("🛡️ Vous devez avoir une ville d'origine pour invoquer un dôme.");
+        return;
+      }
+      const placedAt = new Date();
+      const domeExpiresAt = new Date(placedAt.getTime() + (itemDef.duration_h || 2) * 3600 * 1000).toISOString();
+      try {
+        await base44.entities.ProtectionDome.create({
+          city_id: profile.home_city_id,
+          placed_by_email: profile.user_email,
+          placed_by_name: profile.character_name || "",
+          expires_at: domeExpiresAt,
+          status: "active",
+        });
+        toast.success(`🛡️ Un dôme de protection enveloppe ${city?.name || "votre ville"} pour 2h.`);
+      } catch (e) {
+        console.error("[Cauldron] dome create failed:", e);
+        toast.error("Le talisman s'effrite : le dôme n'a pas pu être posé.");
+        return;
+      }
+
+    } else if (itemDef.effect === "steal_treasury" || itemDef.effect === "spy_city") {
+      // 📜 Parchemin marchand, 🌟 Étoile filante, 🦉 Hibou messager
+      // Ces items demandent une cible : géré par une modale dédiée (Session 4C.2).
+      toast("🎯 Cet item demande une cible : ouvrez le panneau dédié (à venir).");
+      return;
+
     }
 
     // ── XP reward sur consommation (effets génériques qui ont encore xp_reward) ──
@@ -548,11 +636,14 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     const tractsMalus = tractsActive ? 1.2 : 1;
     const cityLingotBonus = getCityBonuses(city?.lingots_cumul || 0).cooldownReduction / 100;
     const tempCooldownBonus = getPassiveCooldownBonus(profile);
+    // ── Hook chaudron : 🔥 Pierre de feu : -30% durée crafts pendant 4h ──
+    const pierreFeuActive = profile?.craft_speed_buff_until && new Date(profile.craft_speed_buff_until) > new Date();
+    const pierreFeuBonus = pierreFeuActive ? (profile.craft_speed_buff_value || 0.30) : 0;
     // REFONTE : la fonderie ne réduit plus le cooldown forgeron. Son seul effet est désormais
     // le bonus quantité quartz scalé par niveau (cf. plus bas).
     const levelBonuses = getPlayerLevelBonuses(profile?.player_level || 1);
     const levelCooldownBonus = levelBonuses.cooldownBonus / 100; // −1% par niveau
-    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
+    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
     const elapsed = (Date.now() - new Date(lastProduced).getTime()) / 1000;
     return Math.max(0, effectiveCooldown - elapsed);
   };
@@ -865,17 +956,25 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
     // ── REFONTE v5 : Outils T4 : bonus T3 aléatoire à chaque craft T4 ──
     // Si l'output est T4 et que le joueur a des Outils 🔧 avec durabilité > 0,
     // on consomme 1 charge et on ajoute 1 T3 aléatoire à l'inventaire.
+    // ── Hook chaudron : 🪄 Parchemin de craft : skip la consommation d'outil pour ce craft ──
     let outilsBonusT3 = null;
+    let parcheminCraftUsed = false;
     if (craftTier === 4 && recipe.output.key !== "outils") {
       const outilsIdx = cleanInv.findIndex(i =>
         i.item_key === "outils" && (i.durability ?? 0) > 0
       );
       if (outilsIdx >= 0) {
-        // Décrémenter la durabilité (4 charges max, défini dans craftingData)
-        const newDura = (cleanInv[outilsIdx].durability ?? 4) - 1;
-        cleanInv[outilsIdx] = newDura > 0
-          ? { ...cleanInv[outilsIdx], durability: newDura }
-          : null; // marqué pour suppression
+        // Si le joueur a un Parchemin de craft actif, on skip la décrémentation
+        if (profile.next_t4_no_tool) {
+          parcheminCraftUsed = true;
+          // L'outil n'est PAS consommé, mais on garde quand même le bonus T3
+        } else {
+          // Décrémenter la durabilité (4 charges max, défini dans craftingData)
+          const newDura = (cleanInv[outilsIdx].durability ?? 4) - 1;
+          cleanInv[outilsIdx] = newDura > 0
+            ? { ...cleanInv[outilsIdx], durability: newDura }
+            : null; // marqué pour suppression
+        }
         // Choisir un T3 aléatoire dans la liste
         const T3_KEYS = Object.entries(ITEMS)
           .filter(([, v]) => v.tier === 3)
@@ -972,9 +1071,14 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
       ...(newFatigue < (profile.fatigue ?? 80) ? { fatigue_regen_at: new Date().toISOString() } : {}),
       production_cooldowns: { ...(profile.production_cooldowns || {}), [recipe.id]: new Date().toISOString() },
       ...(encreBonusConsumed ? { pending_t2_to_t1_bonus: false } : {}),
+      ...(parcheminCraftUsed ? { next_t4_no_tool: false } : {}),
       ...bourseInitUpdate,
       ...(xpGain?.updates || {}),
     });
+
+    if (parcheminCraftUsed) {
+      toast.success(`🪄 Parchemin de craft consommé : votre outil est préservé !`);
+    }
 
     if (encreBonusConsumed) {
       const t1Input = recipe.inputs.find(inp => (ITEMS[inp.key]?.tier || 1) === 1);

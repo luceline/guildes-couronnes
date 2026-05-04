@@ -613,8 +613,10 @@ export function getPassiveEnergyMaxBonus(profile) {
       best = Math.max(best, _passiveEffectValueFromItem(itemKey, "energy_max_bonus"));
     }
   }
+  // Bonus permanent du chaudron (Pierre énergétique) : se cumule avec le max temp/passif
+  const permaBonus = profile.energy_max_perma_bonus || 0;
   // Comparer avec bonus temporaire
-  return Math.max(best, getTemporaryEnergyMaxBonus(profile));
+  return Math.max(best, getTemporaryEnergyMaxBonus(profile)) + permaBonus;
 }
 
 export function getPassiveInventoryBonus(profile) {
