@@ -361,12 +361,21 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
         toast.success(`🗡️ Razzia réussie : +${actualSteal}💰 volés à ${target.name} !`);
       }
 
-      // 7. Log gold
+      // 7. Log gold (2 transactions distinctes, comme pour Parchemin/Étoile)
       if (actualSteal > 0) {
+        // Côté maire qui lance la razzia (gain pour sa ville)
         await logGold(profile.user_email, profile.character_name, city.id, city.name,
           actualSteal, "razzia_gain", `Razzia sur ${target.name} : +${actualSteal}💰`).catch(() => {});
-        await logGold(profile.user_email, profile.character_name, target.id, target.name,
-          -actualSteal, "razzia_loss", `Razziée par ${city.name} : −${actualSteal}💰`).catch(() => {});
+        // Côté ville victime : player_email vide pour ne pas polluer le journal du maire attaquant
+        await base44.entities.GoldTransaction.create({
+          player_email: "",
+          player_name: "",
+          city_id: target.id,
+          city_name: target.name || "",
+          amount: -actualSteal,
+          type: "razzia_loss",
+          description: `Razziée par ${city.name} : −${actualSteal}💰`,
+        }).catch(() => {});
       }
 
       setRazziaTarget(null);

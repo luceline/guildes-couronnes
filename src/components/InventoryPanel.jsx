@@ -73,22 +73,25 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         await base44.entities.PlayerProfile.update(profile.id, updates);
 
         if (result.success && result.stolenAmount > 0) {
+          // Transaction VICTIME : visible dans le journal de la ville volée (mairie de la cible)
+          // player_email vide pour que ça n'apparaisse pas dans le journal du voleur
           await base44.entities.GoldTransaction.create({
-            player_email: profile.user_email,
-            player_name: profile.character_name || "",
+            player_email: "",
+            player_name: "",
             city_id: selectedCity.id,
             city_name: selectedCity.name || "",
             amount: -result.stolenAmount,
-            type: "vol_chaudron",
+            type: "vol_chaudron_subi",
             description: `🗡️ Vol par ${profile.character_name || profile.user_email} via ${itemDef.icon} ${itemDef.name} : -${result.stolenAmount}💰`,
           }).catch(() => {});
+          // Transaction VOLEUR : visible dans le journal personnel du joueur
           await base44.entities.GoldTransaction.create({
             player_email: profile.user_email,
             player_name: profile.character_name || "",
             city_id: profile.home_city_id || "",
             city_name: "",
             amount: result.stolenAmount,
-            type: "vol_chaudron",
+            type: "vol_chaudron_recu",
             description: result.logDescription || `Vol via ${itemDef.name}`,
           }).catch(() => {});
         }
