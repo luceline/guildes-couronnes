@@ -17,7 +17,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ITEMS, CRAFTING_RECIPES_REFACTORED } from "@/lib/craftingData";
+import { ITEMS } from "@/lib/craftingData";
+import { CRAFTING_RECIPES_REFACTORED } from "@/lib/recipePatterns";
 import { calculateDynamicPrices } from "@/lib/pricingData";
 import { getInventoryQty, removeFromInventory } from "@/lib/inventoryHelpers";
 import {
