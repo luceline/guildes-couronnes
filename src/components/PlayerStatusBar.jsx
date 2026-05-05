@@ -8,6 +8,8 @@ import PlayerLevelBadge from "./PlayerLevelBadge";
 import { getPlayerLevelInfo, grantXP, XP_REWARDS } from "../lib/playerLevelSystem";
 import { removeFromInventory } from "../lib/inventoryHelpers";
 import { showXPToast } from "../lib/xpToasts";
+import { Bug } from "lucide-react";
+import BugReportModal from "./BugReportModal";
 import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeBuffRemainingMs, getBiomeHarvestRemainingMs } from "../lib/playerBuffs";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
@@ -65,6 +67,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [confirmConsume, setConfirmConsume] = useState(null); // { type: "hunger"|"fatigue", key, def }
   const [busy, setBusy] = useState(false);
+  const [showBugReport, setShowBugReport] = useState(false);
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(id);
@@ -580,6 +583,14 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
 
         {/* Légende globale + bouton "Rangs" à droite */}
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowBugReport(true)}
+            title="Signaler un bug"
+            className="bug-wiggle text-muted-foreground hover:text-red-600 transition-colors flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 dark:hover:bg-red-950"
+            aria-label="Signaler un bug"
+          >
+            <Bug className="h-4 w-4" />
+          </button>
           <HelpTooltip text={legendText} side="bottom" />
           <button
             onClick={() => setDetailsOpen(o => !o)}
@@ -590,6 +601,22 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
           </button>
         </div>
       </div>
+      {/* Animation wiggle de l'icône bug : périodique pour attirer l'œil sans saouler */}
+      <style>{`
+        @keyframes bugWiggle {
+          0%, 88%, 100% { transform: rotate(0deg); }
+          90% { transform: rotate(-12deg); }
+          92% { transform: rotate(10deg); }
+          94% { transform: rotate(-8deg); }
+          96% { transform: rotate(6deg); }
+          98% { transform: rotate(-3deg); }
+        }
+        .bug-wiggle { animation: bugWiggle 8s ease-in-out infinite; transform-origin: center; }
+        .bug-wiggle:hover { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) {
+          .bug-wiggle { animation: none; }
+        }
+      `}</style>
 
       {/* ── LIGNE 2 : 3 jauges + Effets actifs ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
@@ -734,6 +761,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
           </div>
         </div>
       )}
+      {showBugReport && <BugReportModal onClose={() => setShowBugReport(false)} />}
     </div>
   );
 }
