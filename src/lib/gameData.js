@@ -205,12 +205,13 @@ export const COMBAT_UPGRADE_PRICE_MAX = 500;
 export const COMBAT_UPGRADE_ARTISAN_SHARE = 0.80;
 export const COMBAT_UPGRADE_CITY_SHARE = 0.20;
 
-// Ressources de réparation : 1 pierre = +1 dura arme, 1 laine = +1 dura armure, 1 bois = +1 dura bouclier.
+// Ressources de réparation par slot d'équipement.
 // Réparation manuelle, panel dédié dans l'inventaire, pas de coût en or, pas de cooldown.
 export const REPAIR_RESOURCES = {
-  weapon: "pierre",       // épée → consomme pierre
-  armor:  "laine_brute",  // armures (heaume, cuirasse, brassard, jambière) → consomme laine
-  shield: "bois_brut",    // bouclier → consomme bois (sprint 4 V6.2)
+  weapon:    "pierre",       // épée → consomme pierre (Forgeron)
+  shield:    "bois_brut",    // bouclier → consomme bois (Bûcheron)
+  torso:     "quartz_brut",  // cuirasse → consomme quartz brut (Orfèvre)
+  armor:     "laine_brute",  // autres armures (heaume, brassard, jambière) → consomme laine (Tisserand)
 };
 
 /**
@@ -219,13 +220,19 @@ export const REPAIR_RESOURCES = {
  * dispersés dans les composants.
  *
  * V6.2 — Mapping :
- *   - weapon                   → "pierre"
- *   - shield                   → "bois_brut"  (sprint 4 — distinct de l'arme)
- *   - head/torso/arms/legs_def → "laine_brute"
+ *   - weapon                   → "pierre"      (Forgeron)
+ *   - shield                   → "bois_brut"   (Bûcheron)
+ *   - torso_def                → "quartz_brut" (Orfèvre)
+ *   - head/arms/legs_def       → "laine_brute" (Tisserand)
+ *
+ * Ce mapping force la diversification des ressources : un joueur qui veut
+ * tout maintenir doit cultiver plusieurs filières, ce qui empêche le
+ * monopole d'une seule profession sur l'entretien d'équipement.
  */
 export function getRepairResource(slot) {
-  if (slot === "weapon") return REPAIR_RESOURCES.weapon;
-  if (slot === "shield") return REPAIR_RESOURCES.shield;
+  if (slot === "weapon")    return REPAIR_RESOURCES.weapon;
+  if (slot === "shield")    return REPAIR_RESOURCES.shield;
+  if (slot === "torso_def") return REPAIR_RESOURCES.torso;
   return REPAIR_RESOURCES.armor;
 }
 
