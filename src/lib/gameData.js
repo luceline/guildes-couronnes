@@ -212,6 +212,24 @@ export const REPAIR_RESOURCES = {
   armor:  "laine_brute",  // armures → consomme 1 laine_brute par +1 dura
 };
 
+/**
+ * Renvoie la clé de ressource consommée pour réparer un slot d'équipement.
+ * Centralise le mapping slot → ressource pour éviter les ternaires inline
+ * dispersés dans les composants.
+ *
+ * Comportement actuel (pre-V6.2) :
+ *   - weapon                   → "pierre"
+ *   - shield                   → "pierre" (alignement legacy avec l'arme)
+ *   - head/torso/arms/legs_def → "laine_brute"
+ *
+ * Hook prévu pour passer le bouclier sur "bois_brut" lors du sprint dédié.
+ */
+export function getRepairResource(slot) {
+  if (slot === "weapon") return REPAIR_RESOURCES.weapon;
+  if (slot === "shield") return REPAIR_RESOURCES.weapon; // legacy : pierre, à passer en bois_brut au sprint 4
+  return REPAIR_RESOURCES.armor;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // V6 — Quota journalier de réparation
 // ─────────────────────────────────────────────────────────────────────────────

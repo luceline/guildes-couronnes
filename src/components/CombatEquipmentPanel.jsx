@@ -12,7 +12,7 @@ import {
   COMBAT_MAX_GRADE,
   COMBAT_UPGRADE_COOLDOWN_SEC,
   EQUIPMENT_MAX_DURABILITY,
-  REPAIR_RESOURCES,
+  getRepairResource,
   getCombatItemValue,
   getCombatStealPct,
   getCombatUpgradeCost,
@@ -90,6 +90,54 @@ function ResourceChip({ resKey, qtyRequired, stock, compact = false }) {
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * Bouton de réparation d'une pièce d'équipement.
+ *
+ * Factorise la logique commune aux 3 zones de réparation (arme, bouclier,
+ * armures par zone) qui était auparavant dupliquée dans 3 blocs IIFE quasi
+ * identiques.
+ *
+ * Props :
+ *   - slot       : "weapon" | "shield" | "head_def" | "torso_def" | "arms_def" | "legs_def"
+ *   - dura       : durabilité courante de la pièce (0 à EQUIPMENT_MAX_DURABILITY)
+ *   - profile    : PlayerProfile (utilisé pour le stock d'inventaire)
+ *   - busy       : true si une mutation est en cours (désactive le bouton)
+ *   - onRepair   : callback appelé avec (slot) au clic
+ *   - compact    : mode compact pour l'affichage des armures par zone
+ *                  (bouton plus petit + ResourceChip compact + sans label "Coût :")
+ */
+function RepairButton({ slot, dura, profile, busy, onRepair, compact = false }) {
+  const repairKey   = getRepairResource(slot);
+  const repairDef   = ITEMS[repairKey];
+  const repairStock = (profile.inventory || []).find(i => i.item_key === repairKey)?.quantity || 0;
+  const atMax       = dura >= EQUIPMENT_MAX_DURABILITY;
+  const noStock     = repairStock < 1;
+  const repairTitle = atMax
+    ? "Durabilité au maximum"
+    : noStock
+      ? `Manque 1 ${repairDef?.name || repairKey}`
+      : `Restaure +1 dura (consomme 1 ${repairDef?.name || repairKey})`;
+
+  return (
+    <div className={`flex items-center ${compact ? "gap-1" : "gap-2"} flex-wrap`}>
+      <Button
+        size="sm"
+        variant={!atMax && !noStock ? "default" : "outline"}
+        className={`${compact ? "h-6" : "h-7"} text-xs px-2 font-body`}
+        disabled={busy || atMax || noStock}
+        onClick={() => onRepair(slot)}
+        title={repairTitle}
+      >
+        🔧 Réparer
+      </Button>
+      <span className={`${compact ? "text-[11px]" : "text-xs"} text-muted-foreground font-body inline-flex items-center ${compact ? "gap-0.5" : "gap-1"}`}>
+        {!compact && <span>Coût :</span>}
+        <ResourceChip resKey={repairKey} qtyRequired={1} stock={repairStock} compact={compact} />
+      </span>
+    </div>
   );
 }
 
@@ -314,10 +362,8 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
       toast.error(`Quota de réparation épuisé (${used}/${total} aujourd'hui). Réessayez demain.`);
       return;
     }
-    // Choix de la ressource selon le slot :
-    // - weapon (épée) ou shield (bouclier) → 1 Pierre
-    // - head_def/torso_def/arms_def/legs_def → 1 Laine brute
-    const resKey = (slot === "weapon" || slot === "shield") ? REPAIR_RESOURCES.weapon : REPAIR_RESOURCES.armor;
+    // Choix de la ressource selon le slot, via le helper centralisé.
+    const resKey = getRepairResource(slot);
     const resDef = ITEMS[resKey];
 
     // Vérification stock
@@ -542,33 +588,14 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
                   )}
                   {!canUp && <p className="text-xs text-emerald-700 font-body">✨ Grade maximum atteint</p>}
 
-                  {/* Bouton réparer arme — REFONTE ITEMS v5 */}
-                  {(() => {
-                    const repairKey = REPAIR_RESOURCES.weapon;
-                    const repairDef = ITEMS[repairKey];
-                    const repairStock = (profile.inventory || []).find(i => i.item_key === repairKey)?.quantity || 0;
-                    const atMax = dura >= EQUIPMENT_MAX_DURABILITY;
-                    const noStock = repairStock < 1;
-                    const repairTitle = atMax ? "Durabilité au maximum" : noStock ? `Manque 1 ${repairDef?.name || repairKey}` : `Restaure +1 dura (consomme 1 ${repairDef?.name || repairKey})`;
-                    return (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          variant={!atMax && !noStock ? "default" : "outline"}
-                          className="h-7 text-xs px-2 font-body"
-                          disabled={busy || atMax || noStock}
-                          onClick={() => handleRepair(slot)}
-                          title={repairTitle}
-                        >
-                          🔧 Réparer
-                        </Button>
-                        <span className="text-xs text-muted-foreground font-body inline-flex items-center gap-1">
-                          <span>Coût :</span>
-                          <ResourceChip resKey={repairKey} qtyRequired={1} stock={repairStock} />
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {/* Bouton réparer arme */}
+                  <RepairButton
+                    slot={slot}
+                    dura={dura}
+                    profile={profile}
+                    busy={busy}
+                    onRepair={handleRepair}
+                  />
                 </div>
               );
             }
@@ -674,30 +701,14 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
                     </div>
                   )}
                   {!canUp && <p className="text-xs text-emerald-700 font-body">✨ Grade maximum atteint</p>}
-                  {(() => {
-                    const repairKey = REPAIR_RESOURCES.weapon; // bouclier répare avec pierre comme l'épée
-                    const repairDef = ITEMS[repairKey];
-                    const repairStock = (profile.inventory || []).find(i => i.item_key === repairKey)?.quantity || 0;
-                    const atMax = dura >= EQUIPMENT_MAX_DURABILITY;
-                    const noStock = repairStock < 1;
-                    return (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Button
-                          size="sm"
-                          variant={!atMax && !noStock ? "default" : "outline"}
-                          className="h-7 text-xs px-2 font-body"
-                          disabled={busy || atMax || noStock}
-                          onClick={() => handleRepair(slot)}
-                        >
-                          🔧 Réparer
-                        </Button>
-                        <span className="text-xs text-muted-foreground font-body inline-flex items-center gap-1">
-                          <span>Coût :</span>
-                          <ResourceChip resKey={repairKey} qtyRequired={1} stock={repairStock} />
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {/* Bouton réparer bouclier */}
+                  <RepairButton
+                    slot={slot}
+                    dura={dura}
+                    profile={profile}
+                    busy={busy}
+                    onRepair={handleRepair}
+                  />
                 </div>
               );
             }
@@ -807,32 +818,15 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
                       )}
                       {!canUp && <p className="text-[11px] text-emerald-700 font-body">✨ G5</p>}
 
-                      {/* Bouton réparer armure (compact) — REFONTE ITEMS v5 */}
-                      {(() => {
-                        const repairKey = REPAIR_RESOURCES.armor;
-                        const repairDef = ITEMS[repairKey];
-                        const repairStock = (profile.inventory || []).find(i => i.item_key === repairKey)?.quantity || 0;
-                        const atMax = dura >= EQUIPMENT_MAX_DURABILITY;
-                        const noStock = repairStock < 1;
-                        const repairTitle = atMax ? "Durabilité au maximum" : noStock ? `Manque 1 ${repairDef?.name || repairKey}` : `Restaure +1 dura (consomme 1 ${repairDef?.name || repairKey})`;
-                        return (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            <Button
-                              size="sm"
-                              variant={!atMax && !noStock ? "default" : "outline"}
-                              className="h-6 text-xs px-2 font-body"
-                              disabled={busy || atMax || noStock}
-                              onClick={() => handleRepair(slot)}
-                              title={repairTitle}
-                            >
-                              🔧 Réparer
-                            </Button>
-                            <span className="text-[11px] text-muted-foreground font-body inline-flex items-center gap-0.5">
-                              <ResourceChip resKey={repairKey} qtyRequired={1} stock={repairStock} compact />
-                            </span>
-                          </div>
-                        );
-                      })()}
+                      {/* Bouton réparer armure (compact) */}
+                      <RepairButton
+                        slot={slot}
+                        dura={dura}
+                        profile={profile}
+                        busy={busy}
+                        onRepair={handleRepair}
+                        compact
+                      />
                     </div>
                   );
                 })() : (
