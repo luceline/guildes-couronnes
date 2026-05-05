@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { PROFESSIONS, HOUSING, getInventoryWeight, getMaxWeight, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, getCityFatigueBonus, getFestinHungerDrain, getRegenInterval, getRegenCap, getVendeurRank, getContributeurRank, getPvpRank, getPassiveEnergyMaxBonus, getPassiveInventoryBonus, getBestPassiveCooldownSource, getPassiveCharbonDoubleProdBonus, getPassiveTravelDiscount, HUNGER_FOOD_ITEMS } from "../lib/gameData";
+import { PROFESSIONS, HOUSING, getInventoryWeight, getMaxWeight, getMaxFatigue, MAX_HUNGER, getMaxHunger, getCityHungerBonus, getCityFatigueBonus, getFestinHungerDrain, getRegenInterval, getRegenCap, getVendeurRank, getContributeurRank, getPvpRank, getPassiveEnergyMaxBonus, getPassiveInventoryBonus, getBestPassiveCooldownSource, getPassiveCharbonDoubleProdBonus, getPassiveTravelDiscount, getActiveTaxDiscountItem, HUNGER_FOOD_ITEMS } from "../lib/gameData";
 import { computeFatigueWithDailyReset, ITEMS, FOOD_ITEMS_WITH_FATIGUE } from "../lib/craftingData";
 import HelpTooltip from "./HelpTooltip";
 import { getTotalDebt } from "../lib/debtRepayment";
@@ -242,15 +242,13 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
       color: "text-indigo-700 bg-indigo-50 border-indigo-200",
     });
   }
-  const TAX_ITEMS = [
-    { key: "lingot_raffine", label: "Lingot raffiné", value: 0.04 },
-    { key: "lingots_or", label: "Lingot d'or", value: 0.03 },
-    { key: "quartz_poli", label: "Quartz poli", value: 0.02 },
-    { key: "quartz_brut", label: "Quartz brut", value: 0.01 },
-  ];
-  const bestTax = TAX_ITEMS.find(t => inv.some(i => i.item_key === t.key && (i.quantity || 0) > 0));
+  // Réduction taxe marché : on délègue à getActiveTaxDiscountItem qui dérive
+  // automatiquement la liste depuis ITEMS (pas de duplication, pas de risque
+  // de désynchro avec craftingData).
+  const bestTax = getActiveTaxDiscountItem(profile);
   if (bestTax) {
-    buffs.push({ icon: "🔮", label: `−${Math.round(bestTax.value * 100)}% taxe`, detail: "passif", tooltip: `${bestTax.label} en inventaire : −${Math.round(bestTax.value * 100)}% taxe marché.`, color: "text-yellow-700 bg-yellow-50 border-yellow-200" });
+    const pct = Math.round(bestTax.value * 100);
+    buffs.push({ icon: "🔮", label: `−${pct}% taxe`, detail: "passif", tooltip: `${bestTax.name} en inventaire : −${pct}% taxe marché.`, color: "text-yellow-700 bg-yellow-50 border-yellow-200" });
   }
   const bourseInInv = inv.find(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
   if (bourseInInv) {

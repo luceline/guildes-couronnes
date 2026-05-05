@@ -10,7 +10,7 @@ export const ADMIN_EMAILS = [
 export const PROFESSIONS = {
   Bûcheron:   { icon: "🪓", description: "Source principale de bois, chanvre et charbon. Fournit Forgeron, Orfèvre, Tisserand et Marchand en matières premières.",
     startItems: [{ item_key: "bois_brut",   item_name: "Bois brut",   item_category: "bois",      quantity: 20 }] },
-  Mineur:     { icon: "⛏️", description: "Extrait pierre et minerai pour le Forgeron, et polit le quartz brut de l'Orfèvre, clé indispensable pour les lingots d'or.",
+  Mineur:     { icon: "⛏️", description: "Extrait pierre et minerai pour le Forgeron, et polit le quartz brut de l'Orfèvre — clé indispensable pour les lingots d'or.",
     startItems: [{ item_key: "pierre_brute", item_name: "Pierre taillée", item_category: "pierre",   quantity: 16 },
                  { item_key: "minerai_fer",  item_name: "Minerai de fer", item_category: "fer",     quantity: 8 }] },
   Fermier:    { icon: "🐄", description: "Hub central. Produit la nourriture qui maintient la faim de tous les joueurs. Sans lui, personne ne peut agir longtemps.",
@@ -23,7 +23,7 @@ export const PROFESSIONS = {
                  { item_key: "planches",    item_name: "Planches",    item_category: "bois",       quantity: 6 }] },
   Alchimiste: { icon: "⚗️", description: "Distille herbes en extraits, puis en potions. Seul à craft les potions.",
     startItems: [{ item_key: "herbes",      item_name: "Herbes",      item_category: "potions",    quantity: 12 }] },
-  Orfèvre:    { icon: "🏅", description: "Seul à produire des lingots d'or, mais dépend du Mineur (quartz poli), du Forgeron (lingots fer) et du Bûcheron (charbon).",
+  Orfèvre:    { icon: "🏅", description: "Seul à produire des lingots d'or — mais dépend du Mineur (quartz poli), du Forgeron (lingots fer) et du Bûcheron (charbon).",
     startItems: [{ item_key: "quartz_brut", item_name: "Quartz brut", item_category: "or",         quantity: 12 },
                  { item_key: "charbon",     item_name: "Charbon",     item_category: "fer",        quantity: 4 }] },
   Marchand:   { icon: "🏪", description: "Organise convois et contrats. Récupère 50% des taxes sur ses propres ventes.",
@@ -1366,18 +1366,34 @@ export function getTemporaryCooldownBonus(profile) {
 // ── Réduction taxe marché acheteur ──
 // Dérivé automatiquement depuis ITEMS (effect === "market_tax_discount"), trié par value desc.
 // Pour ajouter un item tax-discount : ajoutez-le dans ITEMS avec effect: "market_tax_discount".
+//
+// Deux fonctions exposées :
+//   - getMarketTaxDiscount(profile)     → renvoie juste la valeur (0.04, 0.03, ...) ou 0
+//   - getActiveTaxDiscountItem(profile) → renvoie l'item gagnant complet { key, name, value }
+//                                         ou null. Utilisé par l'UI pour afficher le label.
+//
+// Les deux fonctions partagent la même source (_TAX_DISCOUNTS) donc impossible
+// qu'elles divergent : si vous changez la liste d'items côté ITEMS, les deux
+// fonctions reflètent automatiquement le changement.
 import { ITEMS as _ITEMS_FOR_TAX } from "./craftingData.js";
 const _TAX_DISCOUNTS = Object.entries(_ITEMS_FOR_TAX)
   .filter(([, v]) => v.effect === "market_tax_discount" && v.trigger === "passive")
-  .map(([key, v]) => ({ key, value: v.value }))
+  .map(([key, v]) => ({ key, name: v.name, value: v.value }))
   .sort((a, b) => b.value - a.value);
 
-export function getMarketTaxDiscount(profile) {
-  const inv = profile.inventory || [];
+/** Renvoie l'item tax-discount actif (le meilleur dans l'inventaire) ou null.
+ *  Format: { key, name, value }. Source unique pour le calcul ET l'affichage. */
+export function getActiveTaxDiscountItem(profile) {
+  const inv = profile?.inventory || [];
   for (const d of _TAX_DISCOUNTS) {
-    if (inv.some(i => i.item_key === d.key && (i.quantity || 0) > 0)) return d.value;
+    if (inv.some(i => i.item_key === d.key && (i.quantity || 0) > 0)) return d;
   }
-  return 0;
+  return null;
+}
+
+/** Renvoie la valeur de réduction de taxe (0 à 1) appliquée au profil, ou 0. */
+export function getMarketTaxDiscount(profile) {
+  return getActiveTaxDiscountItem(profile)?.value ?? 0;
 }
 
 // ─────────────────────────────────────────────
