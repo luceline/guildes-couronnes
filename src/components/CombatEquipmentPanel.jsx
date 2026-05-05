@@ -25,8 +25,14 @@ import {
   DAILY_REPAIR_POINTS_BASE,
   getDailyRepairPoints,
   getRepairPointsUsedToday,
-  canAffordRepair,
-  buildRepairQuotaUpdate,
+  // V6.2 — coût croissant + plafond hebdo glissant
+  WEEKLY_REPAIR_POINTS_MAX,
+  getRepairCostInPoints,
+  getRepairCostInResources,
+  getRepairPointsUsedThisWeek,
+  getRepairPointsLeftThisWeek,
+  canAffordRepairV2,
+  buildRepairQuotaUpdateV2,
 } from "../lib/gameData";
 import { ITEMS } from "../lib/craftingData";
 
@@ -94,49 +100,69 @@ function ResourceChip({ resKey, qtyRequired, stock, compact = false }) {
 }
 
 /**
- * Bouton de réparation d'une pièce d'équipement.
+ * Bouton de réparation d'une pièce d'équipement (V6.2 — coût croissant).
  *
- * Factorise la logique commune aux 3 zones de réparation (arme, bouclier,
- * armures par zone) qui était auparavant dupliquée dans 3 blocs IIFE quasi
- * identiques.
+ * Le coût en points et en ressources dépend désormais de la durabilité courante :
+ * plus la pièce est proche du max, plus la réparation est chère.
  *
  * Props :
  *   - slot       : "weapon" | "shield" | "head_def" | "torso_def" | "arms_def" | "legs_def"
  *   - dura       : durabilité courante de la pièce (0 à EQUIPMENT_MAX_DURABILITY)
- *   - profile    : PlayerProfile (utilisé pour le stock d'inventaire)
+ *   - profile    : PlayerProfile (utilisé pour le stock + le quota)
  *   - busy       : true si une mutation est en cours (désactive le bouton)
  *   - onRepair   : callback appelé avec (slot) au clic
  *   - compact    : mode compact pour l'affichage des armures par zone
- *                  (bouton plus petit + ResourceChip compact + sans label "Coût :")
  */
 function RepairButton({ slot, dura, profile, busy, onRepair, compact = false }) {
   const repairKey   = getRepairResource(slot);
   const repairDef   = ITEMS[repairKey];
   const repairStock = (profile.inventory || []).find(i => i.item_key === repairKey)?.quantity || 0;
   const atMax       = dura >= EQUIPMENT_MAX_DURABILITY;
-  const noStock     = repairStock < 1;
-  const repairTitle = atMax
-    ? "Durabilité au maximum"
-    : noStock
-      ? `Manque 1 ${repairDef?.name || repairKey}`
-      : `Restaure +1 dura (consomme 1 ${repairDef?.name || repairKey})`;
+
+  // V6.2 — Coût dynamique selon la dura courante
+  const costPoints    = atMax ? 0 : getRepairCostInPoints(dura);
+  const costResources = atMax ? 0 : getRepairCostInResources(dura);
+  const noStock       = repairStock < costResources;
+
+  // Vérifie le quota global (jour + hebdo + max). Renvoie { ok, reason, cost }.
+  const quotaCheck = atMax ? { ok: false } : canAffordRepairV2(profile, dura);
+  const canRepair  = !atMax && !noStock && quotaCheck.ok;
+
+  let repairTitle;
+  if (atMax) {
+    repairTitle = "Durabilité au maximum.";
+  } else if (noStock) {
+    repairTitle = `Manque ${costResources} ${repairDef?.name || repairKey} (${repairStock} en stock).`;
+  } else if (!quotaCheck.ok) {
+    repairTitle = quotaCheck.reason;
+  } else {
+    repairTitle = `Restaure +1 dura (consomme ${costPoints} pt${costPoints > 1 ? "s" : ""} + ${costResources} ${repairDef?.name || repairKey}).`;
+  }
 
   return (
     <div className={`flex items-center ${compact ? "gap-1" : "gap-2"} flex-wrap`}>
       <Button
         size="sm"
-        variant={!atMax && !noStock ? "default" : "outline"}
+        variant={canRepair ? "default" : "outline"}
         className={`${compact ? "h-6" : "h-7"} text-xs px-2 font-body`}
-        disabled={busy || atMax || noStock}
+        disabled={busy || !canRepair}
         onClick={() => onRepair(slot)}
         title={repairTitle}
       >
         🔧 Réparer
       </Button>
-      <span className={`${compact ? "text-[11px]" : "text-xs"} text-muted-foreground font-body inline-flex items-center ${compact ? "gap-0.5" : "gap-1"}`}>
-        {!compact && <span>Coût :</span>}
-        <ResourceChip resKey={repairKey} qtyRequired={1} stock={repairStock} compact={compact} />
-      </span>
+      {!atMax && (
+        <span className={`${compact ? "text-[11px]" : "text-xs"} text-muted-foreground font-body inline-flex items-center ${compact ? "gap-0.5" : "gap-1"} flex-wrap`}>
+          {!compact && <span>Coût :</span>}
+          <span className="inline-flex items-center gap-0.5">
+            <span className={`${costPoints > 1 ? "text-amber-700 font-semibold" : ""}`}>
+              {costPoints} pt{costPoints > 1 ? "s" : ""}
+            </span>
+          </span>
+          <span>+</span>
+          <ResourceChip resKey={repairKey} qtyRequired={costResources} stock={repairStock} compact={compact} />
+        </span>
+      )}
     </div>
   );
 }
@@ -355,29 +381,32 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
       toast.error("Durabilité au maximum.");
       return;
     }
-    // V6 — Vérification du quota journalier de réparation (5 points/jour de base).
-    if (!canAffordRepair(profile, 1)) {
-      const used = getRepairPointsUsedToday(profile);
-      const total = getDailyRepairPoints(profile);
-      toast.error(`Quota de réparation épuisé (${used}/${total} aujourd'hui). Réessayez demain.`);
+    // V6.2 — Vérification combinée : coût en points + quota jour + quota hebdo.
+    const quotaCheck = canAffordRepairV2(profile, dura);
+    if (!quotaCheck.ok) {
+      toast.error(quotaCheck.reason);
       return;
     }
+    const costPoints    = quotaCheck.cost.points;
+    const costResources = quotaCheck.cost.resources;
+
     // Choix de la ressource selon le slot, via le helper centralisé.
     const resKey = getRepairResource(slot);
     const resDef = ITEMS[resKey];
 
-    // Vérification stock
+    // Vérification stock (la quantité requise dépend désormais de la dura courante).
     const inv = profile.inventory || [];
     const resItem = inv.find(i => i.item_key === resKey);
-    if (!resItem || (resItem.quantity || 0) < 1) {
-      toast.error(`Manque : 1 ${resDef?.icon || ""} ${resDef?.name || resKey}`);
+    const stockQty = resItem?.quantity || 0;
+    if (stockQty < costResources) {
+      toast.error(`Manque : ${costResources} ${resDef?.icon || ""} ${resDef?.name || resKey} (${stockQty} en stock).`);
       return;
     }
     setBusy(true);
     try {
-      // Décrémenter la ressource
+      // Décrémenter la ressource du coût exact (1, 2 ou 3 selon la dura).
       const newInv = inv.map(i =>
-        i.item_key === resKey ? { ...i, quantity: (i.quantity || 0) - 1 } : i
+        i.item_key === resKey ? { ...i, quantity: (i.quantity || 0) - costResources } : i
       ).filter(i => (i.quantity || 0) > 0);
 
       // Restaurer +1 durabilité (cap à EQUIPMENT_MAX_DURABILITY)
@@ -389,16 +418,21 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
           durability: newDura,
         },
       };
-      // V6 — Construction du patch quota (incrémente compteur + écrit date du jour)
-      const quotaUpdate = buildRepairQuotaUpdate(profile, 1);
+      // V6.2 — Construction du patch quota (jour + hebdo + history)
+      const quotaUpdate = buildRepairQuotaUpdateV2(profile, dura);
       await base44.entities.PlayerProfile.update(profile.id, {
         inventory: newInv,
         equipment: newEquipment,
         ...quotaUpdate,
       });
       const itemDef = ITEMS[equipped.item_key];
-      const remaining = getDailyRepairPoints(profile) - (getRepairPointsUsedToday(profile) + 1);
-      toast.success(`🔧 ${itemDef?.icon || ""} ${itemDef?.name || equipped.item_key} réparé : durabilité ${dura} → ${newDura} (${remaining} pts restants)`);
+      const dailyLeft  = getDailyRepairPoints(profile) - quotaUpdate.repair_points_used_today;
+      const weeklyLeft = WEEKLY_REPAIR_POINTS_MAX - getRepairPointsUsedThisWeek({ ...profile, repair_history: quotaUpdate.repair_history });
+      toast.success(
+        `🔧 ${itemDef?.icon || ""} ${itemDef?.name || equipped.item_key} : ${dura} → ${newDura} dura ` +
+        `(−${costPoints} pt${costPoints > 1 ? "s" : ""}, −${costResources} ${resDef?.icon || ""}). ` +
+        `Reste ${dailyLeft}/jour, ${weeklyLeft}/semaine.`
+      );
       onRefresh?.();
     } catch (err) {
       console.error(err);
@@ -433,27 +467,47 @@ export default function CombatEquipmentPanel({ profile, onRefresh }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* V6 — Bandeau quota de réparation journalier */}
+        {/* V6.2 — Bandeau quota de réparation (journalier + hebdomadaire glissant) */}
         {(() => {
-          const used = getRepairPointsUsedToday(profile);
-          const total = getDailyRepairPoints(profile);
-          const remaining = total - used;
-          const exhausted = remaining <= 0;
+          const usedToday   = getRepairPointsUsedToday(profile);
+          const totalToday  = getDailyRepairPoints(profile);
+          const leftToday   = Math.max(0, totalToday - usedToday);
+          const usedWeek    = getRepairPointsUsedThisWeek(profile);
+          const leftWeek    = Math.max(0, WEEKLY_REPAIR_POINTS_MAX - usedWeek);
+          const dayExhausted  = leftToday <= 0;
+          const weekExhausted = leftWeek <= 0;
+          const anyExhausted  = dayExhausted || weekExhausted;
+          const lowDay  = !dayExhausted && leftToday <= 1;
+          const lowWeek = !weekExhausted && leftWeek <= 5;
           return (
-            <div className={`mb-3 px-3 py-2 rounded text-sm flex items-center justify-between ${
-              exhausted
+            <div className={`mb-3 px-3 py-2 rounded text-sm space-y-1 ${
+              anyExhausted
                 ? "bg-red-50 border border-red-200 text-red-800"
-                : remaining <= 1
+                : (lowDay || lowWeek)
                   ? "bg-orange-50 border border-orange-200 text-orange-800"
                   : "bg-slate-50 border border-slate-200 text-slate-700"
             }`}>
-              <span className="flex items-center gap-1.5">
-                🔧 <span className="font-semibold">Quota de réparation aujourd'hui :</span>
-                <span>{remaining} / {total} points restants</span>
-              </span>
-              {exhausted && (
-                <span className="text-xs italic">Réinitialisé chaque jour</span>
-              )}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="flex items-center gap-1.5">
+                  🔧 <span className="font-semibold">Quota du jour :</span>
+                  <span className={dayExhausted ? "font-bold" : ""}>{leftToday} / {totalToday} points restants</span>
+                </span>
+                {dayExhausted && (
+                  <span className="text-xs italic">Réinitialisé chaque jour</span>
+                )}
+              </div>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="flex items-center gap-1.5">
+                  📅 <span className="font-semibold">Quota de la semaine :</span>
+                  <span className={weekExhausted ? "font-bold" : ""}>{leftWeek} / {WEEKLY_REPAIR_POINTS_MAX} points restants</span>
+                </span>
+                {weekExhausted && (
+                  <span className="text-xs italic">Glissant sur 7 jours</span>
+                )}
+              </div>
+              <div className="text-[11px] italic opacity-80">
+                Coût d'une réparation +1 selon la dura courante : 1 pt jusqu'à 6/10, 2 pts jusqu'à 8, 3 pts à 9, 4 pts à 10.
+              </div>
             </div>
           );
         })()}
