@@ -10,7 +10,7 @@ export const ADMIN_EMAILS = [
 export const PROFESSIONS = {
   Bûcheron:   { icon: "🪓", description: "Source principale de bois, chanvre et charbon. Fournit Forgeron, Orfèvre, Tisserand et Marchand en matières premières.",
     startItems: [{ item_key: "bois_brut",   item_name: "Bois brut",   item_category: "bois",      quantity: 20 }] },
-  Mineur:     { icon: "⛏️", description: "Extrait pierre et minerai pour le Forgeron, et polit le quartz brut de l'Orfèvre — clé indispensable pour les lingots d'or.",
+  Mineur:     { icon: "⛏️", description: "Extrait pierre et minerai pour le Forgeron, et polit le quartz brut de l'Orfèvre, clé indispensable pour les lingots d'or.",
     startItems: [{ item_key: "pierre_brute", item_name: "Pierre taillée", item_category: "pierre",   quantity: 16 },
                  { item_key: "minerai_fer",  item_name: "Minerai de fer", item_category: "fer",     quantity: 8 }] },
   Fermier:    { icon: "🐄", description: "Hub central. Produit la nourriture qui maintient la faim de tous les joueurs. Sans lui, personne ne peut agir longtemps.",
@@ -23,7 +23,7 @@ export const PROFESSIONS = {
                  { item_key: "planches",    item_name: "Planches",    item_category: "bois",       quantity: 6 }] },
   Alchimiste: { icon: "⚗️", description: "Distille herbes en extraits, puis en potions. Seul à craft les potions.",
     startItems: [{ item_key: "herbes",      item_name: "Herbes",      item_category: "potions",    quantity: 12 }] },
-  Orfèvre:    { icon: "🏅", description: "Seul à produire des lingots d'or — mais dépend du Mineur (quartz poli), du Forgeron (lingots fer) et du Bûcheron (charbon).",
+  Orfèvre:    { icon: "🏅", description: "Seul à produire des lingots d'or, mais dépend du Mineur (quartz poli), du Forgeron (lingots fer) et du Bûcheron (charbon).",
     startItems: [{ item_key: "quartz_brut", item_name: "Quartz brut", item_category: "or",         quantity: 12 },
                  { item_key: "charbon",     item_name: "Charbon",     item_category: "fer",        quantity: 4 }] },
   Marchand:   { icon: "🏪", description: "Organise convois et contrats. Récupère 50% des taxes sur ses propres ventes.",
