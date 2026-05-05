@@ -277,6 +277,163 @@ export function buildRepairQuotaUpdate(profile, cost = 1) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// V6.2 — Coût croissant + plafond hebdomadaire glissant
+// ─────────────────────────────────────────────────────────────────────────────
+// Le but : empêcher un joueur peu attaqué de garder son équipement constamment
+// à 10/10 partout. Deux mécaniques se cumulent :
+//
+//   1. Coût croissant : plus la dura courante est élevée, plus la réparation
+//      coûte cher en points et en ressources. Un 9→10 coûte 4 points et
+//      3 ressources, contre 1 point et 1 ressource pour un 0→1.
+//
+//   2. Plafond hebdomadaire glissant : 25 points max sur les 7 derniers jours
+//      (en plus du plafond quotidien de 5 points). Stocké via un historique
+//      JSON dans profile.repair_history = [{ date, points }, ...].
+//
+// Ces fonctions sont AJOUTÉES sans toucher aux anciennes (canAffordRepair,
+// buildRepairQuotaUpdate). Le sprint 3 fera basculer l'UI vers les V2.
+
+/** Plafond hebdomadaire (7 jours glissants) de points de réparation. */
+export const WEEKLY_REPAIR_POINTS_MAX = 25;
+
+/** Tableau du coût en points pour passer de dura `currentDura` à `currentDura + 1`.
+ *  Index 0 = coût pour faire 0→1, index 9 = coût pour faire 9→10.
+ *  Au-delà, retourne Infinity (pas réparable au-dessus du max). */
+const REPAIR_COST_POINTS_BY_DURA = [
+  1, // 0 → 1
+  1, // 1 → 2
+  1, // 2 → 3
+  1, // 3 → 4
+  1, // 4 → 5
+  1, // 5 → 6
+  2, // 6 → 7
+  2, // 7 → 8
+  3, // 8 → 9
+  4, // 9 → 10
+];
+
+/** Tableau du coût en ressources pour passer de dura `currentDura` à `currentDura + 1`.
+ *  Plafonné à 3 par design (cf. décision produit du 5 mai 2026). */
+const REPAIR_COST_RESOURCES_BY_DURA = [
+  1, // 0 → 1
+  1, // 1 → 2
+  1, // 2 → 3
+  1, // 3 → 4
+  2, // 4 → 5
+  2, // 5 → 6
+  2, // 6 → 7
+  3, // 7 → 8
+  3, // 8 → 9
+  3, // 9 → 10
+];
+
+/** Renvoie le coût en POINTS pour réparer +1 sur une pièce à dura `currentDura`.
+ *  currentDura doit être dans [0, EQUIPMENT_MAX_DURABILITY[. Renvoie Infinity sinon. */
+export function getRepairCostInPoints(currentDura) {
+  const dura = Number(currentDura);
+  if (!Number.isFinite(dura) || dura < 0 || dura >= EQUIPMENT_MAX_DURABILITY) return Infinity;
+  return REPAIR_COST_POINTS_BY_DURA[Math.floor(dura)] ?? Infinity;
+}
+
+/** Renvoie le coût en RESSOURCES pour réparer +1 sur une pièce à dura `currentDura`.
+ *  currentDura doit être dans [0, EQUIPMENT_MAX_DURABILITY[. Renvoie Infinity sinon. */
+export function getRepairCostInResources(currentDura) {
+  const dura = Number(currentDura);
+  if (!Number.isFinite(dura) || dura < 0 || dura >= EQUIPMENT_MAX_DURABILITY) return Infinity;
+  return REPAIR_COST_RESOURCES_BY_DURA[Math.floor(dura)] ?? Infinity;
+}
+
+/** Renvoie l'historique de réparation des 7 derniers jours (incluant aujourd'hui),
+ *  filtré et nettoyé (entrées trop vieilles ignorées). Format: [{ date, points }]. */
+function getRecentRepairHistory(profile) {
+  const raw = Array.isArray(profile?.repair_history) ? profile.repair_history : [];
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - 6); // 7 jours glissants : aujourd'hui + 6 jours en arrière
+  const cutoffStr = cutoff.toISOString().split("T")[0];
+  return raw.filter(entry => {
+    if (!entry || typeof entry.date !== "string") return false;
+    return entry.date >= cutoffStr;
+  });
+}
+
+/** Renvoie le nombre de points de réparation utilisés sur les 7 derniers jours. */
+export function getRepairPointsUsedThisWeek(profile) {
+  const history = getRecentRepairHistory(profile);
+  return history.reduce((sum, entry) => sum + (Number(entry.points) || 0), 0);
+}
+
+/** Renvoie le nombre de points hebdomadaires restants. */
+export function getRepairPointsLeftThisWeek(profile) {
+  return Math.max(0, WEEKLY_REPAIR_POINTS_MAX - getRepairPointsUsedThisWeek(profile));
+}
+
+/**
+ * Vérifie qu'un joueur peut payer une réparation +1 sur une pièce à dura `currentDura`.
+ * Vérifie 3 contraintes :
+ *   1. Coût en points <= points journaliers restants
+ *   2. Coût en points <= points hebdomadaires restants
+ *   3. Pièce pas déjà au max (currentDura < EQUIPMENT_MAX_DURABILITY)
+ *
+ * Retourne { ok: true, cost: { points, resources } } si OK,
+ * sinon { ok: false, reason: "...", cost: { points, resources } }.
+ */
+export function canAffordRepairV2(profile, currentDura) {
+  const points = getRepairCostInPoints(currentDura);
+  const resources = getRepairCostInResources(currentDura);
+  const cost = { points, resources };
+
+  if (!Number.isFinite(points)) {
+    return { ok: false, reason: "Durabilité au maximum.", cost };
+  }
+
+  const dailyMax = getDailyRepairPoints(profile);
+  const dailyUsed = getRepairPointsUsedToday(profile);
+  const dailyLeft = Math.max(0, dailyMax - dailyUsed);
+  if (dailyLeft < points) {
+    return { ok: false, reason: `Quota journalier insuffisant (${dailyLeft}/${dailyMax} restants, besoin de ${points}).`, cost };
+  }
+
+  const weeklyLeft = getRepairPointsLeftThisWeek(profile);
+  if (weeklyLeft < points) {
+    return { ok: false, reason: `Quota hebdomadaire insuffisant (${weeklyLeft}/${WEEKLY_REPAIR_POINTS_MAX} restants, besoin de ${points}).`, cost };
+  }
+
+  return { ok: true, cost };
+}
+
+/**
+ * Construit le patch d'update à appliquer en plus de la réparation V2.
+ * Met à jour 3 champs sur le profil :
+ *   - repair_points_used_today (cumul du jour)
+ *   - repair_points_date       (date du jour, pour le rollover)
+ *   - repair_history           (historique 7 jours pour le plafond hebdo)
+ *
+ * Le caller doit appeler canAffordRepairV2 AVANT pour valider, sinon le patch
+ * peut violer les plafonds.
+ */
+export function buildRepairQuotaUpdateV2(profile, currentDura) {
+  const points = getRepairCostInPoints(currentDura);
+  const today = new Date().toISOString().split("T")[0];
+  const usedToday = getRepairPointsUsedToday(profile);
+
+  // Mise à jour de l'historique hebdo : on filtre l'ancien (>7j) et on ajoute le nouveau.
+  // Si une entrée pour aujourd'hui existe déjà, on l'incrémente plutôt que d'ajouter.
+  const history = getRecentRepairHistory(profile).map(e => ({ ...e }));
+  const todayIdx = history.findIndex(e => e.date === today);
+  if (todayIdx >= 0) {
+    history[todayIdx].points = (Number(history[todayIdx].points) || 0) + points;
+  } else {
+    history.push({ date: today, points });
+  }
+
+  return {
+    repair_points_used_today: usedToday + points,
+    repair_points_date: today,
+    repair_history: history,
+  };
+}
+
 // Renvoie le coût d'amélioration pour un grade donné et un type (atk/def).
 // Format de retour : objet { bois_brut, minerai_fer, quartz_brut } avec les quantités requises.
 export function getCombatUpgradeCost(type, currentGrade) {
