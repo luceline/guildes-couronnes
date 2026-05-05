@@ -48,6 +48,7 @@ const COLLECTION_MAP = {
   CauldronUses:         'cauldron_uses',
   ProtectionDome:       'protection_dome',
   CityEvent:            'city_events',
+  BugReport:            'bug_reports',
 };
 
 // Collections qui stockent tout dans un champ JSON data

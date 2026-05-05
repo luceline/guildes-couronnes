@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword, MessageCircle, BookOpen } from "lucide-react";
+import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword, MessageCircle, BookOpen, Bug } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { base44 } from "@/api/base44Client";
 import { updateLastActive } from "@/lib/inactivityCheck";
 import { ADMIN_EMAILS } from "@/lib/gameData";
 import Tutorial from "@/components/Tutorial";
+import BugReportModal from "@/components/BugReportModal";
 import { useTheme } from "@/lib/useTheme.jsx";
 
 const BASE_NAV = [
@@ -30,6 +31,7 @@ export default function GameLayout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [navItems, setNavItems] = useState(BASE_NAV);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showBugReport, setShowBugReport] = useState(false);
   const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
   const { isDark, toggleTheme } = useTheme();
 
@@ -111,6 +113,7 @@ export default function GameLayout() {
   return (
     <div className="min-h-screen flex flex-col">
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
+      {showBugReport && <BugReportModal onClose={() => setShowBugReport(false)} />}
 
       {/* Top Bar */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
@@ -156,6 +159,17 @@ export default function GameLayout() {
             >
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
+            {/* Bug report button : desktop */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 font-body text-sm text-muted-foreground"
+              onClick={() => setShowBugReport(true)}
+              title="Signaler un bug"
+            >
+              <Bug className="h-4 w-4" />
+              Bug
+            </Button>
             {/* Tutorial button : desktop */}
             <Button
               variant="ghost"
@@ -178,6 +192,14 @@ export default function GameLayout() {
              title="Basculer le thème"
            >
              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+           </Button>
+           <Button
+             variant="ghost"
+             size="icon"
+             onClick={() => setShowBugReport(true)}
+             title="Signaler un bug"
+           >
+             <Bug className="h-5 w-5 text-muted-foreground" />
            </Button>
            <Button
              variant="ghost"
