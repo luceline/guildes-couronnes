@@ -205,11 +205,12 @@ export const COMBAT_UPGRADE_PRICE_MAX = 500;
 export const COMBAT_UPGRADE_ARTISAN_SHARE = 0.80;
 export const COMBAT_UPGRADE_CITY_SHARE = 0.20;
 
-// Ressources de réparation : 1 pierre = +1 dura arme, 1 laine = +1 dura armure.
+// Ressources de réparation : 1 pierre = +1 dura arme, 1 laine = +1 dura armure, 1 bois = +1 dura bouclier.
 // Réparation manuelle, panel dédié dans l'inventaire, pas de coût en or, pas de cooldown.
 export const REPAIR_RESOURCES = {
-  weapon: "pierre",       // épée → consomme 1 pierre par +1 dura
-  armor:  "laine_brute",  // armures → consomme 1 laine_brute par +1 dura
+  weapon: "pierre",       // épée → consomme pierre
+  armor:  "laine_brute",  // armures (heaume, cuirasse, brassard, jambière) → consomme laine
+  shield: "bois_brut",    // bouclier → consomme bois (sprint 4 V6.2)
 };
 
 /**
@@ -217,16 +218,14 @@ export const REPAIR_RESOURCES = {
  * Centralise le mapping slot → ressource pour éviter les ternaires inline
  * dispersés dans les composants.
  *
- * Comportement actuel (pre-V6.2) :
+ * V6.2 — Mapping :
  *   - weapon                   → "pierre"
- *   - shield                   → "pierre" (alignement legacy avec l'arme)
+ *   - shield                   → "bois_brut"  (sprint 4 — distinct de l'arme)
  *   - head/torso/arms/legs_def → "laine_brute"
- *
- * Hook prévu pour passer le bouclier sur "bois_brut" lors du sprint dédié.
  */
 export function getRepairResource(slot) {
   if (slot === "weapon") return REPAIR_RESOURCES.weapon;
-  if (slot === "shield") return REPAIR_RESOURCES.weapon; // legacy : pierre, à passer en bois_brut au sprint 4
+  if (slot === "shield") return REPAIR_RESOURCES.shield;
   return REPAIR_RESOURCES.armor;
 }
 
