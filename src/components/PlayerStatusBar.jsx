@@ -244,7 +244,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
   }
   const TAX_ITEMS = [
     { key: "lingot_raffine", label: "Lingot raffiné", value: 0.04 },
-    { key: "lingot_or", label: "Lingot d'or", value: 0.03 },
+    { key: "lingots_or", label: "Lingot d'or", value: 0.03 },
     { key: "quartz_poli", label: "Quartz poli", value: 0.02 },
     { key: "quartz_brut", label: "Quartz brut", value: 0.01 },
   ];
