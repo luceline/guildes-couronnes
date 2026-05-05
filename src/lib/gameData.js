@@ -264,25 +264,6 @@ export function getRepairPointsUsedToday(profile) {
   return Number(profile?.repair_points_used_today || 0);
 }
 
-/** Vérifie qu'on a au moins `cost` points disponibles pour réparer. */
-export function canAffordRepair(profile, cost = 1) {
-  const used = getRepairPointsUsedToday(profile);
-  const total = getDailyRepairPoints(profile);
-  return (total - used) >= cost;
-}
-
-/** Construit le patch d'update à appliquer en plus de la réparation.
- *  Renvoie un objet { repair_points_used_today, repair_points_date }
- *  à merger dans le payload de PlayerProfile.update. */
-export function buildRepairQuotaUpdate(profile, cost = 1) {
-  const today = new Date().toISOString().split("T")[0];
-  const used = getRepairPointsUsedToday(profile);
-  return {
-    repair_points_used_today: used + cost,
-    repair_points_date: today,
-  };
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // V6.2 — Coût croissant + plafond hebdomadaire glissant
 // ─────────────────────────────────────────────────────────────────────────────
@@ -296,9 +277,6 @@ export function buildRepairQuotaUpdate(profile, cost = 1) {
 //   2. Plafond hebdomadaire glissant : 25 points max sur les 7 derniers jours
 //      (en plus du plafond quotidien de 5 points). Stocké via un historique
 //      JSON dans profile.repair_history = [{ date, points }, ...].
-//
-// Ces fonctions sont AJOUTÉES sans toucher aux anciennes (canAffordRepair,
-// buildRepairQuotaUpdate). Le sprint 3 fera basculer l'UI vers les V2.
 
 /** Plafond hebdomadaire (7 jours glissants) de points de réparation. */
 export const WEEKLY_REPAIR_POINTS_MAX = 25;

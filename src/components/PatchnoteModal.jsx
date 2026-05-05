@@ -3,10 +3,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, ScrollText } from "lucide-react";
 
-const CURRENT_VERSION = "2.3";
+const CURRENT_VERSION = "2.4";
 const STORAGE_KEY = `gc_patchnote_seen_${CURRENT_VERSION}`;
 
 export const ALL_PATCHNOTES = [
+  {
+    version: "2.4",
+    date: "Mai 2026",
+    notes: [
+      { icon: "🔧", title: "La forge devient stratégique", text: "Le marteau du forgeron ne frappe plus avec la même ardeur selon l'état de la pièce. Réparer une lame fraîchement écornée vous coûtera un seul point de votre quota et une ressource humble. Mais vouloir hisser une cuirasse de huit à neuf de durabilité vous coûtera trois points et trois ressources. Vouloir lui rendre son dixième et dernier point exigera quatre points pleins de votre quota du jour, et trois ressources encore. La perfection se mérite : un guerrier sage acceptera ses lames à six ou sept de durabilité, et gardera ses précieux points pour les pièces critiques.\\n\\nLa table des coûts s'égrène ainsi : un point et une ressource jusqu'à quatre de durabilité, un point et deux ressources jusqu'à six, deux points et deux ressources jusqu'à sept, deux points et trois ressources pour passer de sept à huit, trois points et trois ressources pour passer de huit à neuf, quatre points et trois ressources pour le saut final vers dix." },
+      { icon: "📅", title: "Vingt-cinq points par semaine, et pas un de plus", text: "Au plafond quotidien de cinq points s'ajoute désormais une jauge hebdomadaire glissante : vingt-cinq points sur sept jours roulants. Un guerrier rarement attaqué ne pourra plus tout réparer impunément : la jauge tient le compte de chaque point dépensé, et oublie ce qui a plus de sept jours. Vous ne pouvez plus vous permettre de tout maintenir à dix : il faut choisir vos pièces de prédilection, et accepter que d'autres restent fonctionnelles à six ou sept.\\n\\nLe panneau d'équipement de combat affiche désormais les deux jauges en permanence : votre quota du jour, et votre quota de la semaine. Quand l'une ou l'autre approche du fond, un avertissement coloré vous prévient." },
+      { icon: "🪵", title: "Le bouclier réclame du bois, plus de la pierre", text: "L'ancienne convention voulait que la même pierre serve à la lame et au bouclier. Une simplification de fortune, qui n'avait plus sa place. Désormais, le bouclier se répare avec du Bois brut, ressource que tout Bûcheron sait fournir en abondance. Une cohérence retrouvée : la lame se forge à la pierre, le bouclier se taille au bois, et chaque pièce a son artisan dédié.\\n\\nVérifiez votre stock de bois avant de partir au combat : votre bouclier en aura besoin pour rester vaillant." },
+      { icon: "🔮", title: "La cuirasse réclame du quartz", text: "Pour pousser plus loin la diversification, la cuirasse abandonne la laine commune au profit du Quartz brut. La pièce centrale de votre armure, celle qui couvre votre cœur, exige désormais cette gemme polie que seul l'Orfèvre récolte. Les heaumes, brassards et jambières restent fidèles à leur Laine brute, mais le torse devient une affaire de précieux.\\n\\nUn duelliste sage maintiendra des liens cordiaux avec son orfèvre local. Les marchés à quartz risquent fort de s'animer dans les prochains jours." },
+      { icon: "🩹", title: "Le bris d'arme via combat expiré, enfin réparé", text: "Un bug pernicieux frappait les défis non répondus dans les temps : quand le cron du matin résolvait un combat expiré, l'arme ou l'armure brisée disparaissait purement et simplement de l'équipement, au lieu de simplement passer à zéro de durabilité comme prévu. Plusieurs joueurs ont vu leur épée s'évanouir dans la nuit. C'est désormais corrigé. Le combat expiré suit la même logique que le combat normal : usure déterministe, jet d'attaque selon l'état de la lame, jet de défense selon l'état de l'armure, et plus aucun item ne quitte votre équipement contre votre gré." },
+    ],
+  },
   {
     version: "2.3",
     date: "Mai 2026",
@@ -80,8 +91,8 @@ export default function PatchnoteModal({ forceOpen = false, onClose }) {
   const currentPatch = ALL_PATCHNOTES.find(p => p.version === CURRENT_VERSION) || ALL_PATCHNOTES[0];
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <Card className="w-full max-w-lg border-2 border-primary/30 shadow-2xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-2 sm:p-4">
+      <Card className="w-full max-w-lg border-2 border-primary/30 shadow-2xl max-h-[calc(100dvh-1rem)] sm:max-h-[90vh] flex flex-col my-auto">
         <CardHeader className="relative pb-2 shrink-0">
           <button onClick={close} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
@@ -95,10 +106,10 @@ export default function PatchnoteModal({ forceOpen = false, onClose }) {
           </p>
         </CardHeader>
 
-        <CardContent className="overflow-y-auto space-y-6 py-2">
+        <CardContent className="overflow-y-auto space-y-6 py-2 min-h-0">
           {currentPatch && (
             <div>
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <span className="font-heading font-semibold text-sm text-primary">v{currentPatch.version}</span>
                 <span className="text-xs text-muted-foreground font-body">· {currentPatch.date}</span>
                 <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-body">Nouveau</span>
@@ -107,9 +118,9 @@ export default function PatchnoteModal({ forceOpen = false, onClose }) {
                 {currentPatch.notes.map((note, i) => (
                   <div key={i} className="flex gap-3 border-b border-border/40 pb-3 last:border-0 last:pb-0">
                     <span className="text-2xl shrink-0 mt-0.5">{note.icon}</span>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-heading font-semibold text-sm mb-1">{note.title}</p>
-                      <p className="text-xs text-muted-foreground font-body leading-relaxed italic">{note.text}</p>
+                      <p className="text-xs text-muted-foreground font-body leading-relaxed italic whitespace-pre-line">{note.text}</p>
                     </div>
                   </div>
                 ))}
