@@ -54,13 +54,90 @@ function getRankColor(rank) {
   return "";
 }
 
+// ─── Sous-composant : carte d'une recette pour un rang donné ─────────────
+/**
+ * Affiche la liste d'ingrédients du jour pour un rang précis, le bouton
+ * d'invocation et l'état (déjà utilisé / ingrédients manquants / prêt).
+ *
+ * Props :
+ *   - rank        : 1 | 2 | 3
+ *   - status      : { required: [...], hasAll: bool, missing: [...] }
+ *   - alreadyUsed : bool : le rang a-t-il déjà été cuisiné aujourd'hui
+ *   - profile     : pour afficher le stock courant
+ *   - submitting  : true si une cuisson est en cours
+ *   - onUse       : callback (rank) lors du clic sur "Invoquer"
+ *   - compact     : true → version condensée (mobile dans tabs)
+ */
+function RankRecipeCard({ rank, status, alreadyUsed, profile, submitting, onUse, compact = false }) {
+  const required = status?.required || [];
+
+  if (alreadyUsed) {
+    return (
+      <div className="bg-purple-100 border border-purple-300 rounded-lg p-3 text-center text-xs font-body italic text-purple-800">
+        ✓ Recette du rang {rank} déjà invoquée aujourd'hui. Repassez demain à l'aube.
+      </div>
+    );
+  }
+
+  if (required.length === 0) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-xs font-body italic text-amber-800">
+        ⏳ Pas d'ingrédients tirés pour le rang {rank} aujourd'hui.
+      </div>
+    );
+  }
+
+  return (
+    <div className={`bg-card border border-border rounded-lg p-3 space-y-2 ${compact ? "" : ""}`}>
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="text-xs font-body font-semibold">
+          Recette du rang {rank}
+        </div>
+        <Badge className={`text-[10px] ${getRankColor(rank)}`}>R{rank}</Badge>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {required.map(req => {
+          const has = getInventoryQty(profile.inventory || [], req.key);
+          const ok = has >= req.qty;
+          const def = ITEMS[req.key];
+          return (
+            <span
+              key={req.key}
+              className={`text-xs px-2 py-0.5 rounded-full border font-body ${
+                ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
+              }`}
+            >
+              {def?.icon} ×{req.qty} ({has})
+            </span>
+          );
+        })}
+      </div>
+      <Button
+        className="w-full font-heading"
+        size={compact ? "sm" : "default"}
+        disabled={!status.hasAll || submitting}
+        onClick={() => onUse(rank)}
+      >
+        {submitting ? "Sortilège en cours..." : status.hasAll ? `🪄 Invoquer rang ${rank}` : "Ingrédients manquants"}
+      </Button>
+      {status.missing && status.missing.length > 0 && (
+        <p className="text-[10px] text-red-700 italic font-body text-center">
+          Il vous manque : {status.missing.map(m => `${m.missing} ${ITEMS[m.key]?.name || m.key}`).join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Items qui demandent une cible (ville)
 const TARGETED_ITEMS = ["parchemin_marchand", "etoile_filante", "hibou_messager"];
 
 export default function CauldronPanel({ profile, city, onRefresh }) {
   const [cauldron, setCauldron] = useState(null);
   const [dailyInputs, setDailyInputs] = useState(null);
-  const [usedToday, setUsedToday] = useState(false);
+  const [usedToday, setUsedToday] = useState({ 1: false, 2: false, 3: false });
+  // Tab actif pour la version mobile : initialisé au rang du chaudron au load
+  const [activeRankTab, setActiveRankTab] = useState(1);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -87,6 +164,9 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
       setCauldron(c);
       setDailyInputs(di);
       setUsedToday(ut);
+      // Sur mobile, par défaut on affiche le tab du rang max du chaudron
+      // (la "meilleure" recette disponible). Le joueur peut changer après.
+      if (c?.rank) setActiveRankTab(c.rank);
     } catch (e) {
       console.error("[Cauldron] load error:", e);
     } finally {
@@ -175,37 +255,54 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
   };
 
   // ─── Utilisation du chaudron ───
-  const requiredInputs = useMemo(() => {
-    if (!cauldron || !dailyInputs) return [];
-    return getInputsForRank(dailyInputs, cauldron.rank);
-  }, [cauldron, dailyInputs]);
+  // Pour chaque rang disponible (1, 2, ..., jusqu'au rang du chaudron),
+  // calcule les inputs requis. Permet d'afficher chaque recette séparément
+  // et de cuisiner chaque rang une fois par jour.
+  const availableRanks = useMemo(() => {
+    if (!cauldron) return [];
+    const ranks = [];
+    for (let r = 1; r <= cauldron.rank; r++) ranks.push(r);
+    return ranks;
+  }, [cauldron]);
 
-  const hasAllInputs = useMemo(() => {
-    if (!cauldron || !requiredInputs.length) return false;
-    return requiredInputs.every(req => {
-      return getInventoryQty(profile.inventory || [], req.key) >= req.qty;
-    });
-  }, [requiredInputs, profile.inventory, cauldron]);
+  const inputsByRank = useMemo(() => {
+    if (!cauldron || !dailyInputs) return {};
+    const result = {};
+    for (const r of availableRanks) {
+      result[r] = getInputsForRank(dailyInputs, r);
+    }
+    return result;
+  }, [cauldron, dailyInputs, availableRanks]);
 
-  const missingInputs = useMemo(() => {
-    if (!cauldron || !requiredInputs.length) return [];
-    return requiredInputs
-      .map(req => {
-        const has = getInventoryQty(profile.inventory || [], req.key);
-        const missing = Math.max(0, req.qty - has);
-        return { ...req, has, missing };
-      })
-      .filter(r => r.missing > 0);
-  }, [requiredInputs, profile.inventory, cauldron]);
+  // Renvoie { rank: { hasAll, missing: [...] } } pour chaque rang disponible
+  const inputsStatus = useMemo(() => {
+    const status = {};
+    for (const r of availableRanks) {
+      const required = inputsByRank[r] || [];
+      const missing = required
+        .map(req => {
+          const has = getInventoryQty(profile.inventory || [], req.key);
+          return { ...req, has, missing: Math.max(0, req.qty - has) };
+        })
+        .filter(x => x.missing > 0);
+      status[r] = {
+        required,
+        hasAll: required.length > 0 && missing.length === 0,
+        missing,
+      };
+    }
+    return status;
+  }, [availableRanks, inputsByRank, profile.inventory]);
 
-  const handleUse = async () => {
+  const handleUse = async (selectedRank) => {
     if (!cauldron) return;
-    if (usedToday) {
-      toast.error("Vous avez déjà utilisé votre chaudron aujourd'hui.");
+    if (usedToday[selectedRank]) {
+      toast.error(`Vous avez déjà invoqué le rang ${selectedRank} aujourd'hui.`);
       return;
     }
-    if (!hasAllInputs) {
-      const missing = missingInputs.map(m => `${m.missing}× ${ITEMS[m.key]?.name || m.key}`).join(", ");
+    const status = inputsStatus[selectedRank];
+    if (!status || !status.hasAll) {
+      const missing = (status?.missing || []).map(m => `${m.missing}× ${ITEMS[m.key]?.name || m.key}`).join(", ");
       toast.error(`Il vous manque : ${missing}`);
       return;
     }
@@ -214,13 +311,13 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
     setRevealModal({ phase: "rolling", outputKey: null, item: null });
 
     try {
-      // 1. Tirage de l'output
-      const outputKey = rollOutput(cauldron.rank);
+      // 1. Tirage de l'output au rang sélectionné
+      const outputKey = rollOutput(selectedRank);
       const outputItem = ITEMS[outputKey];
 
-      // 2. Retirer les inputs et ajouter l'output
+      // 2. Retirer les inputs du rang sélectionné et ajouter l'output
       let inv = [...(profile.inventory || [])];
-      for (const req of requiredInputs) {
+      for (const req of status.required) {
         inv = removeFromInventory(inv, req.key, req.qty);
       }
       inv = addToInventory(inv, outputKey, 1);
@@ -229,13 +326,13 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
         inventory: inv,
       });
 
-      // 3. Logger l'utilisation
+      // 3. Logger l'utilisation au rang sélectionné
       const todayStr = new Date().toISOString().split("T")[0];
       await base44.entities.CauldronUses.create({
         player_email: profile.user_email,
         player_name: profile.character_name || "",
         cycle_date: todayStr,
-        rank_used: cauldron.rank,
+        rank_used: selectedRank,
         output_received: outputKey,
         used_at: new Date().toISOString(),
       });
@@ -249,13 +346,13 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
         profile, city,
         amount: 0,
         type: "chaudron_usage",
-        description: `🪄 Chaudron rang ${cauldron.rank} utilisé : ${outputItem?.icon || ""} ${outputItem?.name || outputKey}`,
+        description: `🪄 Chaudron rang ${selectedRank} utilisé : ${outputItem?.icon || ""} ${outputItem?.name || outputKey}`,
       }).catch(() => {});
 
       // 5. Animation suspense ~3s puis révélation
       setTimeout(() => {
         setRevealModal({ phase: "result", outputKey, item: outputItem });
-        setUsedToday(true);
+        setUsedToday(prev => ({ ...prev, [selectedRank]: true }));
         invalidateCauldronCache();
         onRefresh?.();
         loadAll();
@@ -461,48 +558,74 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
             </div>
           </div>
 
-          {/* Section utilisation quotidienne */}
-          {usedToday ? (
-            <div className="bg-purple-100 border border-purple-300 rounded-lg p-3 text-center text-xs font-body italic text-purple-800">
-              ✓ Vous avez déjà invoqué le chaudron aujourd'hui. Repassez demain à l'aube !
-            </div>
-          ) : !dailyInputs ? (
+          {/* Section utilisation quotidienne : A en desktop, B en mobile (tabs) */}
+          {!dailyInputs ? (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-xs font-body italic text-amber-800">
               ⏳ Les ingrédients du jour ne sont pas encore tirés. Patientez quelques minutes.
             </div>
-          ) : (
-            <div className="bg-card border border-border rounded-lg p-3 space-y-2">
-              <div className="text-xs font-body font-semibold">Recette du jour :</div>
-              <div className="flex flex-wrap gap-1.5">
-                {requiredInputs.map(req => {
-                  const has = getInventoryQty(profile.inventory || [], req.key);
-                  const ok = has >= req.qty;
-                  const def = ITEMS[req.key];
-                  return (
-                    <span
-                      key={req.key}
-                      className={`text-xs px-2 py-0.5 rounded-full border font-body ${
-                        ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"
-                      }`}
-                    >
-                      {def?.icon} ×{req.qty} ({has})
-                    </span>
-                  );
-                })}
-              </div>
-              <Button
-                className="w-full font-heading"
-                disabled={!hasAllInputs || submitting}
-                onClick={handleUse}
-              >
-                {submitting ? "Sortilège en cours..." : hasAllInputs ? "🪄 Utiliser le chaudron" : "Ingrédients manquants"}
-              </Button>
-              {missingInputs.length > 0 && (
-                <p className="text-[10px] text-red-700 italic font-body text-center">
-                  Il vous manque : {missingInputs.map(m => `${m.missing} ${ITEMS[m.key]?.name || m.key}`).join(", ")}
-                </p>
-              )}
+          ) : availableRanks.length === 0 ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center text-xs font-body italic text-amber-800">
+              ⏳ Chaudron non initialisé.
             </div>
+          ) : (
+            <>
+              {/* Indication globale : récap simple en haut quand plusieurs rangs */}
+              {availableRanks.length > 1 && (
+                <div className="text-[11px] text-muted-foreground font-body italic px-1">
+                  Vous pouvez invoquer une recette de chaque rang par jour.
+                </div>
+              )}
+
+              {/* Layout A : Desktop : toutes les recettes empilées (md et plus) */}
+              <div className="hidden md:flex md:flex-col md:gap-2">
+                {availableRanks.map(r => (
+                  <RankRecipeCard
+                    key={r}
+                    rank={r}
+                    status={inputsStatus[r]}
+                    alreadyUsed={usedToday[r]}
+                    profile={profile}
+                    submitting={submitting}
+                    onUse={handleUse}
+                  />
+                ))}
+              </div>
+
+              {/* Layout B : Mobile : tabs (1 recette visible à la fois) */}
+              <div className="md:hidden space-y-2">
+                {availableRanks.length > 1 && (
+                  <div className="flex gap-1 bg-muted/50 rounded-md p-1">
+                    {availableRanks.map(r => {
+                      const isActive = r === activeRankTab;
+                      const isDone = usedToday[r];
+                      return (
+                        <button
+                          key={r}
+                          onClick={() => setActiveRankTab(r)}
+                          className={`flex-1 text-xs font-body py-1.5 rounded transition-colors flex items-center justify-center gap-1 ${
+                            isActive
+                              ? "bg-background shadow-sm font-semibold"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <span>Rang {r}</span>
+                          {isDone && <span className="text-[10px]">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <RankRecipeCard
+                  rank={activeRankTab}
+                  status={inputsStatus[activeRankTab]}
+                  alreadyUsed={usedToday[activeRankTab]}
+                  profile={profile}
+                  submitting={submitting}
+                  onUse={handleUse}
+                  compact
+                />
+              </div>
+            </>
           )}
 
           {/* Section évolution */}

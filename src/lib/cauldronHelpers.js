@@ -140,19 +140,29 @@ export function getInputsForRank(dailyInputs, rank) {
 
 // ─── Vérification : a-t-il déjà utilisé son chaudron aujourd'hui ? ───────
 /**
- * Renvoie true si le joueur a déjà utilisé son chaudron aujourd'hui.
+ * Renvoie un objet { 1: bool, 2: bool, 3: bool } indiquant pour chaque rang
+ * si le joueur l'a déjà utilisé aujourd'hui.
+ *
+ * Le joueur peut désormais utiliser une recette par rang et par jour
+ * (ex: à rang 3, il peut cuisiner une recette rang 1, une rang 2 ET une rang 3
+ * sur la même journée).
  */
 export async function hasUsedCauldronToday(playerEmail) {
   const todayStr = new Date().toISOString().split("T")[0];
+  const result = { 1: false, 2: false, 3: false };
   try {
     const list = await base44.entities.CauldronUses.filter({
       player_email: playerEmail,
       cycle_date: todayStr,
     });
-    return list.length > 0;
+    for (const use of list) {
+      const r = Number(use.rank_used) || 1;
+      if (r >= 1 && r <= 3) result[r] = true;
+    }
+    return result;
   } catch (e) {
     console.warn("[Cauldron] hasUsedToday failed:", e);
-    return false;
+    return result;
   }
 }
 
