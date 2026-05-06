@@ -548,6 +548,8 @@ const _COVERED_ELSEWHERE_EFFECTS = new Set([
   "market_permit",      // consommé auto au marché, pas de bouton manuel
   "combat_attack",      // équipé, géré dans Combat
   "combat_defense_zone", // équipé, géré dans Combat
+  "repair_weapon",      // pierre : réparation gérée dans CombatEquipmentPanel
+  "repair_armor",       // laine_brute : réparation gérée dans CombatEquipmentPanel
 ]);
 // Sprint 4 : les items du chaudron magique ont leurs effets gérés par le helper
 // centralisé applyCauldronEffect (pas par le bouton "Manger" / "Installer" / etc.).
