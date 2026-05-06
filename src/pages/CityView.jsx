@@ -547,6 +547,15 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       toast.error(`${city.mayor_name} est déjà maire jusqu'au ${city.mayor_until}.`);
       return;
     }
+    // Protection : si une élection a eu lieu mais n'a pas encore été proclamée
+    // par le cron, on refuse pour éviter qu'un opportuniste écrase les candidats.
+    // Le cron suivant va proclamer le vainqueur. Le bouton "20 or" redeviendra
+    // disponible si zéro candidat (cas 4a).
+    const candidates = city.election_candidates || [];
+    if (candidates.length > 0) {
+      toast.error(`📜 Une élection est en cours avec ${candidates.length} candidat${candidates.length > 1 ? 's' : ''}. Attendez la proclamation à la prochaine aurore.`);
+      return;
+    }
     const hasPalais = (city.buildings || []).some(b => b.building_type === "palais");
     const effectiveMayorCost = MAYOR_COST_MAX;
     if ((profile.gold || 0) < effectiveMayorCost) {
