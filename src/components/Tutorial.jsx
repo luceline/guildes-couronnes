@@ -390,7 +390,7 @@ export default function Tutorial({ onClose }) {
                         }}
                         className={`w-full text-left px-3 py-2 rounded-md text-sm font-body transition-colors flex items-center gap-2 ${
                           isActive
-                            ? "bg-primary/10 text-primary font-semibold"
+                            ? "bg-primary text-primary-foreground font-semibold shadow-sm"
                             : "hover:bg-muted text-muted-foreground"
                         }`}
                       >
@@ -419,8 +419,8 @@ export default function Tutorial({ onClose }) {
                       onClick={() => goToStep(s.index)}
                       className={`w-full text-left p-2.5 rounded-md transition-colors flex items-center gap-2 ${
                         s.index === step
-                          ? "bg-primary/10 border border-primary/40"
-                          : "border border-transparent hover:bg-muted"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "border border-transparent hover:bg-muted text-foreground"
                       }`}
                     >
                       <span className="text-xl shrink-0">{s.icon}</span>
@@ -442,8 +442,8 @@ export default function Tutorial({ onClose }) {
                       onClick={() => goToStep(s.index)}
                       className={`text-[11px] font-body px-2 py-1 rounded transition-colors flex items-center gap-1 ${
                         s.index === step
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-card border border-border hover:bg-primary/5 text-muted-foreground hover:text-foreground"
+                          ? "bg-primary text-primary-foreground shadow-sm"
+                          : "bg-background border border-border hover:bg-primary/10 hover:border-primary/40 text-foreground"
                       }`}
                     >
                       <span>{s.icon}</span>
