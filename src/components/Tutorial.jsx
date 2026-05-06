@@ -390,7 +390,7 @@ export default function Tutorial({ onClose }) {
                         }}
                         className={`w-full text-left px-3 py-2 rounded-md text-sm font-body transition-colors flex items-center gap-2 ${
                           isActive
-                            ? "bg-primary text-primary-foreground font-semibold shadow-sm"
+                            ? "bg-amber-700 text-white font-semibold shadow-sm dark:bg-amber-500 dark:text-stone-900"
                             : "hover:bg-muted text-muted-foreground"
                         }`}
                       >
@@ -419,7 +419,7 @@ export default function Tutorial({ onClose }) {
                       onClick={() => goToStep(s.index)}
                       className={`w-full text-left p-2.5 rounded-md transition-colors flex items-center gap-2 ${
                         s.index === step
-                          ? "bg-primary text-primary-foreground shadow-sm"
+                          ? "bg-amber-700 text-white shadow-sm dark:bg-amber-500 dark:text-stone-900"
                           : "border border-transparent hover:bg-muted text-foreground"
                       }`}
                     >
@@ -442,8 +442,8 @@ export default function Tutorial({ onClose }) {
                       onClick={() => goToStep(s.index)}
                       className={`text-[11px] font-body px-2 py-1 rounded transition-colors flex items-center gap-1 ${
                         s.index === step
-                          ? "bg-primary text-primary-foreground shadow-sm"
-                          : "bg-background border border-border hover:bg-primary/10 hover:border-primary/40 text-foreground"
+                          ? "bg-amber-700 text-white shadow-sm dark:bg-amber-500 dark:text-stone-900"
+                          : "bg-stone-50 dark:bg-stone-800 border border-stone-300 dark:border-stone-600 hover:bg-amber-100 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200"
                       }`}
                     >
                       <span>{s.icon}</span>
