@@ -16,6 +16,15 @@ export default function AtelierVitrine({ profile, onRefresh }) {
   const [priceT2, setPriceT2]       = useState(vitrine.price_t2plus ?? 5);
   const [saving, setSaving]         = useState(false);
 
+  // Décomposition prix → artisan + ville (même formule que côté serveur dans
+  // AtelierCommande.jsx). La ville touche min 1 or par transaction.
+  const splitPrice = (price) => {
+    const ville = Math.min(price, Math.max(1, Math.round(price * 0.20)));
+    return { artisan: price - ville, ville };
+  };
+  const splitT1 = splitPrice(priceT1);
+  const splitT2 = splitPrice(priceT2);
+
   const toggle = async () => {
     setSaving(true);
     try {
@@ -78,6 +87,28 @@ export default function AtelierVitrine({ profile, onRefresh }) {
           <Button size="sm" variant="outline" className="h-7 text-xs font-heading" onClick={save} disabled={saving}>
             Sauvegarder
           </Button>
+        </div>
+
+        {/* ── Décomposition de chaque transaction ── */}
+        <div className="bg-muted/40 border border-border rounded-md p-2.5 text-xs font-body space-y-1.5">
+          <p className="font-heading font-semibold text-muted-foreground text-[11px] uppercase tracking-wide">
+            Sur chaque service rendu
+          </p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-muted-foreground">T1 ({priceT1}💰) :</span>
+            <span className="font-mono">vous recevez <strong className="text-emerald-700">{splitT1.artisan}💰</strong></span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-mono">commission ville <strong className="text-amber-700">{splitT1.ville}💰</strong></span>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-muted-foreground">T2+ ({priceT2}💰) :</span>
+            <span className="font-mono">vous recevez <strong className="text-emerald-700">{splitT2.artisan}💰</strong></span>
+            <span className="text-muted-foreground">·</span>
+            <span className="font-mono">commission ville <strong className="text-amber-700">{splitT2.ville}💰</strong></span>
+          </div>
+          <p className="text-[10px] text-muted-foreground italic pt-0.5">
+            La commission ville est de 20% du prix, avec un minimum de 1 or par transaction. Elle revient à la mairie de la ville où se trouve le client.
+          </p>
         </div>
         <Button
           size="sm"
