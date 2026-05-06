@@ -279,6 +279,7 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       last_travel_route_id: routeId,
       hunger:  costResult.newHunger,
       fatigue: costResult.newFatigue,
+      current_biome: null, // Mai 2026 : un voyage retire toujours du biome (par sécurité)
     };
 
     if (travelCost > 0) {

@@ -24,12 +24,14 @@ export async function handleTravelArrival(p) {
 
   // ── Arrivée dans un biome ──
   if (destId && destId.startsWith('biome:')) {
+    const biomeKey = destId.replace('biome:', '');
     await base44.entities.PlayerProfile.update(p.id, {
       is_traveling: false,
       travel_arrival_time: '',
+      current_biome: biomeKey, // Mai 2026 : tracking PvP/présence en biome
       // travel_destination_id conservé → CityPage détecte le biome
     });
-    p = { ...p, is_traveling: false, travel_arrival_time: '' };
+    p = { ...p, is_traveling: false, travel_arrival_time: '', current_biome: biomeKey };
 
     // Valider les quêtes travel (biome compte comme voyage)
     await _validateTravelQuests(p);
@@ -47,6 +49,7 @@ export async function handleTravelArrival(p) {
     travel_destination_id: '',
     travel_arrival_time: '',
     visited_cities: visited,
+    current_biome: null, // Mai 2026 : on quitte le biome en arrivant en ville
   };
 
   // Péage remparts

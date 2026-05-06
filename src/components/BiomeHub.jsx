@@ -13,18 +13,22 @@ import { isBiomeBuffActive, activateBiomeBuff } from "../lib/playerBuffs";
 import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import CombatEpic from "./combat/CombatEpic";
 import HelpTooltip from "./HelpTooltip";
+import BiomePlayersList from "./BiomePlayersList";
 
 // ──────────────────────────────────────────────
 // RÉCOLTE AFK : config par biome
 // Chaque biome rapporte la ressource T1 principale du métier associé
 // ──────────────────────────────────────────────
+// Mai 2026 : ajout jardin (herbes) et carriere (quartz_brut)
 const BIOME_HARVEST = {
-  foret:   { item_key: "bois_brut",    item_name: "Bois brut",      item_category: "bois",      icon: "🪵" },
-  champs:  { item_key: "ble",          item_name: "Blé",             item_category: "nourriture", icon: "🌾" },
-  mine:    { item_key: "pierre",       item_name: "Pierre",          item_category: "pierre",    icon: "🧱" },
-  atelier: { item_key: "laine_brute",  item_name: "Laine brute",     item_category: "tissu",     icon: "🧶" },
-  forge:   { item_key: "minerai_fer",  item_name: "Minerai de fer",  item_category: "fer",       icon: "⚙️" },
-  guilde:  { item_key: "tissu",        item_name: "Tissu",           item_category: "tissu",     icon: "🧵" },
+  foret:    { item_key: "bois_brut",    item_name: "Bois brut",      item_category: "bois",       icon: "🪵" },
+  champs:   { item_key: "ble",          item_name: "Blé",             item_category: "nourriture", icon: "🌾" },
+  mine:     { item_key: "pierre",       item_name: "Pierre",          item_category: "pierre",     icon: "🧱" },
+  atelier:  { item_key: "laine_brute",  item_name: "Laine brute",     item_category: "tissu",      icon: "🧶" },
+  forge:    { item_key: "minerai_fer",  item_name: "Minerai de fer",  item_category: "fer",        icon: "⚙️" },
+  guilde:   { item_key: "tissu",        item_name: "Tissu",           item_category: "tissu",      icon: "🧵" },
+  jardin:   { item_key: "herbes",       item_name: "Herbes",          item_category: "alchimie",   icon: "🌿" },
+  carriere: { item_key: "quartz_brut",  item_name: "Quartz brut",     item_category: "quartz",     icon: "🔮" },
 };
 
 const HARVEST_COST_PER_UNIT = 3;   // or détruit par unité récoltée
@@ -77,13 +81,25 @@ const MONSTERS_DATA = [
 // dans @/lib/rareResources, sinon les XP rares ne s'activent pas et l'inventaire
 // ne reconnait pas les drops. Si vous ajoutez une ressource rare, créez-la en
 // premier dans rareResources.js puis ici.
+// ──────────────────────────────────────────────
+// BIOME_RARES : ressource rare propre à chaque biome
+// ──────────────────────────────────────────────
+// Mai 2026 : retrait de la liste `professions`. Tous les joueurs sont
+// désormais traités à égalité dans un biome (drops rares et buffs).
+// La profession ne donne plus de bonus dans aucun biome.
+//
+// Si tu ajoutes une ressource rare ici, crée-la AUSSI dans rareResources.js
+// sinon le système ne reconnaît pas le drop.
 const BIOME_RARES = {
-  foret:   { key: "essence_foret",      name: "Essence forestière",  icon: "🌿", professions: ["Bûcheron", "Alchimiste"] },
-  champs:  { key: "poussiere_moisson",  name: "Poussière de récolte",icon: "🌾", professions: ["Fermier"] },
-  mine:    { key: "fragment_cristal",   name: "Fragment cristallin", icon: "💎", professions: ["Mineur"] },
-  atelier: { key: "fil_or",             name: "Fil d'or",            icon: "🧵", professions: ["Tisserand"] },
-  forge:   { key: "lingot_runique",     name: "Lingot runique",      icon: "🔥", professions: ["Forgeron", "Orfèvre"] },
-  guilde:  { key: "sceau_guilde",       name: "Sceau de la guilde",  icon: "🏛️", professions: ["Marchand"] },
+  foret:    { key: "essence_foret",      name: "Essence forestière",   icon: "🌿" },
+  champs:   { key: "poussiere_moisson",  name: "Poussière de récolte", icon: "🌾" },
+  mine:     { key: "fragment_cristal",   name: "Fragment cristallin",  icon: "💎" },
+  atelier:  { key: "fil_or",             name: "Fil d'or",             icon: "🧵" },
+  forge:    { key: "lingot_runique",     name: "Lingot runique",       icon: "🔥" },
+  guilde:   { key: "sceau_guilde",       name: "Sceau de la guilde",   icon: "🏛️" },
+  // Mai 2026 : 2 nouveaux biomes égalitaires (pas de profession associée)
+  jardin:   { key: "essence_jardin",     name: "Essence du jardin",    icon: "🌸" },
+  carriere: { key: "eclat_amethyste",    name: "Éclat d'améthyste",    icon: "💜" },
 };
 
 function generateMonstresForDay(biomeKey) {
@@ -124,13 +140,15 @@ function getWinProbability(playerScore, monsterScore) {
   return 0.05;
 }
 
-function getRareDropRate(monsterScore, hasMetierBonus = false) {
-  const base = monsterScore === 1 ? 0.10 : monsterScore === 2 ? 0.12 : 0.15;
-  return hasMetierBonus ? base + 0.05 : base;
+function getRareDropRate(monsterScore) {
+  // Mai 2026 : taux unique pour tous les joueurs, plus de bonus métier
+  return monsterScore === 1 ? 0.10 : monsterScore === 2 ? 0.12 : 0.15;
 }
 
 const BIOME_TRAVEL_TIMES = {
   foret: 5, champs: 5, mine: 8, atelier: 10, forge: 10, guilde: 12,
+  // Mai 2026 : 2 nouveaux biomes
+  jardin: 6, carriere: 8,
 };
 
 const MASTERY_TIERS = [
@@ -155,7 +173,8 @@ function getMasteryInfo(biomeKey, masteryData) {
  * Écrit le résultat en BDD et retourne { victory, goldReward, rareDropped, rareKey, monsterName, monsterIcon }.
  */
 async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
-  const hasMetierBonus = BIOME_RARES[biomeKey].professions.includes(profile.profession);
+  // Mai 2026 : biomes égalitaires, plus de profession associée. Tous les
+  // joueurs ont les mêmes drops et le même buff post-victoire.
   // Refonte avril 2026 : retrait de l'apport des items combat sur les monstres.
   // Le score joueur est désormais basé uniquement sur la maîtrise du biome.
   // (système combat zoné réservé au PvP)
@@ -189,7 +208,7 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
   if (victory) {
     goldReward = monster.score === 1 ? 5 : monster.score === 2 ? 7 : 10;
     const masteryInfo = getMasteryInfo(biomeKey, profile.biome_mastery);
-    let rareRate = getRareDropRate(monster.score, hasMetierBonus) + (masteryInfo.bonusPercent / 100);
+    let rareRate = getRareDropRate(monster.score) + (masteryInfo.bonusPercent / 100);
     if (rng2 < rareRate) {
       rareKey = BIOME_RARES[biomeKey].key;
       const existing = newInventory.find(i => i.item_key === rareKey);
@@ -223,7 +242,9 @@ async function resolveCombat(profile, biomeKey, biomeData, monsterId) {
     // (et le classement Chasseurs) reflète UNIQUEMENT les kills en épopée
     // (CombatEpic). Le BiomeHub continue à lire biome_mastery pour ses paliers
     // de bonus drop, mais c'est une lecture seule.
-    if (hasMetierBonus && !isBiomeBuffActive(profile)) {
+    // Mai 2026 : buff biome universel, plus de condition métier. Tout joueur
+    // qui gagne un combat dans un biome obtient le buff cooldown −10% pendant 1h.
+    if (!isBiomeBuffActive(profile)) {
       profileUpdates.biome_cooldown_bonus_value = 0.10;
       activateBiomeBuff(profileUpdates, { value: 0.10 });
     }
@@ -382,6 +403,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         travel_arrival_time: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
         hunger:  costResult.newHunger,
         fatigue: costResult.newFatigue,
+        current_biome: null, // Pendant le voyage on n'est pas encore dans le biome
       });
       toast.success(`🐴 Votre monture s'élance vers ${biomeInfo.name} : soyez prêt au combat dans 2 min.`);
       onRefresh?.();
@@ -551,7 +573,6 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
   const masteryInfoForDisplay = getMasteryInfo(biomeKey, profile.biome_mastery);
   const playerAttack = masteryInfoForDisplay?.level || 0;
   const monstresDisponibles = (biomeData?.monstres_du_jour || []).filter(m => !m.combattu);
-  const hasMetierBonus = BIOME_RARES[biomeKey].professions.includes(profile.profession);
   const cityTier = getCityTier(city?.lingots_cumul || 0);
   const maxCombats = 5 + (cityTier.extraBiomeCombat || 0);
 
@@ -921,6 +942,16 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
         );
       })()}
 
+      {/* Liste des joueurs présents dans le biome (Mai 2026) */}
+      {!combatInProgress && (
+        <BiomePlayersList
+          profile={profile}
+          biomeKey={biomeKey}
+          biomeInfo={biomeInfo}
+          onRefresh={onRefresh}
+        />
+      )}
+
       {/* Bouton quitter le biome : toujours visible */}
       {!combatInProgress && (
         <div className="bg-muted/40 border border-border rounded-lg p-3 flex items-center justify-between">
@@ -934,6 +965,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
                 is_traveling: true,
                 travel_destination_id: profile.city_id,
                 travel_arrival_time: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+                current_biome: null, // On quitte le biome immédiatement (intransitable)
               });
               toast.success("🐴 Vous prenez le chemin du retour : la ville n'est plus qu'à quelques lieues.");
               onRefresh?.();
@@ -955,6 +987,7 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
                 is_traveling: true,
                 travel_destination_id: profile.city_id,
                 travel_arrival_time: new Date(Date.now() + 2 * 60 * 1000).toISOString(),
+                current_biome: null, // On quitte le biome immédiatement (intransitable)
               });
               toast.success("🐴 Vous prenez le chemin du retour : la ville n'est plus qu'à quelques lieues.");
               onRefresh?.();

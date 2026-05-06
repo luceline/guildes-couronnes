@@ -10,12 +10,15 @@
  *
  * Désormais, tout vit ici. biomeData.js est obsolète.
  *
+ * MAI 2026 : refonte égalitaire. Le champ `profession` est conservé à titre
+ * de LORE (texte d'ambiance) mais n'a PLUS aucun effet gameplay. Tous les
+ * joueurs sont traités à égalité dans tous les biomes (drops, buffs, etc.).
+ *
  * Usage :
  *   import { BIOMES, getBiomeName, getBiomeIcon, getBiomeProfession } from "@/lib/biomes";
  *   const label = getBiomeName("foret");          // "Forêt ancestrale"
  *   const short = getBiomeName("foret", true);    // "Forêt"
  *   const icon  = getBiomeIcon("forge");          // "🔥"
- *   const prof  = getBiomeProfession("mine");     // "Mineur"
  *   const desc  = BIOMES.foret.description;       // narratif long
  */
 
@@ -24,43 +27,50 @@ export const BIOMES = {
     name: "Forêt ancestrale",
     short: "Forêt",
     icon: "🌲",
-    profession: "Bûcheron",
-    description: "Les grands arbres murmurent des secrets anciens. Bûcherons et Alchimistes y trouvent leur subsistance : bois noueux et herbes rares poussent à l'abri des frondaisons.",
+    description: "Les grands arbres murmurent des secrets anciens. Bois noueux et herbes rares y poussent à l'abri des frondaisons.",
   },
   champs: {
     name: "Champs dorés",
     short: "Champs",
     icon: "🌾",
-    profession: "Fermier",
-    description: "À perte de vue, les épis se balancent sous le vent. Seul le Fermier connaît ces terres comme sa paume : chaque sillon lui appartient.",
+    description: "À perte de vue, les épis se balancent sous le vent. Chaque sillon recèle la promesse d'une moisson généreuse.",
   },
   mine: {
     name: "Mines profondes",
     short: "Mine",
     icon: "⛏️",
-    profession: "Mineur",
-    description: "Les galeries résonnent de coups sourds. Le Mineur y descend chercher ce que la terre cache jalousement dans ses entrailles.",
+    description: "Les galeries résonnent de coups sourds. La terre y cache jalousement ses richesses dans ses entrailles.",
   },
   atelier: {
     name: "Atelier des artisans",
     short: "Atelier",
     icon: "🧵",
-    profession: "Tisserand",
-    description: "Métiers à tisser, bobines et fils colorés : le domaine du Tisserand. Ici les étoffes naissent de la patience et de la dextérité.",
+    description: "Métiers à tisser, bobines et fils colorés : ici les étoffes naissent de la patience et de la dextérité.",
   },
   forge: {
     name: "Forge du destin",
     short: "Forge",
     icon: "🔥",
-    profession: "Forgeron",
-    description: "La chaleur des brasiers rougeoie nuit et jour. Forgeron et Orfèvre y façonnent acier et métaux précieux, liant leur art à la flamme.",
+    description: "La chaleur des brasiers rougeoie nuit et jour. Acier et métaux précieux s'y façonnent au son du marteau.",
   },
   guilde: {
     name: "Guilde des marchands",
     short: "Guilde",
     icon: "🏛️",
-    profession: "Marchand",
-    description: "Sous les colonnes de la Guilde, le Marchand règne. Contrats, autorisations et pièces d'or circulent dans un ballet que lui seul maîtrise.",
+    description: "Sous les colonnes de la Guilde, contrats, autorisations et pièces d'or circulent dans un ballet incessant.",
+  },
+  // ── Biomes ajoutés mai 2026 ──
+  jardin: {
+    name: "Jardin somptueux",
+    short: "Jardin",
+    icon: "🌸",
+    description: "Un labyrinthe végétal où les plantes médicinales abondent. Les herbes rares y ondoient sous une brise parfumée, gardées par des créatures discrètes.",
+  },
+  carriere: {
+    name: "Carrière d'améthyste",
+    short: "Carrière",
+    icon: "💜",
+    description: "Une faille violette dans la roche, où les cristaux affleurent au moindre coup de pioche. Les éclats luisent dans la pénombre, attirant chasseurs comme curieux.",
   },
 };
 

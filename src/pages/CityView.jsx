@@ -290,9 +290,15 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
         base44.entities.TravelRoute.list(),
         base44.entities.City.list(),
       ]);
+      // Mai 2026 : exclure les joueurs actuellement dans un biome ou en voyage.
+      // Ils ne sont plus considérés comme "physiquement" dans la ville.
+      // Cela rend impossible de les défier depuis la ville et permet le "se cacher".
+      const isPhysicallyInCity = (p) => !p.is_traveling && !p.current_biome;
+      const filteredPresent = (presentPlayers || []).filter(isPhysicallyInCity);
+      const filteredResidents = (residentPlayers || []).filter(isPhysicallyInCity);
       // Fusionner sans doublons
-      const allIds = new Set(presentPlayers.map(p => p.id));
-      const merged = [...presentPlayers, ...residentPlayers.filter(p => !allIds.has(p.id))];
+      const allIds = new Set(filteredPresent.map(p => p.id));
+      const merged = [...filteredPresent, ...filteredResidents.filter(p => !allIds.has(p.id))];
       setCityPlayers(merged);
       setRoutes(allRoutes);
       setAllCitiesForMilitary(allCities.filter(c => !c.is_bot_city));
@@ -545,15 +551,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     }
     if (mayorActive) {
       toast.error(`${city.mayor_name} est déjà maire jusqu'au ${city.mayor_until}.`);
-      return;
-    }
-    // Protection : si une élection a eu lieu mais n'a pas encore été proclamée
-    // par le cron, on refuse pour éviter qu'un opportuniste écrase les candidats.
-    // Le cron suivant va proclamer le vainqueur. Le bouton "20 or" redeviendra
-    // disponible si zéro candidat (cas 4a).
-    const candidates = city.election_candidates || [];
-    if (candidates.length > 0) {
-      toast.error(`📜 Une élection est en cours avec ${candidates.length} candidat${candidates.length > 1 ? 's' : ''}. Attendez la proclamation à la prochaine aurore.`);
       return;
     }
     const hasPalais = (city.buildings || []).some(b => b.building_type === "palais");

@@ -34,10 +34,14 @@ import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/quest
 const ZONE_LABELS = { head: "Tête", torso: "Torse", arms: "Bras", legs: "Jambes" };
 const ZONE_ICONS  = { head: "🪖",   torso: "🛡️",   arms: "💪",   legs: "🦵" };
 
-export default function ChallengeForm({ attacker, target, city, onClose, onCreated, isRiposte = false, parentChallengeId = "" }) {
+export default function ChallengeForm({ attacker, target, city, onClose, onCreated, isRiposte = false, parentChallengeId = "", context = null }) {
   const [selectedZone, setSelectedZone] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [validation, setValidation] = useState({ ok: true });
+
+  // Détermine si on est en biome ou en ville (pour les libellés et le payload)
+  const biomeKey = context?.biome || null;
+  const isBiomeFight = !!biomeKey;
 
   useEffect(() => {
     let active = true;
@@ -53,7 +57,10 @@ export default function ChallengeForm({ attacker, target, city, onClose, onCreat
           challenge_date: today,
         }, "-created", 50);
         if (!active) return;
-        const ctx = { city_id: city?.id || attacker.city_id, biome: null };
+        // Si on est en biome, le contexte est { biome: "foret" } ; sinon, ville classique
+        const ctx = isBiomeFight
+          ? { city_id: null, biome: biomeKey }
+          : { city_id: city?.id || attacker.city_id, biome: null };
         setValidation(canChallenge(attacker, target, mine, ctx));
       } catch (e) { console.warn("Load today challenges:", e); }
     }
@@ -92,10 +99,10 @@ export default function ChallengeForm({ attacker, target, city, onClose, onCreat
         attacker_name:  attacker.character_name || "",
         defender_email: target.user_email,
         defender_name:  target.character_name || "",
-        city_id:   city?.id || attacker.city_id || "",
-        city_name: city?.name || "",
-        biome:     "",
-        context:   "city",
+        city_id:   isBiomeFight ? "" : (city?.id || attacker.city_id || ""),
+        city_name: isBiomeFight ? "" : (city?.name || ""),
+        biome:     isBiomeFight ? biomeKey : "",
+        context:   isBiomeFight ? "biome" : "city",
         attack_zone: selectedZone,
         attack_weapon_key: weapon ? weapon.item_key : "",
         defense_zone: "",
@@ -119,8 +126,10 @@ export default function ChallengeForm({ attacker, target, city, onClose, onCreat
         await base44.entities.TavernMessage.create({
           author_email: attacker.user_email,
           author_name:  attacker.character_name || "",
-          city_id:      city?.id || "",
-          message:      `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} ${city?.name ? `à ${city.name}` : ""}. Que la lame trouve sa cible !`,
+          city_id:      isBiomeFight ? "" : (city?.id || ""),
+          message:      isBiomeFight
+            ? `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} dans le ${biomeKey}. Que la lame trouve sa cible !`
+            : `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} ${city?.name ? `à ${city.name}` : ""}. Que la lame trouve sa cible !`,
           type:         "combat",
         });
       } catch (e) { /* silent */ }
@@ -186,7 +195,7 @@ export default function ChallengeForm({ attacker, target, city, onClose, onCreat
             <Sword className="h-5 w-5 text-red-600" /> Défier {target.character_name || target.user_email}
           </h2>
           <p className="text-xs font-body text-muted-foreground mt-1">
-            Combat zoné PvP {city?.name ? `à ${city.name}` : ""}
+            Combat zoné PvP {isBiomeFight ? `dans le ${biomeKey}` : (city?.name ? `à ${city.name}` : "")}
           </p>
         </div>
 
