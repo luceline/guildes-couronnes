@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Building2, Hammer, Sword, BookOpen, Menu, X, Settings, HelpCircle, Moon, Sun, MoreHorizontal, MessageCircle, Bug } from "lucide-react";
+import { Home, Building2, Hammer, Sword, BookOpen, Menu, X, Settings, HelpCircle, Moon, Sun, MoreHorizontal, MessageCircle, Bug, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,7 @@ export default function GameLayout() {
   const [navItems, setNavItems] = useState(BASE_NAV);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showBugReport, setShowBugReport] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
   // Profil et ville actuelle pour le label dynamique du bouton "Cité"
   const [profile, setProfile] = useState(null);
@@ -184,6 +185,40 @@ export default function GameLayout() {
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
       {showBugReport && <BugReportModal onClose={() => setShowBugReport(false)} />}
 
+      {/* ── Modale de confirmation déconnexion ── */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-lg shadow-2xl max-w-sm w-full p-5 space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">🚪</span>
+              <h2 className="font-heading text-lg font-semibold">Se déconnecter ?</h2>
+            </div>
+            <p className="text-sm font-body text-muted-foreground">
+              Vous reviendrez à l'écran de connexion. Votre progression est sauvegardée et vous pourrez vous reconnecter à tout moment.
+            </p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="font-heading"
+                onClick={() => setShowLogoutConfirm(false)}
+              >
+                Annuler
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="font-heading bg-red-600 hover:bg-red-700"
+                onClick={() => base44.auth.logout()}
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Déconnexion
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Top Bar ── */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
@@ -250,6 +285,17 @@ export default function GameLayout() {
               <HelpCircle className="h-4 w-4" />
               Aide
             </Button>
+            {/* Déconnexion */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 font-body text-sm text-muted-foreground hover:text-red-700"
+              onClick={() => setShowLogoutConfirm(true)}
+              title="Se déconnecter"
+            >
+              <LogOut className="h-4 w-4" />
+              Déconnexion
+            </Button>
           </nav>
 
           {/* Mobile right side: theme + bug + help + menu toggle */}
@@ -306,6 +352,14 @@ export default function GameLayout() {
             >
               <HelpCircle className="h-4 w-4" />
               Aide / Tutoriel
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 font-body text-muted-foreground hover:text-red-700"
+              onClick={() => { setShowLogoutConfirm(true); setMobileOpen(false); }}
+            >
+              <LogOut className="h-4 w-4" />
+              Se déconnecter
             </Button>
           </nav>
         )}
