@@ -1,4 +1,36 @@
 // Game constants and helper data
+//
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║                                                                          ║
+// ║  ⚠️  CE FICHIER A UN MIROIR CÔTÉ SERVEUR  ⚠️                               ║
+// ║                                                                          ║
+// ║  Une copie partielle de ce fichier vit sur le VPS prod, dans :          ║
+// ║    /opt/guildes/server_reset_v2/lib/gameData.js                         ║
+// ║                                                                          ║
+// ║  Le serveur l'utilise pour le cron quotidien (06:00 UTC) qui prélève    ║
+// ║  les ressources d'entretien, les impôts, les salaires, etc.             ║
+// ║                                                                          ║
+// ║  Les zones À RISQUE (modifs à répercuter aussi côté serveur) :          ║
+// ║    - BUILDING_TYPES        (entretien des bâtiments)                    ║
+// ║    - HOUSING_MAINTENANCE   (entretien logement personnel)               ║
+// ║    - MAYOR_DAYS            (durée du mandat)                            ║
+// ║    - MAYOR_COST_MAX        (coût du trône)                              ║
+// ║    - PARCHEMIN_REWARDS     (récompenses Parchemin royal)                ║
+// ║    - WAREHOUSE_BUYBACK_PRICES (prix de rachat entrepôt)                 ║
+// ║    - getCityDailyMaintenance() (formule entretien total ville)          ║
+// ║                                                                          ║
+// ║  Les zones SANS IMPACT serveur (UI seulement, modif libre) :            ║
+// ║    - PROFESSIONS, ITEM_CATEGORIES, COMBAT_ZONE_LABELS, etc.             ║
+// ║                                                                          ║
+// ║  Pour vérifier la sync :                                                 ║
+// ║    diff <(grep maintenance src/lib/gameData.js) \\                       ║
+// ║         <(ssh root@vps "grep maintenance /opt/guildes/server_reset_v2/lib/gameData.js")
+// ║                                                                          ║
+// ║  Historique des bugs liés à la désynchro :                              ║
+// ║    - mai 2026 : maison disait "1 planche" mais prélevait "1 bois brut" ║
+// ║                  pendant plusieurs semaines (fix : bois_brut partout)   ║
+// ║                                                                          ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
 import { ITEMS as ITEMS_DEF } from "./craftingData.js";
 
 // ── Admin access list ──
@@ -948,7 +980,22 @@ export function applyRandomActionCost(profile, cost = 1, opts = {}) {
   }
 }
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️  ATTENTION : MIROIR SERVEUR
+// ═══════════════════════════════════════════════════════════════════════════
+// BUILDING_TYPES est DUPLIQUÉ côté serveur dans :
+//   /opt/guildes/server_reset_v2/lib/gameData.js  (sur le VPS prod)
+//
+// Toute modification sur les `maintenance`, `costBase`, ou `category` d'un
+// bâtiment DOIT être répercutée côté serveur, sinon le cron quotidien
+// prélèvera des ressources différentes de ce que le client affiche.
+//
+// Historique : un bug a fait que la maison disait "1 planche" côté client
+// mais prélevait "1 bois brut" côté serveur pendant plusieurs semaines.
+//
+// Pour synchroniser : scp ce fichier vers le serveur, ou éditer manuellement
+// la même ligne dans les deux fichiers en parallèle.
+// ═══════════════════════════════════════════════════════════════════════════
 // BUILDING TYPES — complete system
 // ─────────────────────────────────────────────
 export const BUILDING_TYPES = {
