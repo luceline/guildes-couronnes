@@ -204,7 +204,64 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
     });
   }
 
-  // Passifs inventaire
+  // ── Buffs CHAUDRON (refonte mai 2026 : tous visibles dans la status bar) ──
+
+  // 🍀 Trèfle de chance : +X% drop sur prochaine épopée
+  if ((profile.next_epopee_drop_bonus || 0) > 0) {
+    const pct = Math.round((profile.next_epopee_drop_bonus || 0) * 100);
+    buffs.push({
+      icon: "🍀", label: `+${pct}% drop épopée`, detail: "prochaine épopée",
+      tooltip: `Trèfle de chance actif : +${pct}% de chance de drop bonus par mob tué lors de votre prochaine épopée. Consommé à la fin de l'épopée.`,
+      color: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    });
+  }
+
+  // 🪙 Pièce porte-bonheur : +X% gain or sur prochaine épopée
+  if ((profile.next_epopee_gold_bonus || 0) > 0) {
+    const pct = Math.round((profile.next_epopee_gold_bonus || 0) * 100);
+    buffs.push({
+      icon: "🪙", label: `+${pct}% or épopée`, detail: "prochaine épopée",
+      tooltip: `Pièce porte-bonheur active : +${pct}% d'or gagné lors de votre prochaine épopée. Consommée à la fin de l'épopée.`,
+      color: "text-yellow-700 bg-yellow-50 border-yellow-200",
+    });
+  }
+
+  // 💨 Plume de vent : compteur de voyages gratuits
+  if ((profile.free_travels_remaining || 0) > 0) {
+    const n = profile.free_travels_remaining;
+    buffs.push({
+      icon: "💨", label: `${n} voyage${n > 1 ? "s" : ""} gratuit${n > 1 ? "s" : ""}`, detail: "frais + péage",
+      tooltip: `Plume de vent active : ${n} voyage${n > 1 ? "s" : ""} sans frais de route ni péage. Consommée à chaque voyage.`,
+      color: "text-sky-700 bg-sky-50 border-sky-200",
+    });
+  }
+
+  // 🔥 Pierre de feu : -30% durée crafts
+  if (profile.craft_speed_buff_until && new Date(profile.craft_speed_buff_until) > new Date(now)) {
+    const t = formatDuration(new Date(profile.craft_speed_buff_until).getTime() - now);
+    const pct = Math.round((profile.craft_speed_buff_value || 0.30) * 100);
+    buffs.push({
+      icon: "🔥", label: `−${pct}% durée craft`, detail: `(${t})`,
+      tooltip: `Pierre de feu active : durée de tous vos crafts réduite de ${pct}%. Expire dans ${t}.`,
+      color: "text-red-700 bg-red-50 border-red-200",
+    });
+  }
+
+  // 🎯 Œil de l'archer : épopée bonus disponible (sans or)
+  if (profile.epopee_bonus_no_gold) {
+    buffs.push({
+      icon: "🎯", label: "Épopée bonus", detail: "sans or",
+      tooltip: "Œil de l'archer activé : votre prochaine épopée du jour est rejouable mais ne rapportera AUCUN or (drops biome rares + XP de maîtrise conservés).",
+      color: "text-purple-700 bg-purple-50 border-purple-200",
+    });
+  }
+
+  // 🛡️ Talisman de protection : dôme actif sur la ville d'origine.
+  // Note : le dôme est stocké dans la collection ProtectionDome (pas sur le profil).
+  // Pour l'afficher ici il faudrait charger l'état du dôme côté ville. On le laisse
+  // en TODO : c'est déjà visible sur la page de la ville (CityView affiche le dôme).
+
+  // ── Passifs inventaire
   const cdSource = getBestPassiveCooldownSource(profile);
   if (cdSource) {
     buffs.push({

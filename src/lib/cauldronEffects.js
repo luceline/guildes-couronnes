@@ -77,23 +77,28 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
   }
 
   if (itemDef.effect === "next_travel_free") {
-    // Plume de vent
-    updates.next_travel_free = true;
-    return { handled: true, updates };
+    // Plume de vent : ajoute 3 voyages gratuits (cumulable avec le stock existant)
+    const add = itemDef.value || 3;
+    const prev = profile.free_travels_remaining || 0;
+    updates.free_travels_remaining = prev + add;
+    toastMessage = `💨 ${add} voyages gratuits invoqués (stock : ${prev + add}).`;
+    return { handled: true, updates, toastMessage };
   }
 
   if (itemDef.effect === "craft_speed_buff") {
-    // Pierre de feu : -30% durée crafts pendant 4h
-    const expiresAt = new Date(Date.now() + (itemDef.duration_h || 4) * 3600000).toISOString();
+    // Pierre de feu : -30% durée crafts pendant 6h (refonte mai 2026 : 4h → 6h)
+    const expiresAt = new Date(Date.now() + (itemDef.duration_h || 6) * 3600000).toISOString();
     updates.craft_speed_buff_until = expiresAt;
     updates.craft_speed_buff_value = itemDef.value || 0.30;
     return { handled: true, updates };
   }
 
-  if (itemDef.effect === "energy_max_or_gold") {
-    // Pierre énergétique : +30 or fixe (simplification : on ne donne plus +1 énergie max permanente)
-    updates.gold = (profile.gold || 0) + (itemDef.alt_value || 30);
-    toastMessage = `⚡ +${itemDef.alt_value || 30}💰 ! La Pierre énergétique vous récompense.`;
+  if (itemDef.effect === "fatigue_max_restore") {
+    // Pierre énergétique : restaure entièrement l'énergie courante au max
+    const maxF = getMaxFatigue ? getMaxFatigue(profile, 0) : 20;
+    const before = profile.fatigue ?? 0;
+    updates.fatigue = maxF;
+    toastMessage = `⚡ Énergie restaurée : ${before} → ${maxF}. Vous voilà revigoré !`;
     return { handled: true, updates, toastMessage };
   }
 
@@ -103,19 +108,45 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
     return { handled: true, updates };
   }
 
-  if (itemDef.effect === "next_t4_no_tool") {
-    // Parchemin de craft
-    updates.next_t4_no_tool = true;
-    return { handled: true, updates };
+  if (itemDef.effect === "grant_random_t3") {
+    // Parchemin de craft : conjure N T3 aléatoires parmi le pool de production.
+    // Pool aligné avec T3_POOL du chaudron serveur (cauldron.js) : meuble, lingots_fer,
+    // tissu, outils, potion_soin, lingots_or, parchemin, pain, contrat_artisan.
+    const T3_GRANT_POOL = [
+      { key: "meuble",          name: "Meuble",            icon: "🪑", category: "meubles" },
+      { key: "lingots_fer",     name: "Lingots de fer",    icon: "🔩", category: "fer" },
+      { key: "tissu",           name: "Tissu",             icon: "🧵", category: "tissu" },
+      { key: "outils",          name: "Outils",            icon: "🔧", category: "outils" },
+      { key: "potion_soin",     name: "Potion de soin",    icon: "🧪", category: "potions" },
+      { key: "lingots_or",      name: "Lingots d'or",      icon: "🏅", category: "or" },
+      { key: "parchemin",       name: "Parchemin",         icon: "📜", category: "parchemins" },
+      { key: "pain",            name: "Pain",              icon: "🍞", category: "nourriture" },
+      { key: "contrat_artisan", name: "Contrat d'artisan", icon: "📋", category: "parchemins" },
+    ];
+    const count = itemDef.value || 2;
+    const granted = [];
+    for (let i = 0; i < count; i++) {
+      const pick = T3_GRANT_POOL[Math.floor(Math.random() * T3_GRANT_POOL.length)];
+      granted.push(pick);
+    }
+    // Renvoie l'info pour que l'appelant ajoute à l'inventaire (besoin de addToInventory)
+    return {
+      handled: true,
+      updates,
+      grantItems: granted,
+      toastMessage: `🪄 Le parchemin se déchire en lumière : ${granted.map(g => `${g.icon} ${g.name}`).join(" et ")} !`,
+    };
   }
 
   if (itemDef.effect === "reset_epopee") {
-    // Trèfle de chance / Œil d'archer : reset complet de l'épopée du jour pour permettre d'en relancer une
+    // Œil de l'archer : reset complet de l'épopée du jour pour permettre d'en relancer une.
+    // Mais l'épopée bonus ne rapporte AUCUN or (drops biome rares + XP de maîtrise conservés).
     updates.combat_last_date = "";
     updates.combat_active_biome = "";
     updates.combat_wave_index = 0;
     updates.combat_total_gold = 0;
     updates.combat_total_drops = 0;
+    updates.epopee_bonus_no_gold = true; // flag lu par CombatEpic pour mettre les gains or à 0
     return { handled: true, updates };
   }
 
@@ -131,7 +162,9 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
   }
 
   if (itemDef.effect === "spy_city") {
-    return { needsTarget: "spy_city" };
+    // Hibou messager : retourne la cible nécessaire ET la value (or volé).
+    // L'appelant utilise executeSpyCity qui combine espionnage + vol.
+    return { needsTarget: "spy_city", value: itemDef.value || 0 };
   }
 
   return null;
@@ -242,10 +275,12 @@ export async function executeStealTreasury(profile, targetCity, value, itemName)
 }
 
 /**
- * Exécute l'effet "spy_city" : récupère les infos de la ville cible.
+ * Exécute l'effet "spy_city" : récupère les infos de la ville cible
+ * ET vole un montant fixe (Hibou messager refondu mai 2026).
+ * Bloqué par un dôme de protection actif.
  * Crée aussi un message anonyme dans la taverne ciblée.
  */
-export async function executeSpyCity(profile, targetCity) {
+export async function executeSpyCity(profile, targetCity, stealValue = 0, itemName = "Hibou messager") {
   if (!targetCity) {
     return { error: "Aucune ville sélectionnée." };
   }
@@ -258,11 +293,29 @@ export async function executeSpyCity(profile, targetCity) {
     const fresh = await base44.entities.City.get(targetCity.id).catch(() => null);
     const cityToSpy = fresh || targetCity;
 
-    // Vérifie le dôme actif (info incluse dans le rapport mais ne bloque pas)
+    // Vérifie le dôme actif. Mai 2026 : le Hibou est désormais BLOQUÉ par le dôme
+    // (puisqu'il vole de l'or). Item consommé sans effet si protection active.
     const dome = await checkCityDome(cityToSpy.id);
+    if (dome.protected) {
+      return {
+        blocked: true,
+        toastMessage: `❌ ${cityToSpy.name} est protégée par un Talisman ! Votre ${itemName} est repoussé sans effet.`,
+      };
+    }
 
     // Inventaire entrepôt
     const warehouse = cityToSpy.warehouse || {};
+
+    // Vol effectif (capé par la trésorerie disponible)
+    let stolenAmount = 0;
+    if (stealValue > 0) {
+      stolenAmount = Math.min(stealValue, cityToSpy.gold_treasury || 0);
+      if (stolenAmount > 0) {
+        await base44.entities.City.update(cityToSpy.id, {
+          gold_treasury: (cityToSpy.gold_treasury || 0) - stolenAmount,
+        });
+      }
+    }
 
     // Message anonyme dans la taverne ciblée
     try {
@@ -270,7 +323,9 @@ export async function executeSpyCity(profile, targetCity) {
         city_id: cityToSpy.id,
         author_name: "🦉 Mystère",
         author_email: "system",
-        message: "🦉 Votre ville a été espionnée. Quelqu'un a vu vos coffres...",
+        message: stolenAmount > 0
+          ? `🦉 Un hibou furtif a survolé la ville : il a vu vos coffres et emporté ${stolenAmount}💰 dans ses serres.`
+          : "🦉 Votre ville a été espionnée. Quelqu'un a vu vos coffres...",
         category: "system",
       });
     } catch (e) {
@@ -279,12 +334,17 @@ export async function executeSpyCity(profile, targetCity) {
 
     return {
       success: true,
+      stolenAmount,
+      goldUpdate: stolenAmount, // pour cohérence avec executeStealTreasury (l'appelant ajoute au profil)
       report: {
         cityName: cityToSpy.name,
-        gold_treasury: cityToSpy.gold_treasury || 0,
+        gold_treasury: Math.max(0, (cityToSpy.gold_treasury || 0) - stolenAmount),
         warehouse,
-        domeActive: dome.protected,
+        domeActive: false, // si on est ici, le dôme n'était pas actif
       },
+      logDescription: stolenAmount > 0
+        ? `🦉 Espionnage + vol via ${itemName} sur ${cityToSpy.name} : +${stolenAmount}💰`
+        : `🦉 Espionnage via ${itemName} sur ${cityToSpy.name} (trésorerie vide)`,
     };
   } catch (e) {
     console.error("[Cauldron] spy failed:", e);

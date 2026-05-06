@@ -2,7 +2,7 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { logGold } from "@/lib/goldLog";
 import { getItemName } from "@/lib/itemHelpers";
-import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
+import { findInventoryItem, removeFromInventory, addToInventory } from "@/lib/inventoryHelpers";
 import { showXPToast } from "@/lib/xpToasts";
 import { isBiomeBuffActive, activateBiomeHarvestBonus } from "@/lib/playerBuffs";
 import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
@@ -98,13 +98,56 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         toast.success(result.toastMessage);
 
       } else if (type === "spy") {
-        const result = await executeSpyCity(profile, selectedCity);
+        // Hibou messager refondu mai 2026 : espionne + vole 10 or (bloqué par dôme)
+        const stealValue = targetModal?.value || 0;
+        const result = await executeSpyCity(profile, selectedCity, stealValue, itemDef.name);
         if (result.error) { toast.error(result.error); setTargetSubmitting(false); return; }
+
+        // Consomme l'item
         const newInventory = (profile.inventory || [])
           .map(i => (i.item_key === itemDef.key) ? { ...i, quantity: i.quantity - 1 } : i)
           .filter(i => i.quantity > 0);
-        await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
-        setSpyReport(result.report);
+
+        // Cas 1 : ville protégée par dôme → item consommé sans effet
+        if (result.blocked) {
+          await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
+          toast.error(result.toastMessage);
+        } else {
+          // Cas 2 : succès → ajouter l'or volé au profil + ouvrir le rapport
+          const profileUpdates = { inventory: newInventory };
+          if (result.goldUpdate && result.goldUpdate > 0) {
+            profileUpdates.gold = (profile.gold || 0) + result.goldUpdate;
+          }
+          await base44.entities.PlayerProfile.update(profile.id, profileUpdates);
+
+          // Logue le vol côté ville cible (pour le journal de la mairie)
+          if (result.goldUpdate && result.goldUpdate > 0) {
+            await base44.entities.GoldTransaction.create({
+              player_email: "system",
+              player_name: "🦉 Mystère",
+              city_id: selectedCity.id,
+              city_name: selectedCity.name,
+              amount: -result.goldUpdate,
+              type: "chaudron_vol",
+              description: `🦉 Vol par ${profile.character_name || profile.user_email} via ${itemDef.icon} ${itemDef.name} : -${result.goldUpdate}💰`,
+            }).catch(() => {});
+            // Transaction VOLEUR : visible dans le journal personnel
+            await base44.entities.GoldTransaction.create({
+              player_email: profile.user_email,
+              player_name: profile.character_name || "",
+              city_id: profile.home_city_id || "",
+              city_name: "",
+              amount: result.goldUpdate,
+              type: "vol_chaudron_recu",
+              description: result.logDescription || `Vol via ${itemDef.name}`,
+            }).catch(() => {});
+          }
+
+          setSpyReport(result.report);
+          if (result.goldUpdate && result.goldUpdate > 0) {
+            toast.success(`🦉 +${result.goldUpdate}💰 dérobés à ${result.report.cityName} !`);
+          }
+        }
       }
       setTargetModal(null);
       onRefresh?.();
@@ -248,9 +291,19 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
       if (result?.handled) {
         setActivating(itemDef.key);
         try {
-          const newInv = inventory
+          // Consomme l'item (parchemin etc.)
+          let newInv = inventory
             .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
             .filter(i => i.quantity > 0);
+          // Items conjurés (Parchemin de craft) : on les ajoute à l'inventaire
+          if (Array.isArray(result.grantItems) && result.grantItems.length > 0) {
+            for (const g of result.grantItems) {
+              newInv = addToInventory(newInv, g.key, 1, {
+                item_name: g.name,
+                item_category: g.category || "ressources",
+              });
+            }
+          }
           await base44.entities.PlayerProfile.update(profile.id, {
             inventory: newInv,
             ...(result.updates || {}),

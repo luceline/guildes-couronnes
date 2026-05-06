@@ -460,13 +460,13 @@ export const ITEMS = {
   },
   trefle_chance: {
     name: "Trèfle de chance", icon: "🍀", category: "chaudron", tier: 1,
-    trigger: "consumed", effect: "next_epopee_drop_bonus", value: 0.05,
-    use: "+5% drop sur ta prochaine épopée. Obtenu via le chaudron magique.",
+    trigger: "consumed", effect: "next_epopee_drop_bonus", value: 0.20,
+    use: "+20% drop sur ta prochaine épopée. Obtenu via le chaudron magique.",
   },
   plume_vent: {
     name: "Plume de vent", icon: "💨", category: "chaudron", tier: 1,
-    trigger: "consumed", effect: "next_travel_free", value: 1,
-    use: "Prochain voyage entièrement gratuit (frais de route et péage à 0). Obtenu via le chaudron magique.",
+    trigger: "consumed", effect: "next_travel_free", value: 3,
+    use: "Vos 3 prochains voyages sont gratuits (cumulable, frais de route et péage à 0). Obtenu via le chaudron magique.",
   },
 
   // ── Pool Rang 2 (5 items T2) ──
@@ -477,8 +477,8 @@ export const ITEMS = {
   },
   pierre_feu: {
     name: "Pierre de feu", icon: "🔥", category: "chaudron", tier: 2,
-    trigger: "consumed", effect: "craft_speed_buff", value: 0.30, duration_h: 4,
-    use: "-30% durée crafts pendant 4h. Obtenu via le chaudron magique (rang 2+).",
+    trigger: "consumed", effect: "craft_speed_buff", value: 0.30, duration_h: 6,
+    use: "-30% durée crafts pendant 6h. Obtenu via le chaudron magique (rang 2+).",
   },
   parchemin_marchand: {
     name: "Parchemin marchand", icon: "📜", category: "chaudron", tier: 2,
@@ -492,15 +492,15 @@ export const ITEMS = {
   },
   pierre_energetique: {
     name: "Pierre énergétique", icon: "⚡", category: "chaudron", tier: 2,
-    trigger: "consumed", effect: "energy_max_or_gold", value: 1, alt_value: 30,
-    use: "+30💰 à l'activation. Obtenu via le chaudron magique (rang 2+).",
+    trigger: "consumed", effect: "fatigue_max_restore",
+    use: "Restaure entièrement votre énergie courante. Obtenu via le chaudron magique (rang 2+).",
   },
 
   // ── Pool Rang 3 (6 items T3) ──
   hibou_messager: {
     name: "Hibou messager", icon: "🦉", category: "chaudron", tier: 3,
-    trigger: "consumed_target_city", effect: "spy_city",
-    use: "Espionne une ville cible : révèle son or et son entrepôt + statut dôme. Obtenu via le chaudron magique (rang 3).",
+    trigger: "consumed_target_city", effect: "spy_city", value: 10,
+    use: "Espionne une ville cible (révèle or et entrepôt + statut dôme) ET vole 10💰 à sa mairie. Bloqué par un dôme de protection. Obtenu via le chaudron magique (rang 3).",
   },
   sablier_ages: {
     name: "Sablier des âges", icon: "⏳", category: "chaudron", tier: 3,
@@ -514,18 +514,18 @@ export const ITEMS = {
   },
   talisman_protection: {
     name: "Talisman de protection", icon: "🛡️", category: "chaudron", tier: 3,
-    trigger: "consumed", effect: "city_protect", duration_h: 2,
-    use: "Pose un dôme de protection sur ta ville pendant 2h (bloque Parchemin marchand et Étoile filante). Obtenu via le chaudron magique (rang 3).",
+    trigger: "consumed", effect: "city_protect", duration_h: 6,
+    use: "Pose un dôme de protection sur ta ville pendant 6h (bloque Parchemin marchand, Étoile filante et Hibou messager). Obtenu via le chaudron magique (rang 3).",
   },
   parchemin_craft: {
     name: "Parchemin de craft", icon: "🪄", category: "chaudron", tier: 3,
-    trigger: "consumed", effect: "next_t4_no_tool",
-    use: "Économise 1 charge d'outil sur ton prochain T4. Obtenu via le chaudron magique (rang 3).",
+    trigger: "consumed", effect: "grant_random_t3", value: 2,
+    use: "Conjure 2 items T3 aléatoires (parmi le pool de production : meuble, lingots fer/or, tissu, outils, potion soin, parchemin, pain, contrat artisan). Obtenu via le chaudron magique (rang 3).",
   },
   oeil_archer: {
     name: "Œil de l'archer", icon: "🎯", category: "chaudron", tier: 3,
     trigger: "consumed", effect: "reset_epopee",
-    use: "Réinitialise ton épopée du jour (2 épopées possibles). Obtenu via le chaudron magique (rang 3).",
+    use: "Réinitialise ton épopée du jour, mais l'épopée bonus ne rapporte AUCUN or (drops biome rares et XP de maîtrise conservés). Obtenu via le chaudron magique (rang 3).",
   },
 
 };

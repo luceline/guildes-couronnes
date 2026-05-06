@@ -109,8 +109,9 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     let toll = computeWallToll(arrivalCity, profile);
 
     // ── Hook chaudron 💨 Plume de vent : prochain voyage gratuit (péage 0) ──
+    // Refonte mai 2026 : compteur cumulable (free_travels_remaining) au lieu d'un booléen.
     let plumeUsed = false;
-    if (profile.next_travel_free && toll > 0) {
+    if ((profile.free_travels_remaining || 0) > 0 && toll > 0) {
       plumeUsed = true;
       toll = 0;
     }
@@ -129,10 +130,11 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       visited_cities: visited,
     };
 
-    // Consomme le flag plume après usage
+    // Consomme une charge de plume après usage (décrémente le compteur)
     if (plumeUsed) {
-      profileUpdates.next_travel_free = false;
-      toast.success(`💨 La Plume de vent souffle pour vous : péage offert pour ce voyage !`);
+      const remaining = Math.max(0, (profile.free_travels_remaining || 0) - 1);
+      profileUpdates.free_travels_remaining = remaining;
+      toast.success(`💨 La Plume de vent souffle pour vous : péage offert ! (${remaining} voyage${remaining > 1 ? "s" : ""} gratuit${remaining > 1 ? "s" : ""} restant${remaining > 1 ? "s" : ""})`);
     }
 
     if (toll > 0) {
@@ -227,8 +229,9 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     if (palier4TollWaived) toll = 0;
 
     // ── Hook chaudron 💨 Plume de vent : prochain voyage GRATUIT (frais ET péage à 0) ──
+    // Refonte mai 2026 : compteur cumulable (free_travels_remaining) au lieu d'un booléen.
     let plumeUsed = false;
-    if (profile.next_travel_free && (travelCost > 0 || toll > 0)) {
+    if ((profile.free_travels_remaining || 0) > 0 && (travelCost > 0 || toll > 0)) {
       plumeUsed = true;
       travelCost = 0;
       toll = 0;
@@ -296,10 +299,11 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       }
     }
 
-    // Consomme le flag plume après usage (frais ET péage offerts)
+    // Consomme une charge de plume après usage (décrémente le compteur)
     if (plumeUsed) {
-      updates.next_travel_free = false;
-      toast.success(`💨 La Plume de vent souffle pour vous : voyage entièrement offert !`);
+      const remaining = Math.max(0, (profile.free_travels_remaining || 0) - 1);
+      updates.free_travels_remaining = remaining;
+      toast.success(`💨 La Plume de vent souffle pour vous : voyage entièrement offert ! (${remaining} voyage${remaining > 1 ? "s" : ""} gratuit${remaining > 1 ? "s" : ""} restant${remaining > 1 ? "s" : ""})`);
     }
 
     await base44.entities.PlayerProfile.update(profile.id, updates);

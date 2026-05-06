@@ -161,14 +161,18 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
 
       // ── Hook chaudron : bonus or et drop pour l'épopée ──
       // 🪙 Pièce porte-bonheur : +20% or
-      // 🍀 Trèfle de chance : +5% drop par mob tué
+      // 🍀 Trèfle de chance : +20% drop par mob tué (refonte mai 2026 : 5% → 20%)
+      // 🎯 Œil de l'archer : épopée bonus → AUCUN or gagné (drops + XP conservés)
+      const epopeeBonusNoGold = !!localProfile.epopee_bonus_no_gold;
       const goldBonus = localProfile.next_epopee_gold_bonus || 0;
       const dropBonus = localProfile.next_epopee_drop_bonus || 0;
       const killCountForBonus = rewards?.killCount || 0;
 
-      // Applique le bonus or sur la vague (arrondi entier)
+      // Si flag Œil de l'archer actif : on annule TOUTE source d'or de la vague
+      // (or de base + bonus pièce porte-bonheur si jamais combiné).
+      let waveGold = epopeeBonusNoGold ? 0 : (rewards?.gold || 0);
       let bonusGold = 0;
-      if (goldBonus > 0 && rewards?.gold) {
+      if (!epopeeBonusNoGold && goldBonus > 0 && rewards?.gold) {
         bonusGold = Math.floor((rewards.gold || 0) * goldBonus);
       }
 
@@ -188,8 +192,8 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       // Mort = reset à 1 PV. Sinon, clamp à 10.
       const hpToStore = isDead ? 1 : Math.min(COMBAT_MAX_HP, playerEndHp);
 
-      // Cumul des récompenses (avec bonus chaudron)
-      const newTotalGold = totalGold + (rewards?.gold || 0) + bonusGold;
+      // Cumul des récompenses (avec bonus chaudron, ou 0 si Œil de l'archer)
+      const newTotalGold = totalGold + waveGold + bonusGold;
       const newDropsCount = totalDrops + (rewards?.dropCount || 0) + bonusDrops;
       // Drops à ajouter dans l'inventaire (bonus inclus)
       const dropsToAdd = (rewards?.drops || []).filter(d => d.key);
@@ -199,7 +203,7 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
 
       // Construction des updates BDD
       const updates = {
-        gold: (localProfile.gold || 0) + (rewards?.gold || 0) + bonusGold,
+        gold: (localProfile.gold || 0) + waveGold + bonusGold,
         hp: hpToStore,
         combat_total_gold: newTotalGold,
         combat_total_drops: newDropsCount,
@@ -262,6 +266,10 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         if (localProfile.next_epopee_drop_bonus) {
           updates.next_epopee_drop_bonus = 0;
         }
+        // Œil de l'archer : reset du flag à la fin de l'épopée bonus
+        if (localProfile.epopee_bonus_no_gold) {
+          updates.epopee_bonus_no_gold = false;
+        }
       }
 
       // ── Gain XP combat : +1 par mob tué, +2 si vague complète, +10 si épopée finie ──
@@ -280,14 +288,14 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         showXPToast(totalXP, xpGain, { context: "combat épique" });
       }
 
-      // Tx d'or
-      if ((rewards?.gold || 0) > 0) {
+      // Tx d'or (utilise waveGold qui peut être 0 si Œil de l'archer actif)
+      if (waveGold > 0) {
         await logGold({
           profile,
           city: { id: profile.city_id, name: "" },  // CombatEpic n'a pas l'objet city, juste l'id
-          amount: rewards.gold,
+          amount: waveGold,
           type: "objectif",
-          description: `Combat épique ${biomeInfo.name} V${waveIndex + 1} : +${rewards.gold}💰 (${rewards.killCount}/${3} mobs)`,
+          description: `Combat épique ${biomeInfo.name} V${waveIndex + 1} : +${waveGold}💰 (${rewards.killCount}/${3} mobs)`,
         });
       }
 
