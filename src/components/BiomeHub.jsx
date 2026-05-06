@@ -26,7 +26,7 @@ const BIOME_HARVEST = {
   mine:     { item_key: "pierre",       item_name: "Pierre",          item_category: "pierre",     icon: "🧱" },
   atelier:  { item_key: "laine_brute",  item_name: "Laine brute",     item_category: "tissu",      icon: "🧶" },
   forge:    { item_key: "minerai_fer",  item_name: "Minerai de fer",  item_category: "fer",        icon: "⚙️" },
-  guilde:   { item_key: "tissu",        item_name: "Tissu",           item_category: "tissu",      icon: "🧵" },
+  guilde:   { item_key: "jeton_guilde", item_name: "Jeton de la guilde", item_category: "jetons",      icon: "🪙" },
   jardin:   { item_key: "herbes",       item_name: "Herbes",          item_category: "alchimie",   icon: "🌿" },
   carriere: { item_key: "quartz_brut",  item_name: "Quartz brut",     item_category: "quartz",     icon: "🔮" },
 };

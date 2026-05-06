@@ -152,6 +152,12 @@ export const ITEMS = {
     biome_profession: "Forgeron", biome_key: "forge",
     use: "Restaure +1 durabilité à votre épée équipée. Buff biome → +1 récolte T1 (5min).",
   },
+  jeton_guilde: {
+    name: "Jeton de la guilde", icon: "🪙", category: "jetons", tier: 1,
+    // Pas d'effet à ce stade : usage à définir plus tard.
+    // Récolté passivement à la Guilde des marchands (biome) via les serfs (3 or/unité, 2h/unité).
+    use: "Une pièce de cuivre marquée du sceau de la Guilde. Sa valeur réelle reste à découvrir.",
+  },
 
   // ════════════════════════════════
   // T1 COMBAT — items équipables (Forgeron + Tisserand)

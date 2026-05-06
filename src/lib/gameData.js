@@ -76,6 +76,7 @@ export const ITEM_CATEGORIES = {
   parchemins: { icon: "📜", color: "text-amber-600" },
   meubles:    { icon: "🪑", color: "text-orange-700" },
   or:         { icon: "🏅", color: "text-yellow-500" },
+  jetons:     { icon: "🪙", color: "text-amber-500" },
   ressources_rares: { icon: "✨", color: "text-violet-600" },
 };
 
