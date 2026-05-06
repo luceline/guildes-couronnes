@@ -112,51 +112,43 @@ export const ITEMS = {
 
   bois_brut: {
     name: "Bois brut", icon: "🪵", category: "bois", tier: 1,
-    trigger: "consumed", effect: "biome_buff_only",
     biome_profession: "Bûcheron", biome_key: "foret",
-    use: "Buff biome → +1 récolte T1 (5min). Sinon ressource de craft.",
+    use: "Ressource de craft de base, fournie par le Bûcheron.",
   },
   minerai_fer: {
     name: "Minerai de fer", icon: "🪨", category: "fer", tier: 1,
-    trigger: "consumed", effect: "biome_buff_only",
     biome_profession: "Mineur", biome_key: "mine",
-    use: "Buff biome → +1 récolte T1 (5min). Sinon ressource de craft.",
+    use: "Ressource de craft de base, extraite par le Mineur.",
   },
   ble: {
     name: "Blé", icon: "🌾", category: "nourriture", tier: 1,
     trigger: "consumed", effect: "hunger_restore", value: 1,
     biome_profession: "Fermier", biome_key: "champs",
-    use: "+1 faim. Buff biome → +1 récolte T1 (5min).",
+    use: "Restaure +1 point de faim quand consommé.",
   },
   laine_brute: {
     name: "Laine brute", icon: "🧶", category: "tissu", tier: 1,
     trigger: "consumed", effect: "repair_armor", value: 1,
     biome_profession: "Tisserand", biome_key: "atelier",
-    use: "Restaure +1 durabilité à une armure équipée. Buff biome → +1 récolte T1 (5min).",
+    use: "Restaure +1 durabilité à une armure équipée (heaume, brassard ou jambière).",
   },
   herbes: {
     name: "Herbes", icon: "🌿", category: "potions", tier: 1,
     trigger: "consumed", effect: "fatigue_restore", value: 1,
     biome_profession: "Alchimiste", biome_key: "foret",
-    use: "+1 énergie. Buff biome → +1 récolte T1 (5min).",
+    use: "Restaure +1 point d'énergie quand consommé.",
   },
   quartz_brut: {
     name: "Quartz brut", icon: "🔮", category: "or", tier: 1,
     trigger: "passive", effect: "market_tax_discount", value: 0.01,
     biome_profession: "Orfèvre", biome_key: "forge",
-    use: "Passif : −1% taxe marché. Buff biome → +1 récolte T1 (5min).",
+    use: "Passif : −1% taxe marché tant que présent en inventaire.",
   },
   pierre: {
     name: "Pierre", icon: "🧱", category: "pierre", tier: 1,
     trigger: "consumed", effect: "repair_weapon", value: 1,
     biome_profession: "Forgeron", biome_key: "forge",
-    use: "Restaure +1 durabilité à votre épée équipée. Buff biome → +1 récolte T1 (5min).",
-  },
-  jeton_guilde: {
-    name: "Jeton de la guilde", icon: "🪙", category: "jetons", tier: 1,
-    // Pas d'effet à ce stade : usage à définir plus tard.
-    // Récolté passivement à la Guilde des marchands (biome) via les serfs (3 or/unité, 2h/unité).
-    use: "Une pièce de cuivre marquée du sceau de la Guilde. Sa valeur réelle reste à découvrir.",
+    use: "Restaure +1 durabilité à votre épée équipée.",
   },
 
   // ════════════════════════════════
@@ -440,7 +432,7 @@ export const ITEMS = {
     name: "Autorisation de marché", icon: "📜", category: "parchemins", tier: 1,
     trigger: "consumed", effect: "market_permit", value: 1,
     biome_profession: "Marchand", biome_key: "guilde",
-    use: "Requis pour poster au marché. Buff biome Guilde → +1 production.",
+    use: "Requis pour poster une annonce au marché. Consommé à chaque mise en vente.",
   },
   sceau_royal: {
     name: "Sceau royal", icon: "🏵️", category: "parchemins", tier: 0,
