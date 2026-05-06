@@ -63,5 +63,23 @@ export function usePlayerData() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Auto-refresh à l'arrivée d'un voyage : programme un setTimeout qui se
+  // déclenche pile à l'heure d'arrivée pour recharger le profil. Ainsi le
+  // joueur n'a plus besoin de rafraîchir manuellement la page.
+  // Le timer est cleanup à chaque changement de profil ou démontage.
+  useEffect(() => {
+    if (!profile?.is_traveling || !profile?.travel_arrival_time) return;
+    const arrivalMs = new Date(profile.travel_arrival_time).getTime();
+    const delay = arrivalMs - Date.now();
+    // Si déjà arrivé (delay négatif ou nul) : refresh immédiat
+    // Sinon, on programme le refresh pour l'instant exact + 200ms de marge
+    // (la marge évite les race conditions où le serveur n'a pas encore validé
+    // la transition is_traveling=false côté handleTravelArrival)
+    const timer = setTimeout(() => {
+      refresh();
+    }, Math.max(0, delay) + 200);
+    return () => clearTimeout(timer);
+  }, [profile?.is_traveling, profile?.travel_arrival_time, refresh]);
+
   return { profile, city, homeCity, cities, loading, refresh };
 }
