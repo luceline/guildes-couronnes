@@ -14,7 +14,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sword } from "lucide-react";
-import { canChallenge, isPlayerKO } from "@/lib/combatPvP";
+import { canChallenge } from "@/lib/combatPvP";
+import { isPlayerKO } from "@/lib/gameData";
 import ChallengeForm from "./ChallengeForm";
 
 export default function BiomePlayersList({ profile, biomeKey, biomeInfo, onRefresh }) {
