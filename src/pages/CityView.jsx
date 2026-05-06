@@ -243,6 +243,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   const [contributing, setContributing] = useState(false);
   const [building, setBuilding] = useState(false);
   const [depositObjectives, setDepositObjectives] = useState([]);
+  const [depositT1Objectives, setDepositT1Objectives] = useState([]);
   const [sellToWarehouseAmounts, setSellToWarehouseAmounts] = useState({});
   const [mayorSatisfactionVote, setMayorSatisfactionVote] = useState(null);
   const [activeCategory, setActiveCategory] = useState("logement");
@@ -308,11 +309,11 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       player_email: profile.user_email,
       status: "active",
     }).then(objs => {
-      // Garder uniquement les quêtes deposit du jour
-      const todayDeposit = (objs || []).filter(o =>
-        o.type === "deposit" && (o.created_date || o.quest_date || "").startsWith(todayStr)
-      );
-      setDepositObjectives(todayDeposit);
+      const isToday = (o) => (o.created_date || o.quest_date || "").startsWith(todayStr);
+      // Quêtes deposit (T2 profession, ville d'origine) : comportement existant
+      setDepositObjectives((objs || []).filter(o => o.type === "deposit" && isToday(o)));
+      // Quêtes deposit_t1 (n'importe quel T1 dans n'importe quel entrepôt) : nouveau
+      setDepositT1Objectives((objs || []).filter(o => o.type === "deposit_t1" && isToday(o)));
     }).catch(() => {});
   }, [profile?.user_email]);
 
@@ -946,6 +947,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
               contributing={contributing}
               setContributing={setContributing}
               depositObjectives={depositObjectives}
+              depositT1Objectives={depositT1Objectives}
               logGold={logGold}
               onRefresh={onRefresh}
             />

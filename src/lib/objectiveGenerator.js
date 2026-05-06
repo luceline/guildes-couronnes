@@ -2,12 +2,20 @@ import { ITEMS } from "./craftingData.js";
 
 // ── Récompenses de quêtes : montant fixe par type ──
 export const QUEST_REWARDS = {
+  // Quêtes existantes
   deposit:    20,
   sell:        5,
   produce:    15,  // Artisan actif (T2/T3 craft) : récompense plus élevée car craft = effort + ressources
   travel:      5,
   profession:  5,
   contribute: 20,
+  // Nouvelles quêtes (toutes à 5 or)
+  deposit_t1:  5,
+  buy:         5,
+  pvp:         5,
+  cauldron:    5,
+  dice:        5,
+  statue:      5,
 };
 
 // ── T2_DEPOSIT_ITEMS : dérivé automatique depuis ITEMS ──
@@ -31,6 +39,8 @@ export const PROFESSION_T2 = {
 // Pour modifier une quête : toucher uniquement ce bloc.
 // reward: voir QUEST_REWARDS en haut du fichier
 export const QUEST_TEMPLATES = {
+
+  // ═══ QUÊTES "ANCIENNES" ═══
 
   deposit: {
     title: "📦 Approvisionnement",
@@ -72,6 +82,56 @@ export const QUEST_TEMPLATES = {
     target_item: (item) => item.key,
     target_quantity: 2,
     reward: "base",
+  },
+
+  // ═══ NOUVELLES QUÊTES (toutes 5 or) ═══
+
+  deposit_t1: {
+    title: "🌾 Réserves communales",
+    description: () => "Approvisionnez l'entrepôt en ressources brutes. Déposez 10 items T1 (au choix) dans n'importe quel entrepôt.",
+    target_item: () => "any_t1",
+    target_quantity: 10,
+    reward: "small",
+  },
+
+  buy: {
+    title: "🛒 Acheteur compulsif",
+    description: () => "Faites tourner l'économie. Achetez 10 objets au marché, peu importe lesquels.",
+    target_item: () => "any",
+    target_quantity: 10,
+    reward: "small",
+  },
+
+  pvp: {
+    title: "⚔️ Lance le défi",
+    description: () => "Croisez le fer. Lancez 1 combat zoné contre un autre joueur (peu importe l'issue).",
+    target_item: () => "any",
+    target_quantity: 1,
+    reward: "small",
+  },
+
+  cauldron: {
+    title: "🪄 Mage d'un jour",
+    description: () => "Invoquez les arts magiques. Utilisez votre chaudron une fois aujourd'hui (n'importe quel rang).",
+    target_item: () => "any",
+    target_quantity: 1,
+    reward: "small",
+  },
+
+  dice: {
+    title: "🎲 Tenter sa chance",
+    description: () => "La taverne réclame de l'animation. Lancez un défi à la table de hazart.",
+    target_item: () => "any",
+    target_quantity: 1,
+    reward: "small",
+  },
+
+  statue: {
+    title: "🗿 Offrande royale",
+    description: () => "La statue itinérante attend votre tribut. Faites une offrande aujourd'hui.",
+    target_item: () => "any",
+    target_quantity: 1,
+    reward: "small",
   },
 
   // ── Quête métier : titre/desc/item/qty définis dans PROFESSION_QUESTS ──
@@ -116,13 +176,40 @@ export const PROFESSION_QUESTS = {
   ],
 };
 
+// ── POOL_OF_RANDOM_QUESTS : quêtes pouvant sortir au hasard ──
+// La quête métier (profession) reste GARANTIE chaque jour, hors de ce pool.
+// Parmi ce pool, on tire 5 quêtes au hasard pour compléter les 6 du jour.
+const POOL_OF_RANDOM_QUESTS = [
+  "deposit", "sell", "produce", "travel", "contribute",     // 5 anciennes
+  "deposit_t1", "buy", "pvp", "cauldron", "dice", "statue", // 6 nouvelles
+];
+
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
 /**
+ * Tire `count` éléments distincts au hasard d'un tableau (Fisher-Yates partiel).
+ */
+function pickRandomDistinct(arr, count) {
+  const copy = [...arr];
+  const result = [];
+  while (result.length < count && copy.length > 0) {
+    const idx = Math.floor(Math.random() * copy.length);
+    result.push(copy.splice(idx, 1)[0]);
+  }
+  return result;
+}
+
+/**
  * Génère 6 quêtes quotidiennes pour un joueur.
- * Pour modifier les quêtes : toucher QUEST_TEMPLATES ou PROFESSION_QUESTS ci-dessus.
+ *
+ * Stratégie (mai 2026) : 1 quête métier GARANTIE + 5 quêtes tirées au hasard
+ * parmi un pool de 11 candidats. Garantit qu'un joueur a toujours au moins
+ * une quête liée à son métier, mais varie le reste pour éviter la routine.
+ *
+ * Pour modifier les quêtes : toucher QUEST_TEMPLATES, PROFESSION_QUESTS,
+ * ou POOL_OF_RANDOM_QUESTS ci-dessus.
  * Pour modifier les récompenses : changer QUEST_REWARDS en haut du fichier.
  */
 export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
@@ -149,50 +236,117 @@ export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
     ...overrides,
   });
 
-  return [
-    base("deposit", {
-      type:             "deposit",
-      title:            QUEST_TEMPLATES.deposit.title,
-      description:      QUEST_TEMPLATES.deposit.description(depositItem),
-      target_item:      QUEST_TEMPLATES.deposit.target_item(depositItem),
-      target_quantity:  QUEST_TEMPLATES.deposit.target_quantity,
-    }),
-    base("sell", {
-      type:             "sell",
-      title:            QUEST_TEMPLATES.sell.title,
-      description:      QUEST_TEMPLATES.sell.description(),
-      target_item:      QUEST_TEMPLATES.sell.target_item(),
-      target_quantity:  QUEST_TEMPLATES.sell.target_quantity,
-    }),
-    base("produce", {
-      type:             "produce",
-      title:            QUEST_TEMPLATES.produce.title,
-      description:      QUEST_TEMPLATES.produce.description(),
-      target_item:      QUEST_TEMPLATES.produce.target_item(),
-      target_quantity:  QUEST_TEMPLATES.produce.target_quantity,
-    }),
-    base("travel", {
-      type:             "travel",
-      title:            QUEST_TEMPLATES.travel.title,
-      description:      QUEST_TEMPLATES.travel.description(),
-      target_item:      QUEST_TEMPLATES.travel.target_item(),
-      target_quantity:  QUEST_TEMPLATES.travel.target_quantity,
-    }),
-    base("profession", {
-      type:             profType,
-      title:            profQuest.title,
-      description:      profQuest.desc + ` Récompense : ${reward("profession")}💰.`,
-      target_item:      profQuest.item,
-      target_quantity:  profQuest.qty,
-    }),
-    base("contribute", {
-      type:             "contribute",
-      title:            QUEST_TEMPLATES.contribute.title,
-      description:      QUEST_TEMPLATES.contribute.description(contributeItem),
-      target_item:      QUEST_TEMPLATES.contribute.target_item(contributeItem),
-      target_quantity:  QUEST_TEMPLATES.contribute.target_quantity,
-    }),
-  ];
+  // ── 1. Quête métier : toujours présente ──
+  const professionQuest = base("profession", {
+    type:             profType,
+    title:            profQuest.title,
+    description:      profQuest.desc + ` Récompense : ${reward("profession")}💰.`,
+    target_item:      profQuest.item,
+    target_quantity:  profQuest.qty,
+  });
+
+  // ── 2. Tirage de 5 quêtes au hasard parmi le pool ──
+  const pickedTypes = pickRandomDistinct(POOL_OF_RANDOM_QUESTS, 5);
+
+  // ── 3. Construction des 5 quêtes tirées ──
+  const buildQuestFromType = (type) => {
+    switch (type) {
+      case "deposit":
+        return base("deposit", {
+          type:            "deposit",
+          title:           QUEST_TEMPLATES.deposit.title,
+          description:     QUEST_TEMPLATES.deposit.description(depositItem),
+          target_item:     QUEST_TEMPLATES.deposit.target_item(depositItem),
+          target_quantity: QUEST_TEMPLATES.deposit.target_quantity,
+        });
+      case "sell":
+        return base("sell", {
+          type:            "sell",
+          title:           QUEST_TEMPLATES.sell.title,
+          description:     QUEST_TEMPLATES.sell.description(),
+          target_item:     QUEST_TEMPLATES.sell.target_item(),
+          target_quantity: QUEST_TEMPLATES.sell.target_quantity,
+        });
+      case "produce":
+        return base("produce", {
+          type:            "produce",
+          title:           QUEST_TEMPLATES.produce.title,
+          description:     QUEST_TEMPLATES.produce.description(),
+          target_item:     QUEST_TEMPLATES.produce.target_item(),
+          target_quantity: QUEST_TEMPLATES.produce.target_quantity,
+        });
+      case "travel":
+        return base("travel", {
+          type:            "travel",
+          title:           QUEST_TEMPLATES.travel.title,
+          description:     QUEST_TEMPLATES.travel.description(),
+          target_item:     QUEST_TEMPLATES.travel.target_item(),
+          target_quantity: QUEST_TEMPLATES.travel.target_quantity,
+        });
+      case "contribute":
+        return base("contribute", {
+          type:            "contribute",
+          title:           QUEST_TEMPLATES.contribute.title,
+          description:     QUEST_TEMPLATES.contribute.description(contributeItem),
+          target_item:     QUEST_TEMPLATES.contribute.target_item(contributeItem),
+          target_quantity: QUEST_TEMPLATES.contribute.target_quantity,
+        });
+      case "deposit_t1":
+        return base("deposit_t1", {
+          type:            "deposit_t1",
+          title:           QUEST_TEMPLATES.deposit_t1.title,
+          description:     QUEST_TEMPLATES.deposit_t1.description(),
+          target_item:     QUEST_TEMPLATES.deposit_t1.target_item(),
+          target_quantity: QUEST_TEMPLATES.deposit_t1.target_quantity,
+        });
+      case "buy":
+        return base("buy", {
+          type:            "buy",
+          title:           QUEST_TEMPLATES.buy.title,
+          description:     QUEST_TEMPLATES.buy.description(),
+          target_item:     QUEST_TEMPLATES.buy.target_item(),
+          target_quantity: QUEST_TEMPLATES.buy.target_quantity,
+        });
+      case "pvp":
+        return base("pvp", {
+          type:            "pvp",
+          title:           QUEST_TEMPLATES.pvp.title,
+          description:     QUEST_TEMPLATES.pvp.description(),
+          target_item:     QUEST_TEMPLATES.pvp.target_item(),
+          target_quantity: QUEST_TEMPLATES.pvp.target_quantity,
+        });
+      case "cauldron":
+        return base("cauldron", {
+          type:            "cauldron",
+          title:           QUEST_TEMPLATES.cauldron.title,
+          description:     QUEST_TEMPLATES.cauldron.description(),
+          target_item:     QUEST_TEMPLATES.cauldron.target_item(),
+          target_quantity: QUEST_TEMPLATES.cauldron.target_quantity,
+        });
+      case "dice":
+        return base("dice", {
+          type:            "dice",
+          title:           QUEST_TEMPLATES.dice.title,
+          description:     QUEST_TEMPLATES.dice.description(),
+          target_item:     QUEST_TEMPLATES.dice.target_item(),
+          target_quantity: QUEST_TEMPLATES.dice.target_quantity,
+        });
+      case "statue":
+        return base("statue", {
+          type:            "statue",
+          title:           QUEST_TEMPLATES.statue.title,
+          description:     QUEST_TEMPLATES.statue.description(),
+          target_item:     QUEST_TEMPLATES.statue.target_item(),
+          target_quantity: QUEST_TEMPLATES.statue.target_quantity,
+        });
+      default:
+        return null;
+    }
+  };
+
+  const randomQuests = pickedTypes.map(buildQuestFromType).filter(Boolean);
+
+  return [professionQuest, ...randomQuests];
 }
 
 export const OBJECTIVE_TEMPLATES = {};
@@ -200,4 +354,3 @@ export const PROFESSION_EMOJIS = {
   Bûcheron: "🌲", Mineur: "⛏️", Fermier: "🌾", Tisserand: "🧵",
   Forgeron: "⚒️", Alchimiste: "🧪", Orfèvre: "💎", Marchand: "💼",
 };
-

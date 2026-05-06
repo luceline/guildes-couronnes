@@ -55,6 +55,48 @@ const NARRATIONS = {
     "Le vieux conteur lève sa chope. \"À ceux qui contribuent quand d'autres se contentent de prendre. {reward} pièces et un toast à ta santé.\"",
     "Aldebert te désigne un siège d'honneur. \"On dit qu'une cité ne vaut que par ses citoyens. Tu en es la preuve. Voici {reward} pièces.\"",
   ],
+
+  // Dépôt T1 quelconque (réserves communales)
+  deposit_t1: [
+    "Aldebert tapote le coffre des réserves. \"Du brut, du cru, du nécessaire. Voilà ce qui fait tourner une cité. {reward} pièces pour ton bon sens.\"",
+    "Le vieux conteur range la pelle qu'il tenait. \"Ce ne sont pas les lingots qui sauvent un hiver, c'est le bois et le blé. {reward} pièces, voyageur.\"",
+    "Aldebert hoche la tête. \"Du T1 dans l'entrepôt, voilà la base de tout. {reward} pièces, et un sourire en prime.\"",
+  ],
+
+  // Achats au marché
+  buy: [
+    "Aldebert range sa balance. \"L'or qui circule vaut mieux que l'or qui dort. {reward} pièces pour avoir fait vivre les étals.\"",
+    "L'aubergiste compte sur ses doigts. \"Tu as nourri le commerce, pas qu'un seul marchand. La cité te remercie de {reward} pièces.\"",
+    "Aldebert sourit, malicieux. \"Acheteur compulsif, dis-tu ? Je dirais plutôt mécène involontaire. {reward} pièces pour la bonne cause.\"",
+  ],
+
+  // Combat PvP initié
+  pvp: [
+    "Aldebert range son épée d'apparat. \"Tu as croisé le fer, voilà ce qui distingue un guerrier d'un paysan armé. {reward} pièces pour le panache.\"",
+    "Le vieux conteur te jauge du regard. \"Lancer le défi, c'est déjà la moitié du combat. {reward} pièces pour ton audace.\"",
+    "Aldebert lève un sourcil approbateur. \"Mieux vaut un duelliste vivant qu'un héros mort. Tu sais quand frapper. {reward} pièces.\"",
+  ],
+
+  // Utilisation du chaudron
+  cauldron: [
+    "Aldebert renifle l'air. \"Une vapeur douceâtre flotte sur ton manteau. Le chaudron a parlé. {reward} pièces pour l'alchimiste d'un soir.\"",
+    "Le vieux conteur ferme un grimoire. \"Les arts magiques ne s'apprennent pas, ils se cuisinent. Bien joué. {reward} pièces.\"",
+    "Aldebert te tend une cuillère propre. \"Pour la prochaine fois. Et {reward} pièces pour celle-ci.\"",
+  ],
+
+  // Défi à la table de hazart
+  dice: [
+    "Aldebert range trois dés dans sa poche. \"Tu as posé ton défi. Le reste appartient au sort. {reward} pièces, peu importe le résultat.\"",
+    "L'aubergiste te tape sur l'épaule. \"À la table de hazart, le courage de jouer compte autant que la victoire. {reward} pièces.\"",
+    "Aldebert sourit en faisant tinter une bourse. \"Que les dés roulent, que les or tournent. {reward} pièces pour avoir animé la taverne.\"",
+  ],
+
+  // Offrande à la statue itinérante
+  statue: [
+    "Aldebert s'incline légèrement. \"La couronne remarque toujours ceux qui donnent. {reward} pièces, modeste écho de ta générosité.\"",
+    "Le vieux conteur lève les yeux vers une statue imaginaire. \"Le marbre se souvient. {reward} pièces pour ta dévotion.\"",
+    "Aldebert hoche la tête, grave. \"Une offrande sincère vaut mille flatteries. {reward} pièces, et la reconnaissance discrète du royaume.\"",
+  ],
 };
 
 /** Hash simple pour rendre la sélection déterministe par (quête, jour). */

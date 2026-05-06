@@ -37,6 +37,7 @@ import {
   CAULDRON_OUTPUTS,
 } from "@/lib/cauldronHelpers";
 import { logGold } from "@/lib/goldLog";
+import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { toast } from "sonner";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -348,6 +349,19 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
         type: "chaudron_usage",
         description: `🪄 Chaudron rang ${selectedRank} utilisé : ${outputItem?.icon || ""} ${outputItem?.name || outputKey}`,
       }).catch(() => {});
+
+      // ── Tracking quête "cauldron" : 1 invocation = 1 progression ──
+      try {
+        const allCauldron = await base44.entities.PlayerObjective.filter({
+          player_email: profile.user_email,
+          status: "active",
+          type: "cauldron",
+        });
+        const cauldronObjs = filterTodayActiveObjectives(allCauldron, "cauldron");
+        for (const obj of cauldronObjs) {
+          await checkAndAwardObjective({ obj, addedQty: 1, profile, city });
+        }
+      } catch (e) { console.warn("[cauldron quest]:", e); }
 
       // 5. Animation suspense ~3s puis révélation
       setTimeout(() => {

@@ -30,6 +30,7 @@ import {
   computeTop3Gap,
 } from "@/lib/royalStatueHelpers";
 import { logGold } from "@/lib/goldLog";
+import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { toast } from "sonner";
 
 // Catégorie de paliers : titre et description
@@ -254,6 +255,20 @@ export default function RoyalStatuePanel({ profile, city, onRefresh }) {
       }).catch(() => {});
 
       toast.success(`🗿 ${basketSummary.totalValue} or virtuels offerts à la statue. La couronne vous remarque...`);
+
+      // ── Tracking quête "statue" : 1 offrande validée = 1 progression ──
+      try {
+        const allStatue = await base44.entities.PlayerObjective.filter({
+          player_email: profile.user_email,
+          status: "active",
+          type: "statue",
+        });
+        const statueObjs = filterTodayActiveObjectives(allStatue, "statue");
+        for (const obj of statueObjs) {
+          await checkAndAwardObjective({ obj, addedQty: 1, profile, city });
+        }
+      } catch (e) { console.warn("[statue quest]:", e); }
+
       setBasket({});
       invalidateStatueCache();
       onRefresh?.();

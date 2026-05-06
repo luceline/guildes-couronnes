@@ -29,6 +29,7 @@ import {
 } from "@/lib/gameData";
 import { canChallenge, getEquippedWeapon } from "@/lib/combatPvP";
 import { ITEMS } from "@/lib/craftingData";
+import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 
 const ZONE_LABELS = { head: "Tête", torso: "Torse", arms: "Bras", legs: "Jambes" };
 const ZONE_ICONS  = { head: "🪖",   torso: "🛡️",   arms: "💪",   legs: "🦵" };
@@ -125,6 +126,22 @@ export default function ChallengeForm({ attacker, target, city, onClose, onCreat
       } catch (e) { /* silent */ }
 
       toast.success(`⚔️ Défi lancé contre ${target.character_name || "cette cible"} !`);
+
+      // ── Tracking quête "pvp" : compte uniquement les attaques initiées (pas les ripostes) ──
+      if (!isRiposte) {
+        try {
+          const allPvp = await base44.entities.PlayerObjective.filter({
+            player_email: attacker.user_email,
+            status: "active",
+            type: "pvp",
+          });
+          const pvpObjs = filterTodayActiveObjectives(allPvp, "pvp");
+          for (const obj of pvpObjs) {
+            await checkAndAwardObjective({ obj, addedQty: 1, profile: attacker, city });
+          }
+        } catch (e) { console.warn("[pvp quest]:", e); }
+      }
+
       onCreated?.();
       onClose?.();
     } catch (e) {

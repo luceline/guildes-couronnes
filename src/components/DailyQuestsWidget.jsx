@@ -8,11 +8,18 @@ import { toast } from "sonner";
 import HelpTooltip from "./HelpTooltip";
 
 const TYPE_META = {
-  deposit: { icon: "📦", label: "Dépôt",     color: "bg-blue-50 border-blue-200" },
-  sell:    { icon: "🏪", label: "Vente",      color: "bg-amber-50 border-amber-200" },
-  produce: { icon: "⚒️",  label: "Production", color: "bg-green-50 border-green-200" },
-  travel:  { icon: "🐴", label: "Voyage",     color: "bg-purple-50 border-purple-200" },
+  deposit:    { icon: "📦", label: "Dépôt",        color: "bg-blue-50 border-blue-200" },
+  sell:       { icon: "🏪", label: "Vente",        color: "bg-amber-50 border-amber-200" },
+  produce:    { icon: "⚒️",  label: "Production",  color: "bg-green-50 border-green-200" },
+  travel:     { icon: "🐴", label: "Voyage",       color: "bg-purple-50 border-purple-200" },
   contribute: { icon: "🤝", label: "Contribution", color: "bg-pink-50 border-pink-200" },
+  // Nouvelles quêtes (mai 2026)
+  deposit_t1: { icon: "🌾", label: "Réserves",     color: "bg-yellow-50 border-yellow-200" },
+  buy:        { icon: "🛒", label: "Achat",        color: "bg-cyan-50 border-cyan-200" },
+  pvp:        { icon: "⚔️", label: "Duel",         color: "bg-red-50 border-red-200" },
+  cauldron:   { icon: "🪄", label: "Magie",        color: "bg-violet-50 border-violet-200" },
+  dice:       { icon: "🎲", label: "Hasart",       color: "bg-orange-50 border-orange-200" },
+  statue:     { icon: "🗿", label: "Offrande",     color: "bg-stone-50 border-stone-200" },
 };
 
 function useCountdown() {

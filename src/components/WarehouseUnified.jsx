@@ -51,6 +51,24 @@ const T1_ITEMS = [
   { key: "quartz_brut", name: "Quartz brut",    icon: "🔮" },
 ];
 
+// Set des keys T1 pour vérification rapide dans le tracking de quête deposit_t1
+const T1_KEYS_SET = new Set(T1_ITEMS.map(i => i.key));
+
+/**
+ * Tracking quête "deposit_t1" : si l'item déposé est un T1, on incrémente
+ * la progression de toutes les quêtes deposit_t1 actives du joueur, peu
+ * importe la ville (n'importe quel entrepôt compte).
+ */
+async function trackDepositT1Quest(itemKey, qty, depositT1Objectives, profile, city) {
+  if (!T1_KEYS_SET.has(itemKey)) return;
+  if (!depositT1Objectives || depositT1Objectives.length === 0) return;
+  for (const obj of depositT1Objectives) {
+    try {
+      await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
+    } catch (e) { console.warn("[deposit_t1 quest] error:", e); }
+  }
+}
+
 const T2_ITEMS = [
   { key: "planches",     name: "Planches",       icon: "🏗️", tier: 2 },
   { key: "pierre_brute", name: "Pierre taillée",   icon: "🪨", tier: 2 },
@@ -81,6 +99,7 @@ export default function WarehouseUnified({
   contributing,
   setContributing,
   depositObjectives,
+  depositT1Objectives = [],
   logGold,
   onRefresh,
 }) {
@@ -161,6 +180,9 @@ export default function WarehouseUnified({
           }
         }
 
+        // Tracking quête deposit_t1 (n'importe quel entrepôt, n'importe quel T1)
+        await trackDepositT1Quest(itemKey, actualQty, depositT1Objectives, profile, city);
+
         // ── Valider les quêtes "contribute" ──
         try {
           const todayStr = new Date().toISOString().split("T")[0];
@@ -213,6 +235,11 @@ export default function WarehouseUnified({
           if (obj.target_item === itemKey) {
             await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
           }
+        }
+
+        // Tracking quête deposit_t1 (compte uniquement les T1, ignore l'or)
+        if (!isGold) {
+          await trackDepositT1Quest(itemKey, qty, depositT1Objectives, profile, city);
         }
 
         // ── Valider les quêtes "contribute" ──

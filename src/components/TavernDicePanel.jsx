@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { logGold } from "@/lib/goldLog";
+import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { toast } from "sonner";
 
 const MIN_MISE = 10;
@@ -248,6 +249,20 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
         score: scoreOf(challengerRoll.dice),
         mise: mise,
       });
+
+      // ── Tracking quête "dice" : 1 défi posé = 1 progression ──
+      try {
+        const allDice = await base44.entities.PlayerObjective.filter({
+          player_email: profile.user_email,
+          status: "active",
+          type: "dice",
+        });
+        const diceObjs = filterTodayActiveObjectives(allDice, "dice");
+        for (const obj of diceObjs) {
+          await checkAndAwardObjective({ obj, addedQty: 1, profile, city });
+        }
+      } catch (e) { console.warn("[dice quest]:", e); }
+
       onRefresh?.();
       loadData();
     } catch (e) {

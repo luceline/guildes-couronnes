@@ -596,6 +596,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       toast.success(`🤝 Affaire conclue ! ${qty}× ${getItemName(listing.item_key, listing.item_name)} acquis pour ${totalBase} 💰${taxMsg}`);
     }
 
+    // ── Tracking quête "buy" : compte tous les achats de la journée ──
+    try {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const allBuy = await base44.entities.PlayerObjective.filter({
+        player_email: profile.user_email,
+        status: "active",
+        type: "buy",
+      });
+      const buyObjs = filterTodayActiveObjectives(allBuy, "buy");
+      for (const obj of buyObjs) {
+        await checkAndAwardObjective({ obj, addedQty: qty, profile, city });
+      }
+    } catch (e) { console.warn("[buy quest]:", e); }
+
     setBuying(null);
     setBuyQtys(prev => ({ ...prev, [listing.id]: 1 }));
     onRefresh?.();
