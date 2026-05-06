@@ -224,8 +224,14 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       const newGold    = (freshClient.gold || 0) - price;
 
       // ── Split 80/20 : artisan reçoit 80%, ville reçoit 20% ──
-      const artisanShare = Math.floor(price * 0.80);
-      const cityShare    = price - artisanShare;
+      // Refonte mai 2026 : la commission ville est désormais d'au moins 1 or.
+      // Avant, à prix bas (price=1 par exemple), Math.floor(price*0.80) = 0
+      // donnait 0 à l'artisan ET 1 à la ville. Mais à prix=0 (cadeau),
+      // la ville touchait 0, court-circuitant totalement la taxe.
+      // Désormais : ville touche min(price, max(1, round(price * 0.20))).
+      // Combiné avec min={1} sur l'input artisan, garantit ≥1 or par transaction.
+      const cityShare    = Math.min(price, Math.max(1, Math.round(price * 0.20)));
+      const artisanShare = price - cityShare;
       const producerGold = (freshProducer.gold || 0) + artisanShare;
 
       await Promise.all([

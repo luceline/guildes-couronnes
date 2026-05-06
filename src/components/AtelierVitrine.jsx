@@ -58,8 +58,8 @@ export default function AtelierVitrine({ profile, onRefresh }) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-body text-muted-foreground">T1 :</span>
             <Input
-              type="number" min={0} max={50} value={priceT1}
-              onChange={e => setPriceT1(Math.max(0, parseInt(e.target.value) || 0))}
+              type="number" min={1} max={50} value={priceT1}
+              onChange={e => setPriceT1(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-16 h-7 text-xs text-center"
               onFocus={e => e.target.select()}
             />
@@ -68,8 +68,8 @@ export default function AtelierVitrine({ profile, onRefresh }) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-body text-muted-foreground">T2+ :</span>
             <Input
-              type="number" min={0} max={100} value={priceT2}
-              onChange={e => setPriceT2(Math.max(0, parseInt(e.target.value) || 0))}
+              type="number" min={1} max={100} value={priceT2}
+              onChange={e => setPriceT2(Math.max(1, parseInt(e.target.value) || 1))}
               className="w-16 h-7 text-xs text-center"
               onFocus={e => e.target.select()}
             />
