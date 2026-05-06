@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, ScrollText } from "lucide-react";
+import { X, ScrollText, ChevronLeft, ChevronRight } from "lucide-react";
 
 const CURRENT_VERSION = "2.4";
 const STORAGE_KEY = `gc_patchnote_seen_${CURRENT_VERSION}`;
@@ -72,6 +72,7 @@ export const ALL_PATCHNOTES = [
 
 export default function PatchnoteModal({ forceOpen = false, onClose }) {
   const [visible, setVisible] = useState(false);
+  const [pageIndex, setPageIndex] = useState(0);
 
   useEffect(() => {
     if (forceOpen) { setVisible(true); return; }
@@ -89,50 +90,83 @@ export default function PatchnoteModal({ forceOpen = false, onClose }) {
 
   // V2.0 : on n'affiche que la version courante, pas l'historique complet
   const currentPatch = ALL_PATCHNOTES.find(p => p.version === CURRENT_VERSION) || ALL_PATCHNOTES[0];
+  const notes = currentPatch?.notes || [];
+  const totalPages = notes.length;
+  // Sécurise l'index si jamais le patch change en cours d'affichage
+  const safeIndex = Math.max(0, Math.min(pageIndex, totalPages - 1));
+  const currentNote = notes[safeIndex];
+  const isLastPage = safeIndex >= totalPages - 1;
+  const isFirstPage = safeIndex === 0;
+
+  const goPrev = () => setPageIndex(i => Math.max(0, i - 1));
+  const goNext = () => {
+    if (isLastPage) close();
+    else setPageIndex(i => Math.min(totalPages - 1, i + 1));
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] overflow-y-auto p-2 sm:p-4 grid place-items-center">
-      <Card className="w-full max-w-lg border-2 border-primary/30 shadow-2xl max-h-[calc(100svh-1rem)] sm:max-h-[90vh] flex flex-col">
-        <CardHeader className="relative pb-2 shrink-0">
-          <button onClick={close} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground">
+      <Card className="w-full max-w-lg border-2 border-primary/30 shadow-2xl flex flex-col">
+        {/* ── Header ── */}
+        <CardHeader className="relative pb-2 shrink-0 border-b border-border">
+          <button onClick={close} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground" aria-label="Fermer">
             <X className="h-4 w-4" />
           </button>
           <CardTitle className="font-heading text-xl flex items-center gap-2">
             <ScrollText className="h-5 w-5 text-accent" />
             Chroniques du royaume
           </CardTitle>
-          <p className="text-xs text-muted-foreground font-body italic">
-            🎶 Le ménestrel déroule son parchemin et annonce les nouvelles du monde…
-          </p>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <span className="font-heading font-semibold text-sm text-primary">v{currentPatch?.version}</span>
+            <span className="text-xs text-muted-foreground font-body">· {currentPatch?.date}</span>
+            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-body">Nouveau</span>
+          </div>
         </CardHeader>
 
-        <CardContent className="overflow-y-auto space-y-6 py-2 min-h-0 flex-1">
-          {currentPatch && (
-            <div>
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                <span className="font-heading font-semibold text-sm text-primary">v{currentPatch.version}</span>
-                <span className="text-xs text-muted-foreground font-body">· {currentPatch.date}</span>
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-body">Nouveau</span>
-              </div>
-              <div className="space-y-3">
-                {currentPatch.notes.map((note, i) => (
-                  <div key={i} className="flex gap-3 border-b border-border/40 pb-3 last:border-0 last:pb-0">
-                    <span className="text-2xl shrink-0 mt-0.5">{note.icon}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-heading font-semibold text-sm mb-1">{note.title}</p>
-                      <p className="text-xs text-muted-foreground font-body leading-relaxed italic whitespace-pre-line">{note.text}</p>
-                    </div>
-                  </div>
-                ))}
+        {/* ── Note courante ── */}
+        <CardContent className="py-4 px-4 sm:px-6">
+          {currentNote ? (
+            <div className="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left gap-3">
+              <span className="text-4xl sm:text-3xl shrink-0">{currentNote.icon}</span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <h3 className="font-heading font-semibold text-base">{currentNote.title}</h3>
+                <p className="text-xs text-muted-foreground font-body leading-relaxed italic whitespace-pre-line">
+                  {currentNote.text}
+                </p>
               </div>
             </div>
+          ) : (
+            <p className="text-sm italic text-center text-muted-foreground font-body">Aucune nouvelle à conter aujourd'hui.</p>
           )}
         </CardContent>
 
-        <div className="p-4 pt-2 shrink-0 border-t border-border">
-          <Button className="w-full font-heading" onClick={close}>
-            🎶 Compris, qu'on continue l'aventure !
+        {/* ── Footer : navigation pagination ── */}
+        <div className="border-t border-border p-3 shrink-0 flex items-center justify-between gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={goPrev}
+            disabled={isFirstPage}
+            className="font-body gap-1"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Précédent</span>
           </Button>
+
+          <span className="text-[11px] text-muted-foreground font-body">
+            {safeIndex + 1} / {totalPages}
+          </span>
+
+          {isLastPage ? (
+            <Button size="sm" onClick={close} className="font-heading gap-1">
+              <span>🎶 Compris !</span>
+            </Button>
+          ) : (
+            <Button size="sm" onClick={goNext} className="font-heading gap-1">
+              <span className="hidden sm:inline">Suivant</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </Card>
     </div>
