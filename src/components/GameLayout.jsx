@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Map, ShoppingBag, Building2, Route, User, Menu, X, Hammer, Settings, Beer, HelpCircle, Moon, Sun, Target, Package, MoreHorizontal, Trophy, Sword, MessageCircle, BookOpen, Bug } from "lucide-react";
+import { Home, Building2, Hammer, Sword, BookOpen, Menu, X, Settings, HelpCircle, Moon, Sun, MoreHorizontal, MessageCircle, Bug } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,23 +7,60 @@ import { DISCORD_INVITE_URL } from "@/lib/links";
 import { base44 } from "@/api/base44Client";
 import { updateLastActive } from "@/lib/inactivityCheck";
 import { ADMIN_EMAILS } from "@/lib/gameData";
+import { BIOMES } from "@/lib/biomes";
 import Tutorial from "@/components/Tutorial";
 import BugReportModal from "@/components/BugReportModal";
 import { useTheme } from "@/lib/useTheme.jsx";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Menu principal : 5 items au lieu de 11
+//   - Accueil  : page directe (dashboard "check-up du jour")
+//   - Cité     : label dynamique selon le lieu actuel du joueur (voir resolveCityLabel)
+//   - Labeur   : hub /labeur → Production, Marché, Inventaire
+//   - Aventure : hub /aventure → Voyage, Combat, Quêtes (avec badge défis PvP)
+//   - Savoir   : hub /savoir → Codex, Classement, Profil
+// L'admin (si applicable) s'ajoute en bout de menu desktop.
+// ─────────────────────────────────────────────────────────────────────────────
 const BASE_NAV = [
-  { path: "/", icon: Home, label: "Accueil" },
-  { path: "/city", icon: Building2, label: "Localité" },
-  { path: "/market", icon: ShoppingBag, label: "Marché" },
-  { path: "/production", icon: Hammer, label: "Production" },
-  { path: "/travel", icon: Route, label: "Voyage" },
-  { path: "/combat", icon: Sword, label: "Combat" },
-  { path: "/quetes", icon: Target, label: "Quêtes" },
-  { path: "/inventaire", icon: Package, label: "Inventaire" },
-  { path: "/codex", icon: BookOpen, label: "Codex" },
-  { path: "/ranking", icon: Trophy, label: "Classement" },
-  { path: "/profile", icon: User, label: "Profil" },
+  { path: "/",         icon: Home,       label: "Accueil",  group: "home" },
+  { path: "/city",     icon: Building2,  label: "Cité",     group: "city",     dynamic: true },
+  { path: "/labeur",   icon: Hammer,     label: "Labeur",   group: "labeur" },
+  { path: "/aventure", icon: Sword,      label: "Aventure", group: "aventure", showPendingBadge: true },
+  { path: "/savoir",   icon: BookOpen,   label: "Savoir",   group: "savoir" },
 ];
+
+/**
+ * Détermine le label à afficher pour le bouton "Cité" selon l'état du joueur.
+ *  - En biome (travel_destination_id commence par "biome:") → nom court du biome
+ *  - En voyage actif vers une ville → "En voyage"
+ *  - Dans une ville (n'importe laquelle) → nom de cette ville
+ *  - Sinon → "Cité" par défaut
+ */
+function resolveCityLabel(profile, city) {
+  if (!profile) return "Cité";
+  if (profile.is_traveling) return "En voyage";
+  const dest = profile.travel_destination_id || "";
+  if (dest.startsWith("biome:")) {
+    const key = dest.replace("biome:", "");
+    return BIOMES[key]?.short || "Biome";
+  }
+  return city?.name || "Cité";
+}
+
+// Liste des chemins "appartenant" à chaque hub. Permet de garder le bouton
+// du hub en surbrillance même quand on est sur une de ses sous-pages.
+const PATHS_BY_GROUP = {
+  home:     ["/"],
+  city:     ["/city", "/taverne"],
+  labeur:   ["/labeur", "/production", "/market", "/inventaire"],
+  aventure: ["/aventure", "/travel", "/combat", "/quetes"],
+  savoir:   ["/savoir", "/codex", "/ranking", "/profile"],
+};
+
+function isPathInGroup(currentPath, group) {
+  const paths = PATHS_BY_GROUP[group] || [];
+  return paths.includes(currentPath);
+}
 
 export default function GameLayout() {
   const location = useLocation();
@@ -33,17 +70,21 @@ export default function GameLayout() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showBugReport, setShowBugReport] = useState(false);
   const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
+  // Profil et ville actuelle pour le label dynamique du bouton "Cité"
+  const [profile, setProfile] = useState(null);
+  const [city, setCity] = useState(null);
   const { isDark, toggleTheme } = useTheme();
 
+  // Vérifie si l'utilisateur est admin et ajoute l'item admin en fin de menu
   useEffect(() => {
     base44.auth.me().then(user => {
       if (user?.email && ADMIN_EMAILS.includes(user.email)) {
-        setNavItems([...BASE_NAV, { path: "/admin", icon: Settings, label: "Admin" }]);
+        setNavItems([...BASE_NAV, { path: "/admin", icon: Settings, label: "Admin", group: "admin" }]);
       }
     }).catch(() => {});
   }, []);
 
-  // ── Mise à jour last_active_at toutes les 2 minutes (toutes pages) ──
+  // Mise à jour last_active_at toutes les 2 minutes (toutes pages)
   useEffect(() => {
     const pingActive = async () => {
       try {
@@ -55,67 +96,95 @@ export default function GameLayout() {
         }
       } catch(e) { /* silencieux */ }
     };
-    pingActive(); // immédiatement au montage
-    const interval = setInterval(pingActive, 2 * 60 * 1000); // toutes les 2 minutes
+    pingActive();
+    const interval = setInterval(pingActive, 2 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // ── Compteur défis PvP à défendre (Phase 3) ──
-  // Ping toutes les 60 secondes pour mettre à jour le badge sur l'onglet Combat.
-  // Toast au premier détection après le login (pour ne pas rater un défi).
+  // Charge le profil + la ville courante pour résoudre le label dynamique de "Cité"
+  // Recharge à chaque changement d'URL (le joueur a pu voyager, changer de biome, etc.)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = await base44.auth.me();
+        if (!user?.email) return;
+        const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
+        if (cancelled || profiles.length === 0) return;
+        const p = profiles[0];
+        setProfile(p);
+        if (p.city_id) {
+          const c = await base44.entities.City.get(p.city_id).catch(() => null);
+          if (!cancelled) setCity(c);
+        }
+      } catch(e) { /* silencieux */ }
+    })();
+    return () => { cancelled = true; };
+  }, [location.pathname]);
+
+  // Polling des défis PvP en attente de défense
   useEffect(() => {
     let firstCheck = true;
-    let lastCount = 0;
+    let lastSeenIds = new Set();
+
     const pollPendingDefenses = async () => {
       try {
         const user = await base44.auth.me();
         if (!user?.email) return;
-        const challenges = await base44.entities.CombatChallenge.filter(
-          { defender_email: user.email, status: "pending_defense" },
-          "",
-          50
-        ).catch(() => []);
-        const now = Date.now();
-        const active = challenges.filter(c =>
-          !c.expires_at || new Date(c.expires_at).getTime() > now
-        );
+
+        const challenges = await base44.entities.CombatChallenge.filter({
+          target_email: user.email,
+          status: "pending_defense",
+        });
+
+        const active = (challenges || []).filter(c => c.status === "pending_defense");
         const count = active.length;
         setPendingDefenses(count);
 
-        // Toast à la première détection (login) ou si nouveau défi reçu
         if (firstCheck && count > 0) {
           toast.warning(`⚔️ ${count} défi${count > 1 ? "s" : ""} en attente de votre défense !`, {
             duration: 8000,
-            action: {
-              label: "Voir",
-              onClick: () => { window.location.href = "/combat"; },
-            },
           });
-        } else if (!firstCheck && count > lastCount) {
-          // Nouveau défi détecté en cours de session
-          toast.warning(`⚔️ Nouveau défi reçu ! ${count} en attente.`, {
-            duration: 6000,
-            action: {
-              label: "Voir",
-              onClick: () => { window.location.href = "/combat"; },
-            },
-          });
+        } else if (!firstCheck) {
+          const newIds = new Set(active.map(c => c.id));
+          for (const id of newIds) {
+            if (!lastSeenIds.has(id)) {
+              const ch = active.find(c => c.id === id);
+              toast.warning(`⚔️ Nouveau défi de ${ch?.attacker_name || "un adversaire"} : à vous de défendre !`, { duration: 8000 });
+            }
+          }
+          lastSeenIds = newIds;
         }
-        lastCount = count;
-        firstCheck = false;
+
+        if (firstCheck) {
+          lastSeenIds = new Set(active.map(c => c.id));
+          firstCheck = false;
+        }
       } catch (e) { /* silencieux */ }
     };
+
     pollPendingDefenses();
     const interval = setInterval(pollPendingDefenses, 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Helper pour résoudre le label affiché pour un item du menu
+  const getItemLabel = (item) => {
+    if (item.dynamic && item.group === "city") {
+      return resolveCityLabel(profile, city);
+    }
+    return item.label;
+  };
+
+  // Helper : un item est-il actif (sa page ou une sous-page de son groupe) ?
+  const isItemActive = (item) => isPathInGroup(location.pathname, item.group);
 
   return (
     <div className="min-h-screen flex flex-col">
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
       {showBugReport && <BugReportModal onClose={() => setShowBugReport(false)} />}
 
-      {/* Top Bar */}
+      {/* ── Top Bar ── */}
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
@@ -133,33 +202,33 @@ export default function GameLayout() {
                 Discord
               </Button>
             </a>
-            {navItems.map(({ path, icon: Icon, label }) => (
-              <Link key={path} to={path}>
-                <Button
-                  variant={location.pathname === path ? "default" : "ghost"}
-                  size="sm"
-                  className="gap-2 font-body text-sm relative"
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                  {path === "/combat" && pendingDefenses > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-heading rounded-full h-4 min-w-4 px-1 flex items-center justify-center animate-pulse">
-                      {pendingDefenses}
-                    </span>
-                  )}
-                </Button>
-              </Link>
-            ))}
-            {/* Theme toggle : desktop */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleTheme}
-              title="Basculer le thème"
-            >
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isItemActive(item);
+              const label = getItemLabel(item);
+              return (
+                <Link key={item.path} to={item.path}>
+                  <Button
+                    variant={active ? "default" : "ghost"}
+                    size="sm"
+                    className="gap-2 font-body text-sm relative"
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="max-w-[120px] truncate">{label}</span>
+                    {item.showPendingBadge && pendingDefenses > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-heading rounded-full h-4 min-w-4 px-1 flex items-center justify-center animate-pulse">
+                        {pendingDefenses}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
+              );
+            })}
+            {/* Theme toggle */}
+            <Button variant="ghost" size="sm" onClick={toggleTheme} title="Basculer le thème">
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            {/* Bug report button : desktop */}
+            {/* Bug report */}
             <Button
               variant="ghost"
               size="sm"
@@ -170,7 +239,7 @@ export default function GameLayout() {
               <Bug className="h-4 w-4" />
               Bug
             </Button>
-            {/* Tutorial button : desktop */}
+            {/* Tutorial */}
             <Button
               variant="ghost"
               size="sm"
@@ -183,66 +252,49 @@ export default function GameLayout() {
             </Button>
           </nav>
 
-          {/* Mobile right side: theme + help + menu toggle */}
+          {/* Mobile right side: theme + bug + help + menu toggle */}
           <div className="md:hidden flex items-center gap-1">
-           <Button
-             variant="ghost"
-             size="icon"
-             onClick={toggleTheme}
-             title="Basculer le thème"
-           >
-             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-           </Button>
-           <Button
-             variant="ghost"
-             size="icon"
-             onClick={() => setShowBugReport(true)}
-             title="Signaler un bug"
-           >
-             <Bug className="h-5 w-5 text-muted-foreground" />
-           </Button>
-           <Button
-             variant="ghost"
-             size="icon"
-             onClick={() => setShowTutorial(true)}
-             title="Aide"
-           >
-             <HelpCircle className="h-5 w-5 text-muted-foreground" />
-           </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setMobileOpen(!mobileOpen)}
-            >
+            <Button variant="ghost" size="icon" onClick={toggleTheme} title="Basculer le thème">
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setShowBugReport(true)} title="Signaler un bug">
+              <Bug className="h-5 w-5 text-muted-foreground" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setShowTutorial(true)} title="Aide">
+              <HelpCircle className="h-5 w-5 text-muted-foreground" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </Button>
           </div>
         </div>
 
-        {/* Mobile Nav */}
+        {/* ── Mobile Nav (menu hamburger déroulé) ── */}
         {mobileOpen && (
           <nav className="md:hidden border-t border-border bg-card p-2 space-y-1">
-            {navItems.map(({ path, icon: Icon, label }) => (
-              <Link key={path} to={path} onClick={() => setMobileOpen(false)}>
-                <Button
-                  variant={location.pathname === path ? "default" : "ghost"}
-                  className="w-full justify-start gap-3 font-body relative"
-                >
-                  <Icon className="h-4 w-4" />
-                  {label}
-                  {path === "/combat" && pendingDefenses > 0 && (
-                    <span className="ml-auto bg-red-600 text-white text-xs font-heading rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center animate-pulse">
-                      {pendingDefenses}
-                    </span>
-                  )}
-                </Button>
-              </Link>
-            ))}
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isItemActive(item);
+              const label = getItemLabel(item);
+              return (
+                <Link key={item.path} to={item.path} onClick={() => setMobileOpen(false)}>
+                  <Button
+                    variant={active ? "default" : "ghost"}
+                    className="w-full justify-start gap-3 font-body relative"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {label}
+                    {item.showPendingBadge && pendingDefenses > 0 && (
+                      <span className="ml-auto bg-red-600 text-white text-xs font-heading rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center animate-pulse">
+                        {pendingDefenses}
+                      </span>
+                    )}
+                  </Button>
+                </Link>
+              );
+            })}
             <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className="block">
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 font-body"
-              >
+              <Button variant="ghost" className="w-full justify-start gap-3 font-body">
                 <MessageCircle className="h-4 w-4" />
                 Discord
               </Button>
@@ -259,28 +311,16 @@ export default function GameLayout() {
         )}
       </header>
 
-      {/* Main Content */}
+      {/* ── Main Content ── */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
         <Outlet />
       </main>
 
-      {/* Mobile Bottom Nav */}
+      {/* ── Mobile Bottom Nav (5 items toujours visibles) ── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 safe-area-pb">
+        {/* Tiroir "Plus" pour les éléments secondaires (Discord, Aide, Admin si applicable) */}
         {moreOpen && (
           <div className="border-t border-border bg-card px-3 py-2 grid grid-cols-3 gap-1">
-            {navItems.slice(4).map(({ path, icon: Icon, label }) => (
-              <Link
-                key={path}
-                to={path}
-                onClick={() => setMoreOpen(false)}
-                className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs transition-colors ${
-                  location.pathname === path ? "text-primary font-semibold" : "text-muted-foreground"
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="font-body">{label}</span>
-              </Link>
-            ))}
             <a
               href={DISCORD_INVITE_URL}
               target="_blank"
@@ -298,25 +338,51 @@ export default function GameLayout() {
               <HelpCircle className="h-5 w-5" />
               <span className="font-body">Aide</span>
             </button>
+            {/* Bouton admin uniquement si l'item admin est dans navItems */}
+            {navItems.some(i => i.group === "admin") && (
+              <Link
+                to="/admin"
+                onClick={() => setMoreOpen(false)}
+                className={`flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs ${
+                  location.pathname.startsWith("/admin") ? "text-primary font-semibold" : "text-muted-foreground"
+                }`}
+              >
+                <Settings className="h-5 w-5" />
+                <span className="font-body">Admin</span>
+              </Link>
+            )}
           </div>
         )}
         <div className="flex justify-around py-2">
-          {navItems.slice(0, 4).map(({ path, icon: Icon, label }) => (
-            <Link
-              key={path}
-              to={path}
-              onClick={() => setMoreOpen(false)}
-              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors ${
-                location.pathname === path ? "text-primary font-semibold" : "text-muted-foreground"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              <span className="font-body">{label}</span>
-            </Link>
-          ))}
+          {/* Les 5 items principaux du menu : Accueil, Cité, Labeur, Aventure, Savoir */}
+          {navItems.filter(i => i.group !== "admin").slice(0, 5).map((item) => {
+            const Icon = item.icon;
+            const active = isItemActive(item);
+            const label = getItemLabel(item);
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                onClick={() => setMoreOpen(false)}
+                className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg text-xs transition-colors relative ${
+                  active ? "text-primary font-semibold" : "text-muted-foreground"
+                }`}
+              >
+                <Icon className="h-5 w-5" />
+                <span className="font-body max-w-[60px] truncate">{label}</span>
+                {item.showPendingBadge && pendingDefenses > 0 && (
+                  <span className="absolute top-0 right-1 bg-red-600 text-white text-[10px] font-heading rounded-full h-4 min-w-4 px-1 flex items-center justify-center animate-pulse">
+                    {pendingDefenses}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-xs transition-colors ${moreOpen ? "text-primary font-semibold" : "text-muted-foreground"}`}
+            className={`flex flex-col items-center gap-0.5 px-1 py-1 rounded-lg text-xs transition-colors ${
+              moreOpen ? "text-primary font-semibold" : "text-muted-foreground"
+            }`}
           >
             <MoreHorizontal className="h-5 w-5" />
             <span className="font-body">Plus</span>
