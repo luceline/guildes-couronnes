@@ -249,12 +249,25 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
 
       // ── Verser la commission au trésor de la ville où se trouve le client ──
       const cityIdForCommission = clientProfile.city_id;
+      const cityNameForCommission = clientProfile.city_name || "";
       if (cityIdForCommission && cityShare > 0) {
         try {
           const freshCity = await base44.entities.City.get(cityIdForCommission);
           await base44.entities.City.update(cityIdForCommission, {
             gold_treasury:       (freshCity.gold_treasury || 0) + cityShare,
             treasury_cumulative: (freshCity.treasury_cumulative || 0) + cityShare,
+          });
+          // Log côté VILLE : trace explicite pour le résumé du maire.
+          // Le profile est minimal (pas attaché à un joueur particulier) car cette
+          // ligne représente l'encaissement par la ville, pas un mouvement joueur.
+          // amount positif et cityAmountInverted:false dans transactionTypes.js
+          // pour que le résumé maire l'affiche directement comme entrée.
+          await logGold({
+            profile: { user_email: "", character_name: "" },
+            city:    { id: cityIdForCommission, name: freshCity.name || cityNameForCommission },
+            amount:  cityShare,
+            type:    "commission_atelier",
+            description: `${producer.character_name} → ${clientProfile.character_name || "client"} (${outputItem?.name || outputKey})`,
           });
         } catch (e) { console.warn("Commission ville atelier:", e); }
       }

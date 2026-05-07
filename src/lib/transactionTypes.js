@@ -27,8 +27,13 @@ export const TRANSACTION_TYPES = {
   vente:              { icon: "🏪", label: "Vente marché",              side: "none" },
   achat:              { icon: "🛒", label: "Achat marché",              side: "none" },
   taxe_marche:        { icon: "📊", label: "Taxe marché",               side: "in"   },
-  // 20% du montant client va à la ville (le reste à l'artisan, paiement P2P)
-  service_atelier:    { icon: "🏪", label: "Service d'atelier",         side: "in",  cityShare: 0.20 },
+  // service_atelier : log côté JOUEUR uniquement (paiement client + gain artisan).
+  // La part qui revient à la ville est tracée via le type "commission_atelier"
+  // ci-dessous, qui a son propre log dédié côté ville.
+  service_atelier:    { icon: "🏪", label: "Service d'atelier",         side: "none" },
+  // Commission de 20% (min 1 or) versée à la mairie où se trouve le client lors
+  // d'un service d'atelier. Loggée côté VILLE uniquement avec amount déjà positif.
+  commission_atelier: { icon: "🏪", label: "Commission atelier",        side: "in",  cityAmountInverted: false },
 
   // ── Fiscalité ────────────────────────────────────────────────────────────
   impot:              { icon: "💸", label: "Impôt journalier",          side: "in"   },
