@@ -260,6 +260,35 @@ export async function executeStealTreasury(profile, targetCity, value, itemName)
     await base44.entities.City.update(targetCity.id, {
       gold_treasury: (targetCity.gold_treasury || 0) - stolenAmount,
     });
+
+    // ── Communication côté ville VICTIME (mai 2026) ──
+    // Avant : Étoile filante / Parchemin marchand volaient sans laisser aucune trace
+    // côté cible. Ni TavernMessage, ni GoldTransaction. Le maire perdait des or
+    // sans pouvoir comprendre. Désormais, on logue les deux pour que :
+    //   - Les résidents voient un message anonyme dans la taverne
+    //   - Le maire voit la perte dans son résumé "Trésorerie volée"
+    try {
+      await base44.entities.TavernMessage.create({
+        city_id: targetCity.id,
+        author_name: "🌠 Mystère",
+        author_email: "system",
+        message: `🌠 Une étoile filante a fendu le ciel de la ville. Au matin, la trésorerie a perdu ${stolenAmount}💰...`,
+        category: "system",
+      });
+    } catch (e) { console.warn("[Cauldron] tavern msg (steal) failed:", e); }
+
+    try {
+      await base44.entities.GoldTransaction.create({
+        player_email: "",
+        player_name: "",
+        city_id: targetCity.id,
+        city_name: targetCity.name || "",
+        amount: -stolenAmount,
+        type: "razzia_loss",
+        description: `Vol mystérieux (${itemName}) : −${stolenAmount}💰`,
+      });
+    } catch (e) { console.warn("[Cauldron] gold tx (steal) failed:", e); }
+
     // Le profile est mis à jour côté appelant (pour cohérence avec l'inventaire)
     return {
       success: true,
@@ -330,6 +359,24 @@ export async function executeSpyCity(profile, targetCity, stealValue = 0, itemNa
       });
     } catch (e) {
       console.warn("[Cauldron] tavern msg failed:", e);
+    }
+
+    // ── GoldTransaction côté ville VICTIME (mai 2026) ──
+    // Pour que le maire voie la perte dans son résumé "Trésorerie volée".
+    // Loggé seulement si vol effectif (stolenAmount > 0). En cas d'espionnage
+    // sans or volé, pas de log financier (juste l'info taverne ci-dessus).
+    if (stolenAmount > 0) {
+      try {
+        await base44.entities.GoldTransaction.create({
+          player_email: "",
+          player_name: "",
+          city_id: cityToSpy.id,
+          city_name: cityToSpy.name || "",
+          amount: -stolenAmount,
+          type: "razzia_loss",
+          description: `Vol furtif (${itemName}) : −${stolenAmount}💰`,
+        });
+      } catch (e) { console.warn("[Cauldron] gold tx (spy) failed:", e); }
     }
 
     return {

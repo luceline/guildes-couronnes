@@ -71,6 +71,15 @@ export const TRANSACTION_TYPES = {
   vol_echoue:       { icon: "❌", label: "Tentative de vol échouée",  side: "none" },
   vol_repousse:     { icon: "🛡️", label: "Vol repoussé",              side: "none" },
 
+  // ── Vols entre villes (Razzia mairie + items chaudron Étoile filante /
+  // Parchemin marchand / Hibou messager) ────────────────────────────────────
+  // Loggés du POINT DE VUE de la trésorerie ville :
+  //   razzia_gain : amount > 0, ville attaquante encaisse
+  //   razzia_loss : amount < 0, ville victime perd
+  // Donc cityAmountInverted: false (pas d'inversion de signe).
+  razzia_gain:      { icon: "🗡️", label: "Razzia (gain)",            side: "in",  cityAmountInverted: false },
+  razzia_loss:      { icon: "🩸", label: "Trésorerie volée",          side: "out", cityAmountInverted: false },
+
   // ── Quêtes ───────────────────────────────────────────────────────────────
   objectif:         { icon: "🎯", label: "Objectif accompli",         side: "none" },
 
