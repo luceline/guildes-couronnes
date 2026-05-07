@@ -33,6 +33,7 @@ import {
 } from "@/lib/cityEventsHelpers";
 import { checkCityDome } from "@/lib/cauldronEffects";
 import { logGold } from "@/lib/goldLog";
+import { notifyTavern } from "@/lib/tavernNotifier";
 import { toast } from "sonner";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
@@ -215,13 +216,12 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
         0, "event_mairie", `${def.icon} ${def.name} : −${basketTotal} T1`).catch(() => {});
 
       // 6. Message taverne
-      await base44.entities.TavernMessage.create({
-        city_id: city.id,
-        author_name: "🏛️ Mairie",
-        author_email: "system",
+      await notifyTavern({
+        cityId: city.id,
+        audience: "residents",
+        authorName: "🏛️ Mairie",
         message: `${def.icon} La mairie organise une **${def.name}** ! ${def.description}`,
-        category: "system",
-      }).catch(() => {});
+      });
 
       toast.success(`${def.icon} ${def.name} lancé ! −${basketTotal} T1 de l'entrepôt.`);
       setConfirmEvent(null);
@@ -333,31 +333,28 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
         created_at: new Date().toISOString(),
       });
 
-      // 6. Messages tavernes (source ET cible)
+      // 6. Messages tavernes (source ET cible) - en salle privée résidents
       if (dome.protected) {
-        await base44.entities.TavernMessage.create({
-          city_id: city.id,
-          author_name: "🏛️ Mairie",
-          author_email: "system",
+        await notifyTavern({
+          cityId: city.id,
+          audience: "residents",
+          authorName: "🏛️ Mairie",
           message: `🛡️ La razzia contre ${target.name} a échoué : un dôme de protection l'enveloppe ! Les ${razziaBasketTotal} ressources sont perdues.`,
-          category: "system",
-        }).catch(() => {});
+        });
         toast.error(`🛡️ ${target.name} était protégée ! Vos ressources sont perdues.`);
       } else {
-        await base44.entities.TavernMessage.create({
-          city_id: city.id,
-          author_name: "🏛️ Mairie",
-          author_email: "system",
+        await notifyTavern({
+          cityId: city.id,
+          audience: "residents",
+          authorName: "🏛️ Mairie",
           message: `🗡️ Razzia réussie contre ${target.name} ! +${actualSteal}💰 dans la trésorerie.`,
-          category: "system",
-        }).catch(() => {});
-        await base44.entities.TavernMessage.create({
-          city_id: target.id,
-          author_name: "⚠️ Garde",
-          author_email: "system",
+        });
+        await notifyTavern({
+          cityId: target.id,
+          audience: "residents",
+          authorName: "⚠️ Garde",
           message: `🗡️ Votre ville a été razziée par ${city.name} ! La trésorerie a perdu ${actualSteal}💰.`,
-          category: "system",
-        }).catch(() => {});
+        });
         toast.success(`🗡️ Razzia réussie : +${actualSteal}💰 volés à ${target.name} !`);
       }
 

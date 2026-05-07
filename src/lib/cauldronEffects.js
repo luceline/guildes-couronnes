@@ -17,6 +17,7 @@
  * on retourne { needsTarget: true } pour que l'UI ouvre la modale appropriée.
  */
 import { base44 } from "@/api/base44Client";
+import { notifyTavern } from "@/lib/tavernNotifier";
 
 /**
  * Tente d'appliquer l'effet d'un item du chaudron.
@@ -267,15 +268,12 @@ export async function executeStealTreasury(profile, targetCity, value, itemName)
     // sans pouvoir comprendre. Désormais, on logue les deux pour que :
     //   - Les résidents voient un message anonyme dans la taverne
     //   - Le maire voit la perte dans son résumé "Trésorerie volée"
-    try {
-      await base44.entities.TavernMessage.create({
-        city_id: targetCity.id,
-        author_name: "🌠 Mystère",
-        author_email: "system",
-        message: `🌠 Une étoile filante a fendu le ciel de la ville. Au matin, la trésorerie a perdu ${stolenAmount}💰...`,
-        category: "system",
-      });
-    } catch (e) { console.warn("[Cauldron] tavern msg (steal) failed:", e); }
+    await notifyTavern({
+      cityId: targetCity.id,
+      audience: "residents",
+      authorName: "🌠 Mystère",
+      message: `🌠 Une étoile filante a fendu le ciel de la ville. Au matin, la trésorerie a perdu ${stolenAmount}💰...`,
+    });
 
     try {
       await base44.entities.GoldTransaction.create({
@@ -346,20 +344,15 @@ export async function executeSpyCity(profile, targetCity, stealValue = 0, itemNa
       }
     }
 
-    // Message anonyme dans la taverne ciblée
-    try {
-      await base44.entities.TavernMessage.create({
-        city_id: cityToSpy.id,
-        author_name: "🦉 Mystère",
-        author_email: "system",
-        message: stolenAmount > 0
-          ? `🦉 Un hibou furtif a survolé la ville : il a vu vos coffres et emporté ${stolenAmount}💰 dans ses serres.`
-          : "🦉 Votre ville a été espionnée. Quelqu'un a vu vos coffres...",
-        category: "system",
-      });
-    } catch (e) {
-      console.warn("[Cauldron] tavern msg failed:", e);
-    }
+    // Message anonyme dans la taverne ciblée (salle privée résidents)
+    await notifyTavern({
+      cityId: cityToSpy.id,
+      audience: "residents",
+      authorName: "🦉 Mystère",
+      message: stolenAmount > 0
+        ? `🦉 Un hibou furtif a survolé la ville : il a vu vos coffres et emporté ${stolenAmount}💰 dans ses serres.`
+        : "🦉 Votre ville a été espionnée. Quelqu'un a vu vos coffres...",
+    });
 
     // ── GoldTransaction côté ville VICTIME (mai 2026) ──
     // Pour que le maire voie la perte dans son résumé "Trésorerie volée".

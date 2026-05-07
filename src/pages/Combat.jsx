@@ -33,6 +33,7 @@ import {
   getPlayerHP,
 } from "@/lib/gameData";
 import { ITEMS } from "@/lib/craftingData";
+import { notifyTavern } from "@/lib/tavernNotifier";
 import { Sword, Shield, Trophy, Skull, Clock } from "lucide-react";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -133,13 +134,14 @@ async function autoResolveTimeoutChallenge(challenge) {
     } else {
       msg = `⏱️ ${defender.character_name || "La cible"} n'a pas répondu à temps, mais l'attaque de ${attacker.character_name || "l'attaquant"} a été repoussée par son armure.`;
     }
-    ops.push(base44.entities.TavernMessage.create({
-      author_email: "system",
-      author_name: "Système",
-      city_id: challenge.city_id || "",
-      message: msg,
-      type: "combat",
-    }).catch(() => {}));
+    if (challenge.city_id) {
+      ops.push(notifyTavern({
+        cityId: challenge.city_id,
+        audience: "public",
+        authorName: "Système",
+        message: msg,
+      }));
+    }
   } catch (e) { /* silent */ }
 
   await Promise.all(ops);

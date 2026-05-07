@@ -1,4 +1,5 @@
 import { base44 } from "@/api/base44Client";
+import { notifyTavern } from "@/lib/tavernNotifier";
 
 const CITY_PREFIXES = [
   "Roche", "Mont", "Baie", "Val", "Fort", "Eau", "Bois", "Côte",
@@ -198,29 +199,23 @@ export async function createNewCityWithRoutes(existingCities) {
 
       // Annoncer dans les tavernes
       for (const city of [...sameTerrityCities, ...previousTerrityCities]) {
-        try {
-          await base44.entities.TavernMessage.create({
-            city_id: city.id,
-            author_email: "system",
-            author_name: "Héraut royal",
-            profession: "",
-            message: `🌍 De nouveaux horizons s'ouvrent ! Le territoire "${newTerritoryName}" vient d'être fondé. Une route royale inter-territoire relie désormais ${gatewayCity.name} à ${availableName} (2h de voyage).`,
-          });
-        } catch (e) { /* silencieux */ }
+        await notifyTavern({
+          cityId: city.id,
+          audience: "public",
+          authorName: "Héraut royal",
+          message: `🌍 De nouveaux horizons s'ouvrent ! Le territoire "${newTerritoryName}" vient d'être fondé. Une route royale inter-territoire relie désormais ${gatewayCity.name} à ${availableName} (2h de voyage).`,
+        });
       }
     }
   } else {
     // Annoncer dans les tavernes du même territoire
     for (const city of sameTerrityCities) {
-      try {
-        await base44.entities.TavernMessage.create({
-          city_id: city.id,
-          author_email: "system",
-          author_name: "Héraut royal",
-          profession: "",
-          message: `📯 Une nouvelle bourgade vient d'être fondée : **${availableName}** ! Une route royale relie désormais nos cités.`,
-        });
-      } catch (e) { /* silencieux */ }
+      await notifyTavern({
+        cityId: city.id,
+        audience: "public",
+        authorName: "Héraut royal",
+        message: `📯 Une nouvelle bourgade vient d'être fondée : **${availableName}** ! Une route royale relie désormais nos cités.`,
+      });
     }
   }
 

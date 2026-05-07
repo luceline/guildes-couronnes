@@ -39,6 +39,7 @@ import RoyalStatuePanel from "../components/RoyalStatuePanel";
 import MayorEventsPanel from "../components/MayorEventsPanel";
 import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
 import { checkCityDome } from "@/lib/cauldronEffects";
+import { notifyTavern } from "@/lib/tavernNotifier";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
 
@@ -507,9 +508,10 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       city_id: dest.id,
       home_city_id: dest.id,
     });
-    await base44.entities.TavernMessage.create({
-      city_id: city.id, author_email: "system", author_name: "Garde royal",
-      profession: "",
+    await notifyTavern({
+      cityId: city.id,
+      audience: "residents",
+      authorName: "Garde royal",
       message: `🚫 ${targetPlayer.character_name} a été expulsé(e) de ${city.name} par ordre du maire.`,
     });
     toast.success(`${targetPlayer.character_name} a été expulsé(e) !`);

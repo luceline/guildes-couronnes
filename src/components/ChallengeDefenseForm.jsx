@@ -32,6 +32,7 @@ import {
 import { resolveCombat, getEquippedShield, getAvailableDefenseOptions } from "@/lib/combatPvP";
 import { claimBountiesIfApplicable } from "@/lib/bountyResolver";
 import { ITEMS } from "@/lib/craftingData";
+import { notifyTavern } from "@/lib/tavernNotifier";
 
 const ZONE_LABELS = { head: "Tête", torso: "Torse", arms: "Bras", legs: "Jambes" };
 const ZONE_ICONS  = { head: "🪖",   torso: "🛡️",   arms: "💪",   legs: "🦵" };
@@ -182,13 +183,15 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
         } else {
           msg = `🛡️ ${defenderName} a repoussé l'attaque de ${attackerName} !`;
         }
-        await base44.entities.TavernMessage.create({
-          author_email: freshDefender.user_email,
-          author_name: freshDefender.character_name || "",
-          city_id: challenge.city_id || "",
-          message: msg,
-          type: "combat",
-        });
+        if (challenge.city_id) {
+          await notifyTavern({
+            cityId: challenge.city_id,
+            audience: "public",
+            authorEmail: freshDefender.user_email,
+            authorName: freshDefender.character_name || "",
+            message: msg,
+          });
+        }
       } catch (e) { /* silent */ }
 
       // ── V6 — Toast adapté ──

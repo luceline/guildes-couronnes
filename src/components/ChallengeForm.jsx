@@ -30,6 +30,7 @@ import {
 import { canChallenge, getEquippedWeapon } from "@/lib/combatPvP";
 import { ITEMS } from "@/lib/craftingData";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
+import { notifyTavern } from "@/lib/tavernNotifier";
 
 const ZONE_LABELS = { head: "Tête", torso: "Torse", arms: "Bras", legs: "Jambes" };
 const ZONE_ICONS  = { head: "🪖",   torso: "🛡️",   arms: "💪",   legs: "🦵" };
@@ -123,15 +124,20 @@ export default function ChallengeForm({ attacker, target, city, onClose, onCreat
       });
 
       try {
-        await base44.entities.TavernMessage.create({
-          author_email: attacker.user_email,
-          author_name:  attacker.character_name || "",
-          city_id:      isBiomeFight ? "" : (city?.id || ""),
-          message:      isBiomeFight
-            ? `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} dans le ${biomeKey}. Que la lame trouve sa cible !`
-            : `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} ${city?.name ? `à ${city.name}` : ""}. Que la lame trouve sa cible !`,
-          type:         "combat",
-        });
+        const challengeMessage = isBiomeFight
+          ? `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} dans le ${biomeKey}. Que la lame trouve sa cible !`
+          : `⚔️ ${attacker.character_name || "Un combattant"} a défié ${target.character_name || "un adversaire"} ${city?.name ? `à ${city.name}` : ""}. Que la lame trouve sa cible !`;
+        // Pas de salle taverne pour les combats en biome (pas de ville d'origine).
+        // Pour les défis en ville, message public (grande salle) car c'est un duel ouvert.
+        if (!isBiomeFight && city?.id) {
+          await notifyTavern({
+            cityId: city.id,
+            audience: "public",
+            authorEmail: attacker.user_email,
+            authorName: attacker.character_name || "",
+            message: challengeMessage,
+          });
+        }
       } catch (e) { /* silent */ }
 
       toast.success(`⚔️ Défi lancé contre ${target.character_name || "cette cible"} !`);

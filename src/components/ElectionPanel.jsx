@@ -2,6 +2,7 @@ import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { notifyTavern } from "@/lib/tavernNotifier";
 import { getTodayDateStr } from "../lib/gameData";
 
 export default function ElectionPanel({ city, profile, mayorActive, onRefresh }) {
@@ -62,11 +63,12 @@ export default function ElectionPanel({ city, profile, mayorActive, onRefresh })
       await base44.entities.City.update(city.id, { election_candidates: newCandidates });
       const hasTavern = (city.buildings || []).some(b => b.building_type === "taverne");
       if (hasTavern) {
-        await base44.entities.TavernMessage.create({
-          city_id: city.id, author_email: "system", author_name: "Héraut royal",
-          profession: "",
+        await notifyTavern({
+          cityId: city.id,
+          audience: "public",
+          authorName: "Héraut royal",
           message: `📜 ${profile.character_name} (${profile.profession}) se présente à la mairie de ${city.name} ! Programme : « ${candidateProgram.trim() || "Aucun programme communiqué."} »`,
-        }).catch(() => {});
+        });
       }
       toast.success("📜 Vous êtes candidat à la mairie !");
       setCandidateProgram("");

@@ -12,6 +12,7 @@
  *   });
  */
 import { logGold } from "./goldLog";
+import { notifyTavern } from "./tavernNotifier";
 
 export async function claimBountiesIfApplicable(base44, params) {
   const { attacker, defender, combatResult, cityId = "", cityName = "" } = params;
@@ -85,15 +86,14 @@ export async function claimBountiesIfApplicable(base44, params) {
       description: `Prime touchée sur ${defender.character_name || ""} (posée par ${b.poster_name || "inconnu"})`,
     });
 
-    try {
-      await base44.entities.TavernMessage.create({
-        author_email: "system",
-        author_name: "Système",
-        city_id: cityId,
+    if (cityId) {
+      await notifyTavern({
+        cityId,
+        audience: "public",
+        authorName: "Système",
         message: `🏴‍☠️ ${attacker.character_name || "Un chasseur"} a touché la prime de ${b.reward_gold || 0}💰 sur ${defender.character_name || "la cible"} (posée par ${b.poster_name || "inconnu"}).`,
-        type: "combat",
       });
-    } catch (e) { /* silent */ }
+    }
   }
 
   return { claimed: claimedBounties.length, totalGold };

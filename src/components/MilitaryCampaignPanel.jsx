@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { base44 } from "@/api/base44Client";
 import { logGold } from "@/lib/goldLog";
+import { notifyTavern } from "@/lib/tavernNotifier";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -79,13 +80,12 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
             (r.city_to_id === campaign.attacker_city_id && r.city_from_id === campaign.defender_city_id)
           );
           const arrivalMin = route?.travel_time_minutes || "?";
-          await base44.entities.TavernMessage.create({
-            city_id: campaign.defender_city_id,
-            author_email: "system",
-            author_name: "⚠️ Éclaireur",
-            profession: "",
+          await notifyTavern({
+            cityId: campaign.defender_city_id,
+            audience: "residents",
+            authorName: "⚠️ Éclaireur",
             message: `⚠️ Une armée de ${atkCity?.name || "?"} marche vers ${defCity?.name || "votre ville"} ! Arrivée dans ${arrivalMin} minutes. Renforcez la garnison !`,
-          }).catch(() => {});
+          });
           needsReload = true;
         } catch (e) { console.warn("autoAdvance contributing→traveling:", e); }
       }
@@ -203,14 +203,13 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
         loot: {},
       });
 
-      // Notification dans la taverne de la ville attaquante
-      await base44.entities.TavernMessage.create({
-        city_id: city.id,
-        author_email: "system",
-        author_name: "👑 Maire",
-        profession: "",
+      // Notification dans la taverne de la ville attaquante (résidents = appel à mobilisation)
+      await notifyTavern({
+        cityId: city.id,
+        audience: "residents",
+        authorName: "👑 Maire",
         message: `⚔️ Le maire a déclaré une attaque contre ${getCityName(selectedTarget)} (−${WAR_DECLARATION_COST}💰 trésorerie) ! Résidents, contribuez vos unités dans la Mairie → Guerre. Départ dans 30 minutes.`,
-      }).catch(() => {});
+      });
 
       toast.success(`🥁 Le tocsin résonne ! Les portes s'ouvrent : 30 minutes pour rejoindre l'armée. (−${WAR_DECLARATION_COST}💰 trésorerie)`);
       setSelectedTarget(null);
@@ -397,13 +396,12 @@ export default function MilitaryCampaignPanel({ city, profile, isMayor, cities, 
         : `🛡️ ${defName} a repoussé l'attaque de ${atkName} : ${result.label}.`;
 
       for (const cityId of [campaign.attacker_city_id, campaign.defender_city_id]) {
-        await base44.entities.TavernMessage.create({
-          city_id: cityId,
-          author_email: "system",
-          author_name: "⚔️ Chroniqueur de guerre",
-          profession: "",
+        await notifyTavern({
+          cityId,
+          audience: "residents",
+          authorName: "⚔️ Chroniqueur de guerre",
           message: tavernMsg,
-        }).catch(() => {});
+        });
       }
 
       // Marquer comme résolu
