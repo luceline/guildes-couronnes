@@ -799,7 +799,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   const [showVillageView, setShowVillageView] = useState(true);
   const [buildingInfoTarget, setBuildingInfoTarget] = useState(null);
 
-  // Handler appelé quand un bâtiment "spécifique à la ville" est cliqué.
+  // Handler appelÃ© quand un bÃ¢timent "spÃ©cifique Ã  la ville" est cliquÃ©.
   // On bascule sur l'onglet correspondant dans CityView.
   const handleOpenTab = (tabValue) => {
     setActiveTab(tabValue);
@@ -809,14 +809,14 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     }, 50);
   };
 
-  // Handler appelé quand un bâtiment construit (mine, fonderie...) est cliqué.
+  // Handler appelÃ© quand un bÃ¢timent construit (mine, fonderie...) est cliquÃ©.
   const handleShowBuildingInfo = (buildingType) => {
     setBuildingInfoTarget(buildingType);
   };
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {/* Vue Village (toggle en haut, affichage par défaut) */}
+      {/* Vue Village (toggle en haut, affichage par dÃ©faut) */}
       {showVillageView && (
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
@@ -829,11 +829,12 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
               size="sm"
               onClick={() => setShowVillageView(false)}
             >
-              ?? Vue détaillée
+              ?? Vue dÃ©taillÃ©e
             </Button>
           </div>
 
           <VillageView
+            profile={profile}
             city={city}
             onOpenModal={handleOpenTab}
             onShowBuildingInfo={handleShowBuildingInfo}

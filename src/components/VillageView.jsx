@@ -19,11 +19,35 @@
 //   tier 4   (Cite)             -> mairie_n3
 //   tier 5+  (Capitale/Empire)  -> mairie_n4
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCityTier } from "@/lib/gameData";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import QuestesPage from "@/pages/QuestesPage";
+import ChaudronPage from "@/pages/ChaudronPage";
+import InventairePage from "@/pages/InventairePage";
+import ProductionPage from "@/pages/ProductionPage";
+import MarketPage from "@/pages/MarketPage";
+import EntrepotPage from "@/pages/EntrepotPage";
+import CombatPage from "@/pages/CombatPage";
 
 const SPRITE_BASE = "/sprites/village";
+
+// Mapping des batiments qui s ouvrent en drawer (au lieu de naviguer)
+const DRAWER_TARGETS = {
+  quetes: { title: "Tableau des quetes", Component: QuestesPage },
+  chaudron: { title: "Chaudron magique", Component: ChaudronPage },
+  logement: { title: "Inventaire", Component: InventairePage },
+  atelier: { title: "Atelier", Component: ProductionPage },
+  marche: { title: "Marche", Component: MarketPage },
+  arene: { title: "Arene", Component: CombatPage },
+  entrepot: { title: "Entrepot", Component: EntrepotPage },
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Grille virtuelle
@@ -51,15 +75,15 @@ function spriteWidth(gridW, gridH, scale) {
 // ─────────────────────────────────────────────────────────────────────────
 const CLICK_ROUTES = {
   taverne:      { type: "navigate", path: "/taverne"     },
-  marche:       { type: "navigate", path: "/market"      },
-  atelier:      { type: "navigate", path: "/production"  },
+  // marche : ouvert en drawer via DRAWER_TARGETS
+  // atelier : ouvert en drawer via DRAWER_TARGETS
   ecurie:       { type: "navigate", path: "/travel"      },
-  arene:        { type: "navigate", path: "/combat"      },
+  // arene : ouvert en drawer via DRAWER_TARGETS
   bibliotheque: { type: "navigate", path: "/savoir"      },
   quetes:       { type: "navigate", path: "/quetes"      },
   chaudron:     { type: "navigate", path: "/production"  },
   mairie:       { type: "modal",    tab:  "mairie"       },
-  entrepot:     { type: "modal",    tab:  "mairie"       },
+  // entrepot : ouvert en drawer via DRAWER_TARGETS
 };
 
 function mairieSpriteForTier(level) {
@@ -67,6 +91,17 @@ function mairieSpriteForTier(level) {
   if (level >= 4) return "mairie_n3";
   if (level >= 3) return "mairie_n2";
   return "mairie_n1";
+}
+
+// Sprite du logement personnel selon housing_level du profile
+const HOUSING_SPRITES = {
+  tente: "logement_tente",
+  cabane: "logement_cabane",
+  maison: "logement_maison",
+  manoir: "logement_manoir",
+};
+function logementSprite(housingLevel) {
+  return HOUSING_SPRITES[housingLevel] || "logement_tente";
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -83,6 +118,7 @@ const FIXED_BUILDINGS = [
   { key: "quetes",       sprite: "construction_tableau_quetes", col: 6,  row: 5, gridW: 1, gridH: 2, scale: 0.5, flip: false, label: "Tableau quetes", target: "quetes"       },
   { key: "bibliotheque", sprite: "construction_bibliotheque",   col: 5,  row: 3, gridW: 2, gridH: 2, scale: 0.5, flip: true,  label: "Bibliotheque",   target: "bibliotheque" },
   { key: "arene",        sprite: "construction_arene",          col: 12, row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Arene",          target: "arene"        },
+  { key: "logement",     sprite: "DYNAMIC_LOGEMENT",            col: 6,  row: 9, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Mon logement",   target: "logement"     },
 ];
 
 // Batiments fixes upgradables : recoivent glow + badge si construits en BDD
@@ -148,10 +184,15 @@ const DECORS = [
 // ─────────────────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────
-export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
+export default function VillageView({ profile, city, onOpenModal, onShowBuildingInfo }) {
   const navigate = useNavigate();
+  const [openDrawer, setOpenDrawer] = useState(null);
 
   const handleBuildingClick = (target) => {
+    if (DRAWER_TARGETS[target]) {
+      setOpenDrawer(target);
+      return;
+    }
     const route = CLICK_ROUTES[target];
     if (route) {
       if (route.type === "navigate") navigate(route.path);
@@ -227,7 +268,9 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
   // Tri par y (cy) croissant pour que les sprites du fond soient derriere ceux du devant
   const allBuildings = [
     ...FIXED_BUILDINGS.map(b => {
-      const sprite = b.sprite === "DYNAMIC" ? mairieSprite : b.sprite;
+      let sprite = b.sprite;
+      if (sprite === "DYNAMIC") sprite = mairieSprite;
+      else if (sprite === "DYNAMIC_LOGEMENT") sprite = logementSprite(profile?.housing_level);
       const upgraded = !!fixedUpgradeLevels[b.key];
       const level = fixedUpgradeLevels[b.key];
       return { ...b, sprite, upgraded, level };
@@ -470,6 +513,21 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
           }
         }
       `}</style>
+
+      {/* Drawer pour les batiments cliquables qui s ouvrent en tiroir */}
+      <Drawer open={!!openDrawer} onOpenChange={(open) => !open && setOpenDrawer(null)}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader>
+            <DrawerTitle>{openDrawer && DRAWER_TARGETS[openDrawer]?.title}</DrawerTitle>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6 flex-1">
+            {openDrawer && DRAWER_TARGETS[openDrawer] && (() => {
+              const Comp = DRAWER_TARGETS[openDrawer].Component;
+              return <Comp />;
+            })()}
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

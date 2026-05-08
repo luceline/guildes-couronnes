@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import CauldronPanel from "@/components/CauldronPanel";
 import TargetCityModal from "@/components/TargetCityModal";
 import SpyReportModal from "@/components/SpyReportModal";
 import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
@@ -45,7 +44,7 @@ import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeDoubleProdChance, acti
 
 
 
-export default function Production({ profile, city, homeCity, onRefresh }) {
+export default function Production({ profile, city, homeCity, onRefresh, defaultTab = "farm" }) {
   const [objectives, setObjectives] = useState([]);
   const [cityBuildings, setCityBuildings] = useState([]);
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
@@ -1368,11 +1367,7 @@ export default function Production({ profile, city, homeCity, onRefresh }) {
           </Card>
         );
       })()}
-
-      {/* ── Panneau Chaudron magique (Sprint 4) ── */}
-      <CauldronPanel profile={profile} city={city} onRefresh={onRefresh} />
-
-      <Tabs defaultValue="farm">
+      <Tabs defaultValue={defaultTab}>
         <TabsList className="font-heading">
           <TabsTrigger value="farm">🌾 Récolter</TabsTrigger>
           <TabsTrigger value="craft">⚒️ Fabriquer</TabsTrigger>

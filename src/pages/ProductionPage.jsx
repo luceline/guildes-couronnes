@@ -2,7 +2,7 @@ import { usePlayerData } from "../lib/usePlayerData";
 import { useGameData } from "../lib/useGameData";
 import Production from "./Production";
 
-export default function ProductionPage() {
+export default function ProductionPage({ defaultTab = "farm" } = {}) {
   const { profile, city, homeCity, loading, refresh } = usePlayerData();
   const { gameData, loading: gameDataLoading } = useGameData();
 
@@ -14,5 +14,5 @@ export default function ProductionPage() {
     );
   }
 
-  return <Production profile={profile} city={city} homeCity={homeCity} onRefresh={refresh} gameData={gameData} />;
+  return <Production profile={profile} city={city} homeCity={homeCity} onRefresh={refresh} gameData={gameData} defaultTab={defaultTab} />;
 }
