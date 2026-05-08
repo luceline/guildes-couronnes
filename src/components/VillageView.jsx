@@ -269,7 +269,7 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
         {allDecors.map((d, idx) => (
           <SpriteImg
             key={`decor-${idx}`}
-            src={`${SPRITE_BASE}/${d.sprite}.webp`}
+            src={`${SPRITE_BASE}/${d.sprite}.png`}
             x={d.x} y={d.y} scale={d.scale}
             zIndex={Math.round(d.y * 10)}
             decorative
@@ -280,7 +280,7 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
         {allBuildings.map(b => (
           <SpriteImg
             key={b.key}
-            src={`${SPRITE_BASE}/${b.sprite}.webp`}
+            src={`${SPRITE_BASE}/${b.sprite}.png`}
             x={b.x} y={b.y} scale={b.scale}
             zIndex={Math.round(b.y * 10) + 100}
             label={b.label}
@@ -406,14 +406,8 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
           display: block;
           width: 100%;
           height: auto;
-          /* Détourage : le fond blanc des sprites WebP est neutralisé via
-             mix-blend-mode: multiply qui transforme le blanc en transparent
-             par rapport au fond. Sur fond sombre/saturé, le blanc disparaît
-             complètement. Sur fond clair, il reste un léger halo. */
-          mix-blend-mode: multiply;
-          /* Petit boost de contraste pour que les sprites ressortent mieux
-             après le multiply qui assombrit toujours un peu. */
-          filter: contrast(1.05) saturate(1.1);
+          /* Sprites en PNG transparents : aucun traitement de détourage requis.
+             On laisse l'image telle quelle pour préserver les couleurs d'origine. */
         }
 
         .village-sprite-label {

@@ -22,11 +22,10 @@ Jeu web médiéval-fantastique de gestion de cité multi-joueurs développé par
 - **Frontend déployé** : `/var/www/guildes/dist/` (servi par nginx ou similaire)
 - **Cron** : `/opt/guildes/server_reset_v2/server_reset_v2.js`
 
-### Identifiants admin (à protéger)
-- Email : `lucas.brunet51@gmail.com`
-- Pass : `H4457w9Q7dNzjnF`
+### Accès admin
 
-## 🗂️ Mapping collections (`src/api/base44Client.js`)
+Credentials stockés hors du repo (gestionnaire de mots de passe local).
+Admin accessible sur https://guildescouronnes.fr/_/.## 🗂️ Mapping collections (`src/api/base44Client.js`)
 
 | Nom JS | Collection PocketBase |
 |---|---|
@@ -64,7 +63,7 @@ scp "C:\Users\conta\Downloads\migration_NAME.mjs" root@178.104.201.139:/opt/guil
 # Puis SSH
 ssh root@178.104.201.139
 cd /opt/guildes/server_reset_v2/
-PB_URL=http://127.0.0.1:8090 PB_EMAIL=lucas.brunet51@gmail.com PB_PASS=H4457w9Q7dNzjnF \
+PB_URL=http://127.0.0.1:8090 
   node migration_NAME.mjs --dry-run
 # puis sans flag si OK
 ```
