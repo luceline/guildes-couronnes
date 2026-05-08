@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import VillageView from "../components/VillageView";
+import BuildingInfoModal from "../components/BuildingInfoModal";
 import { base44 } from "@/api/base44Client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -792,10 +794,78 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
     buildingsByCategory[cat].push({ key, ...bType });
   }
 
+  // --- State pour la VillageView -----------------------------------------
+  const [activeTab, setActiveTab] = useState("mairie");
+  const [showVillageView, setShowVillageView] = useState(true);
+  const [buildingInfoTarget, setBuildingInfoTarget] = useState(null);
+
+  // Handler appelé quand un bâtiment "spécifique à la ville" est cliqué.
+  // On bascule sur l'onglet correspondant dans CityView.
+  const handleOpenTab = (tabValue) => {
+    setActiveTab(tabValue);
+    setShowVillageView(false);
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 50);
+  };
+
+  // Handler appelé quand un bâtiment construit (mine, fonderie...) est cliqué.
+  const handleShowBuildingInfo = (buildingType) => {
+    setBuildingInfoTarget(buildingType);
+  };
+
   return (
     <div className="space-y-6 pb-20 md:pb-0">
+      {/* Vue Village (toggle en haut, affichage par défaut) */}
+      {showVillageView && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-lg font-heading font-semibold flex items-center gap-2">
+              <span>???</span>
+              <span>{city.name}</span>
+            </h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowVillageView(false)}
+            >
+              ?? Vue détaillée
+            </Button>
+          </div>
+
+          <VillageView
+            city={city}
+            onOpenModal={handleOpenTab}
+            onShowBuildingInfo={handleShowBuildingInfo}
+          />
+        </div>
+      )}
+
+      {!showVillageView && (
+        <div className="flex justify-end px-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowVillageView(true)}
+          >
+            ??? Vue village
+          </Button>
+        </div>
+      )}
+
+      <BuildingInfoModal
+        buildingType={buildingInfoTarget}
+        city={city}
+        open={!!buildingInfoTarget}
+        onOpenChange={(o) => { if (!o) setBuildingInfoTarget(null); }}
+        onManageClick={() => {
+          setBuildingInfoTarget(null);
+          handleOpenTab("batiments");
+        }}
+      />
+
       {/* Onglets en haut */}
-      <Tabs defaultValue="mairie" className="sticky top-0 z-20 bg-background border-b">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="sticky top-0 z-20 bg-background border-b">
         <TabsList className="font-heading flex-wrap h-auto gap-1 w-full justify-center rounded-none border-b-0">
           <TabsTrigger
             value="mairie"

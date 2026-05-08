@@ -11,13 +11,48 @@
 //   tier 5   (Capitale)         → mairie_n4
 //
 // Layout : grille isométrique simple, position en pourcentage pour responsive.
-// Chaque bâtiment cliquable scroll vers la section correspondante de CityView
-// (via prop onBuildingClick) ou est purement décoratif.
+//
+// Routage au clic (architecture hybride) :
+//   - Bâtiments "lieu d'action" (taverne, marché, atelier, etc.) → redirection
+//     vers la page dédiée existante (/taverne, /market, /production, etc.)
+//   - Bâtiments "spécifiques à cette ville" (mairie, gestion bâtiments) →
+//     callback `onOpenModal(target)` que CityView gère pour afficher l'onglet
+//     correspondant en modale.
+//   - Bâtiments construits sans page dédiée (mine, fonderie, etc.) → callback
+//     `onShowBuildingInfo(buildingType)` pour afficher une modale d'infos.
 
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { getCityTier } from "@/lib/gameData";
 
 const SPRITE_BASE = "/sprites/village";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Routage des clics : pour chaque target, on définit comment réagir.
+//   { type: "navigate", path: "/x" }  → navigate(path) côté router
+//   { type: "modal", tab: "x" }       → onOpenModal("x")
+//   { type: "info" }                  → onShowBuildingInfo(target)
+// Si aucune entrée, le clic ne fait rien.
+// ─────────────────────────────────────────────────────────────────────────
+const CLICK_ROUTES = {
+  // ─── Bâtiments fixes : lieu d'action → redirection vers page dédiée ───
+  taverne:      { type: "navigate", path: "/taverne"     },
+  marche:       { type: "navigate", path: "/market"      },
+  atelier:      { type: "navigate", path: "/production"  },
+  ecurie:       { type: "navigate", path: "/travel"      },
+  arene:        { type: "navigate", path: "/combat"      },
+  bibliotheque: { type: "navigate", path: "/savoir"      },
+  quetes:       { type: "navigate", path: "/quetes"      },
+  chaudron:     { type: "navigate", path: "/aventure"    },
+
+  // ─── Bâtiments fixes : spécifiques à la ville → modale ───
+  mairie:       { type: "modal", tab: "mairie"     },
+  entrepot:     { type: "modal", tab: "batiments"  },
+
+  // ─── Bâtiments construits (BDD) → modale d'infos sans onglet dédié ───
+  // Utilisé via fallback : si target n'est pas listé ci-dessus mais que c'est
+  // un building_type connu de BUILDING_SPRITE_MAP, on tombe sur "info".
+};
 
 // ─────────────────────────────────────────────────────────────────────────
 // Mapping tier de ville → sprite mairie
@@ -132,7 +167,37 @@ const DECORS = [
 // ─────────────────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────
-export default function VillageView({ city, onBuildingClick }) {
+export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
+  const navigate = useNavigate();
+
+  // Gestionnaire central des clics sur les bâtiments. Selon la nature du
+  // bâtiment cliqué (target), on déclenche l'action appropriée :
+  //   - navigation vers une page dédiée (taverne, marché, etc.)
+  //   - ouverture d'une modale d'onglet (mairie, gestion bâtiments)
+  //   - ouverture d'une modale d'infos pour un bâtiment construit (mine, etc.)
+  const handleBuildingClick = (target) => {
+    const route = CLICK_ROUTES[target];
+
+    if (route) {
+      if (route.type === "navigate") {
+        navigate(route.path);
+      } else if (route.type === "modal") {
+        onOpenModal?.(route.tab);
+      }
+      return;
+    }
+
+    // Pas de route définie : si c'est un bâtiment construit (présent en BDD),
+    // on déclenche la modale d'infos générique.
+    if (BUILDING_SPRITE_MAP[target]) {
+      onShowBuildingInfo?.(target);
+      return;
+    }
+
+    // Sinon (bâtiment sans route), on ne fait rien — log debug uniquement.
+    console.log("[VillageView] clic non routé :", target);
+  };
+
   // Sprite dynamique de la mairie selon le tier
   const cityTier = useMemo(() => {
     if (!city) return { level: 1, label: "Hameau" };
@@ -221,7 +286,7 @@ export default function VillageView({ city, onBuildingClick }) {
             label={b.label}
             level={b.level}
             upgraded={b.upgraded}
-            onClick={() => onBuildingClick?.(b.target)}
+            onClick={() => handleBuildingClick(b.target)}
           />
         ))}
       </div>
