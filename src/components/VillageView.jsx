@@ -40,8 +40,10 @@ function gridCenter(col, row, gridW, gridH) {
   };
 }
 
-function spriteWidth(gridW, scale) {
-  return gridW * TILE_W * scale;
+function spriteWidth(gridW, gridH, scale) {
+  // Formule alignee sur l'editeur de placement :
+  // baseWidth = 22% * scale * max(gridW, gridH) / 2
+  return 22 * scale * Math.max(gridW, gridH) / 2;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -113,8 +115,6 @@ const BUILD_SLOTS = {
   maison_1:      { type: "maison",        sprite: "logement_maison",             col: 13, row: 9,  gridW: 1, gridH: 1, scale: 0.5, flip: false },
   maison_2:      { type: "maison",        sprite: "logement_maison",             col: 12, row: 9,  gridW: 1, gridH: 1, scale: 0.5, flip: true  },
 
-  // Manoir de ville (unique)
-  manoir_ville:  { type: "manoir_ville",  sprite: "logement_manoir",             col: 14, row: 9,  gridW: 2, gridH: 2, scale: 0.5, flip: false },
 
   // Statue royale (entite separee mais affichee comme un building si presente dans city.buildings)
   statue_royale: { type: "statue_royale", sprite: "construction_statue_royale",  col: 16, row: 6,  gridW: 1, gridH: 1, scale: 1.35, flip: false },
@@ -260,7 +260,7 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
             key={`decor-${idx}`}
             src={`${SPRITE_BASE}/${d.sprite}.png`}
             cx={d.x} cy={d.y}
-            widthPct={22 * d.scale}
+            widthPct={22 * d.scale * 0.5}
             zIndex={Math.round(d.y * 10)}
             flip={d.flip}
             decorative
@@ -273,7 +273,7 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
             key={b.key}
             src={`${SPRITE_BASE}/${b.sprite}.png`}
             cx={b.cx} cy={b.cy}
-            widthPct={spriteWidth(b.gridW, b.scale)}
+            widthPct={spriteWidth(b.gridW, b.gridH, b.scale)}
             zIndex={Math.round(b.cy * 10) + 100}
             flip={b.flip}
             label={b.label}
@@ -323,7 +323,7 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
         .village-ground {
           position: absolute;
           inset: 0;
-          background: #6e9148;
+          background: #6e9148 url('/sprites/village/village_ground.webp') center / cover no-repeat;
           pointer-events: none;
         }
 

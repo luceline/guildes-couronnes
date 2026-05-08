@@ -1012,16 +1012,6 @@ export const BUILDING_TYPES = {
     effect: "+2 emplacements de population par maison construite (max 2 maisons).",
     functionType: "population",
   },
-  manoir_ville: {
-    name: "Manoir seigneurial", icon: "🏯",
-    category: "logement",
-    popBonus: 10,
-    stackable: false, unique: true,
-    costBase: { pierre: 60, minerai_fer: 30, or: 15 },
-    maintenance: { pierre_brute: 1, or: 3 },
-    effect: "+10 emplacements de population.",
-    functionType: "population",
-  },
 
   // ── Production ──
   scierie: {
