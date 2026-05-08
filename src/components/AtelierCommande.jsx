@@ -233,6 +233,15 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       const cityShare    = Math.min(price, Math.max(1, Math.round(price * 0.20)));
       const artisanShare = price - cityShare;
       const producerGold = (freshProducer.gold || 0) + artisanShare;
+      // ── Classement vendeurs (mai 2026) ──
+      // Avant : seules les ventes au marché et au sein de l'entrepôt étaient
+      // comptées dans cumul_ventes_or. Les ventes via atelier (commande directe
+      // d'un client à un artisan) ne montaient jamais le rang du vendeur, ce
+      // qui défavorisait les artisans à vitrine. Désormais, on incrémente
+      // aussi cumul_ventes_or du producer avec sa part nette (après commission
+      // ville), pour rester cohérent avec les autres canaux qui comptent le
+      // net encaissé.
+      const producerCumul = (freshProducer.cumul_ventes_or || 0) + artisanShare;
 
       await Promise.all([
         base44.entities.PlayerProfile.update(freshClient.id, {
@@ -243,7 +252,8 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
           gold:                 newGold,
         }),
         base44.entities.PlayerProfile.update(freshProducer.id, {
-          gold: producerGold,
+          gold:             producerGold,
+          cumul_ventes_or:  producerCumul,
         }),
       ]);
 
