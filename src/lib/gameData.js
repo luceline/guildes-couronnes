@@ -1006,20 +1006,10 @@ export const BUILDING_TYPES = {
     name: "Maison", icon: "🏠",
     category: "logement",
     popBonus: 2,
-    stackable: true, unique: false,
+    stackable: true, unique: false, maxStack: 2,
     costBase: { bois_brut: 20, pierre: 10 },
     maintenance: { bois_brut: 1, or: 1 },
-    effect: "+2 emplacements de population par maison construite.",
-    functionType: "population",
-  },
-  quartier: {
-    name: "Quartier résidentiel", icon: "🏘️",
-    category: "logement",
-    popBonus: 5,
-    stackable: true, unique: false,
-    costBase: { bois_brut: 50, pierre: 30, minerai_fer: 10 },
-    maintenance: { quartz_poli: 1, or: 2 },
-    effect: "+5 emplacements de population.",
+    effect: "+2 emplacements de population par maison construite (max 2 maisons).",
     functionType: "population",
   },
   manoir_ville: {
@@ -1548,14 +1538,15 @@ export function getBuildingCount(city, buildingType) {
   return (city?.buildings || []).filter(b => b.building_type === buildingType).length;
 }
 
-/** Peut-on construire/améliorer ce bâtiment ?
- * - Bâtiments uniques (scierie, mine, etc.) : level max = 5
- * - Bâtiments stackables (maison, quartier) : 5 exemplaires max */
+/** Peut-on construire ou ameliorer ce batiment ?
+ * - Batiments uniques (scierie, mine, etc.) : level max = 5
+ * - Batiments stackables : limite definie par maxStack (defaut 5) */
 export function canBuildMore(city, buildingType) {
   const bType = BUILDING_TYPES[buildingType];
   if (!bType) return false;
   if (bType.stackable) {
-    return getBuildingCount(city, buildingType) < 5;
+    const maxStack = bType.maxStack || 5;
+    return getBuildingCount(city, buildingType) < maxStack;
   }
   // Bâtiments uniques : on peut construire (si absent) OU améliorer (si level < 5)
   const currentLevel = getBuildingLevel(city, buildingType);
