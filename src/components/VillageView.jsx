@@ -43,11 +43,11 @@ const CLICK_ROUTES = {
   arene:        { type: "navigate", path: "/combat"      },
   bibliotheque: { type: "navigate", path: "/savoir"      },
   quetes:       { type: "navigate", path: "/quetes"      },
-  chaudron:     { type: "navigate", path: "/aventure"    },
+  chaudron:     { type: "navigate", path: "/production"  },  // chaudron est sous l'onglet production
 
-  // ─── Bâtiments fixes : spécifiques à la ville → modale ───
-  mairie:       { type: "modal", tab: "mairie"     },
-  entrepot:     { type: "modal", tab: "batiments"  },
+  // ─── Bâtiments fixes : spécifiques à la ville → modale (= onglet CityView) ───
+  mairie:       { type: "modal", tab: "mairie" },
+  entrepot:     { type: "modal", tab: "mairie" },  // l'entrepôt (WarehouseUnified) est dans l'onglet mairie
 
   // ─── Bâtiments construits (BDD) → modale d'infos sans onglet dédié ───
   // Utilisé via fallback : si target n'est pas listé ci-dessus mais que c'est
@@ -308,13 +308,13 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
           margin: 0 auto;
           aspect-ratio: 16 / 10;
           background:
-            radial-gradient(circle at 50% 60%,
-              rgba(180, 200, 140, 0.4) 0%,
-              rgba(140, 165, 110, 0.5) 35%,
-              rgba(110, 130, 85, 0.55) 100%);
+            radial-gradient(ellipse at 50% 55%,
+              rgba(135, 165, 95, 1) 0%,
+              rgba(95, 125, 70, 1) 50%,
+              rgba(60, 85, 45, 1) 100%);
           border-radius: 12px;
           overflow: hidden;
-          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 60px rgba(0,0,0,0.15);
+          box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 0 80px rgba(0,0,0,0.3);
         }
 
         .village-view-stage {
@@ -406,14 +406,14 @@ export default function VillageView({ city, onOpenModal, onShowBuildingInfo }) {
           display: block;
           width: 100%;
           height: auto;
-          /* Pixel-art friendly : pas de blur quand on zoome */
-          image-rendering: pixelated;
-          image-rendering: -moz-crisp-edges;
-          /* Détourage souple : le fond blanc des JPG est neutralisé en
-             multipliant par le fond, mais ça reste un JPG donc on accepte
-             une légère halo. Pour un détourage parfait on regénérera
-             en PNG transparent plus tard. */
+          /* Détourage : le fond blanc des sprites WebP est neutralisé via
+             mix-blend-mode: multiply qui transforme le blanc en transparent
+             par rapport au fond. Sur fond sombre/saturé, le blanc disparaît
+             complètement. Sur fond clair, il reste un léger halo. */
           mix-blend-mode: multiply;
+          /* Petit boost de contraste pour que les sprites ressortent mieux
+             après le multiply qui assombrit toujours un peu. */
+          filter: contrast(1.05) saturate(1.1);
         }
 
         .village-sprite-label {
