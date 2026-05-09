@@ -75,7 +75,8 @@ const MONSTER_WAVES_BY_INDEX = (() => {
   return result;
 })();
 
-const TIERS = [1, 2, 3, 4, 5];
+// TEMP MASQUAGE T4/T5 (09/05/2026) - Restaurer "= [1, 2, 3, 4, 5]" quand Lucas le demandera (et retirer aussi le filtre def.tier > 3 dans la fonction de filtrage plus bas).
+const TIERS = [1, 2, 3];
 
 export default function CodexPage() {
   const [activeTab, setActiveTab] = useState("items"); // "items" | "bestiary"
@@ -154,7 +155,8 @@ function ItemsTab() {
       .filter(([key, def]) => {
         if (!def?.name) return false;
         if (q && !def.name.toLowerCase().includes(q) && !key.toLowerCase().includes(q)) return false;
-        if (tierFilter && (def.tier || 1) !== tierFilter) return false;
+        // TEMP MASQUAGE T4/T5 (09/05/2026) - La premiere condition cache T4/T5 dans la grille. A retirer simultanement avec TIERS plus haut.
+      if ((def.tier || 1) > 3) return false; if (tierFilter && (def.tier || 1) !== tierFilter) return false;
         if (categoryFilter && def.category !== categoryFilter) return false;
         if (professionFilter) {
           const recipe = RECIPES_BY_OUTPUT[key];

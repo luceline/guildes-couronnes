@@ -295,7 +295,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 </div>
               </div>
 
-              <MaireOffresPanel city={city} onRefresh={onRefresh} />
+              {/* REFACTO 09/05/2026 - MaireOffresPanel retire ici (doublon avec onglet "offres" plus bas) */}
             </div>
           )}
           {!isMayor && !isPercepteur && (city.daily_tax_per_player || 0) > 0 && (

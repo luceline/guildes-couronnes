@@ -238,8 +238,8 @@ export const ITEMS = {
   },
   extrait: {
     name: "Extrait", icon: "🫗", category: "potions", tier: 2,
-    trigger: "consumed", effect: "fatigue_restore", value: 5,
-    use: "+5⚡ instant.",
+    trigger: "consumed", effect: "fatigue_restore", value: 7,
+    use: "+7⚡ instant.",
   },
   cataplasme: {
     name: "Cataplasme", icon: "🩹", category: "potions", tier: 2,
@@ -253,13 +253,20 @@ export const ITEMS = {
   },
   encre: {
     name: "Encre", icon: "🖋️", category: "parchemins", tier: 2,
-    trigger: "consumed", effect: "gamble", value: 0, gamble_max: 80,
-    use: "Consommée : gamble 0–80💰 (gain moyen ~40💰).",
+    trigger: "consumed", effect: "gamble", value: 0, gamble_max: 30,
+    use: "Consommée : gamble 0–30💰 (gain moyen ~15💰).",
   },
   farine: {
     name: "Farine", icon: "🧺", category: "nourriture", tier: 2,
-    trigger: "consumed", effect: "hunger_restore", value: 5,
-    use: "+5🍞 instant.",
+    trigger: "consumed", effect: "hunger_restore", value: 7,
+    use: "+7🍞 instant.",
+  },
+
+  // NOUVEAU v3 (09/05/2026) - Recharge l outil d artisan personnel
+  pierre_aiguiser: {
+    name: "Pierre à aiguiser", icon: "🪊", category: "pierre", tier: 2,
+    trigger: "consumed", effect: "recharge_artisan_tool", value: 15,
+    use: "Consommée : +15 charges à votre outil d'artisan (cap 50).",
   },
 
   // ════════════════════════════════
@@ -311,6 +318,38 @@ export const ITEMS = {
     name: "Contrat artisan", icon: "📋", category: "parchemins", tier: 3,
     trigger: "consumed", effect: "quest_activate", value: 1,
     use: "Activer une quête (5 T2 → 110💰).",
+  },
+
+  // NOUVEAUX v3 (09/05/2026) - Items T3 pour creer demande recurrente sur les T2
+  etai_recolte: {
+    name: "Étai de récolte", icon: "🪵", category: "bois", tier: 3,
+    trigger: "consumed", effect: "harvest_bonus_buff", value: 25, duration_minutes: 60,
+    use: "Consommé : +25% chance de bonus de récolte pendant 1h.",
+  },
+  marteau_armurier: {
+    name: "Marteau d'armurier", icon: "🔨", category: "fer", tier: 3,
+    trigger: "consumed", effect: "repair_combat_gear", value: 10,
+    use: "Consommé : 10 points de réparation à répartir entre vos 6 pièces équipées.",
+  },
+  bandeau_erudit: {
+    name: "Bandeau d'érudit", icon: "🎓", category: "tissu", tier: 3,
+    trigger: "consumed", effect: "epopee_rare_bonus", value: 1,
+    use: "Consommé : +1 ressource rare garantie sur votre prochaine épopée.",
+  },
+  affutage_maitre: {
+    name: "Affûtage de maître", icon: "⚙️", category: "fer", tier: 3,
+    trigger: "consumed", effect: "recharge_artisan_tool", value: 50,
+    use: "Consommé : +50 charges à votre outil d'artisan (cap 50, surplus perdu).",
+  },
+  bon_tresor: {
+    name: "Bon du Trésor", icon: "💼", category: "or", tier: 3,
+    trigger: "consumed", effect: "epopee_gold_bonus", value: 50,
+    use: "Consommé : +50💰 garantis sur votre prochaine épopée.",
+  },
+  carnet_commande: {
+    name: "Carnet de commande", icon: "📒", category: "parchemins", tier: 3,
+    trigger: "consumed", effect: "quest_market_sale", value: 35,
+    use: "Consommé : débloque une quête de vente au marché (+35💰 à la réalisation).",
   },
 
   // ════════════════════════════════

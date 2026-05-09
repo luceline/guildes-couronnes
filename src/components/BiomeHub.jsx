@@ -31,7 +31,7 @@ const BIOME_HARVEST = {
   carriere: { item_key: "quartz_brut",  item_name: "Quartz brut",     item_category: "quartz",     icon: "🔮" },
 };
 
-const HARVEST_COST_PER_UNIT = 3;   // or détruit par unité récoltée
+const HARVEST_COST_PER_UNIT = 5;   // or détruit par unité récoltée (NOUVEAU 09/05/2026 : 3 -> 5)
 const HARVEST_RATE_MS = 7200000;   // 1 ressource toutes les 2h (en ms)
 
 /** Calcule les ressources récoltées depuis harvest_started_at, limitées par l'inventaire et l'or */

@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import PlayerStatusBar from "../components/PlayerStatusBar";
 import { ITEM_CATEGORIES } from "../lib/gameData";
 import ItemTooltip from "../components/ItemTooltip";
 import MarketInsights from "../components/MarketInsights";
@@ -260,8 +259,30 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       }).filter(i => i.quantity > 0);
     }
 
-    await base44.entities.PlayerProfile.update(profile.id, { inventory: newInventory });
+    // ── NOUVEAU v3 (09/05/2026) - Bonus Carnet de commande : +X or pour mise en vente d'un item T2+ ──
+    // Si le joueur a un pending_market_sale_bonus > 0 ET que l'item vendu est T2+,
+    // on encaisse le bonus immediatement (ajout a l'or, reset du flag).
+    const sellItemTier = ITEMS[item.item_key]?.tier || 0;
+    const carnetBonus = profile.pending_market_sale_bonus || 0;
+    const carnetTriggered = (sellItemTier >= 2 && carnetBonus > 0);
+
+    const sellUpdates = { inventory: newInventory };
+    if (carnetTriggered) {
+      sellUpdates.gold = (profile.gold || 0) + carnetBonus;
+      sellUpdates.pending_market_sale_bonus = 0;
+    }
+
+    await base44.entities.PlayerProfile.update(profile.id, sellUpdates);
     toast.success(`🏷️ Votre étale est dressée sur le marché de ${city?.name} : que les acheteurs affluent !`);
+    if (carnetTriggered) {
+      // Trace dans le journal des transactions or pour suivi dashboard
+      try {
+        await logGold(profile.user_email, profile.character_name, city?.id, city?.name,
+          carnetBonus, "bonus", `Bon de commande honoré (vente ${item.item_name} T${sellItemTier})`
+        );
+      } catch(e) { console.warn("[carnet logGold]", e); }
+      toast.success(`📒 Bon de commande honoré : +${carnetBonus}💰 bonus encaissé !`, { duration: 5000 });
+    }
     setSellOpen(false);
     setSellForm({ item_index: "", quantity: 1, price: 1, itemKey: "" });
 
@@ -793,7 +814,6 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
 
       {/* ── Caravane royale ── */}
       {(() => {
@@ -888,7 +908,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 >
                   <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
                   <SelectContent>
-                    {(profile.inventory || []).filter(i => i.quantity > 0).map((item, idx) => (
+                    {/* TEMP MASQUAGE T4/T5 (09/05/2026) - Empeche la mise en vente de T4/T5. Restaurer en retirant le filtre tier <= 3 quand Lucas le demandera. */}
+                    {(profile.inventory || []).filter(i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3).map((item, idx) => (
                       <SelectItem key={idx} value={String(idx)}>
                         {ITEM_CATEGORIES[item.item_category]?.icon} {item.item_name} (×{item.quantity})
                       </SelectItem>
@@ -897,7 +918,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 </Select>
               </div>
               {sellForm.item_index !== "" && (() => {
-                const item = (profile.inventory || []).filter(i => i.quantity > 0)[parseInt(sellForm.item_index)];
+                // TEMP MASQUAGE T4/T5 (09/05/2026) - Le filtre tier <= 3 doit rester aligne avec celui du selecteur ci-dessus. A retirer simultanement.
+        const item = (profile.inventory || []).filter(i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3)[parseInt(sellForm.item_index)];
                 if (!item) return null;
                 return (
                   <div className="space-y-2">
@@ -1036,21 +1058,22 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
                         const isBestDeal = bestDeals.includes(listing.id);
                         return (
-                          <div key={listing.id} className={`border rounded-lg p-3 space-y-2 ${
+                          <div key={listing.id} className={`border rounded-lg p-2 md:p-2.5 ${
                             isBestDeal 
-                              ? "border-yellow-400 bg-yellow-50 shadow-md shadow-yellow-200" 
+                              ? "border-yellow-400 bg-yellow-50 shadow-sm shadow-yellow-200" 
                               : "border-border"
                           }`}>
-                            <div className="flex items-center justify-between text-sm font-body">
-                              <span className="text-muted-foreground">
-                                par {listing.seller_name}
+                            {/* Layout : ligne unique en desktop, empile en mobile */}
+                            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
+                              {/* Bloc 1 : Vendeur + ville + badges (flex 1 = prend l'espace disponible) */}
+                              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-body">
+                                <span className="text-muted-foreground font-medium">par {listing.seller_name}</span>
                                 {(() => {
-                                  // MARCHÉ UNIFIÉ : indiquer la ville du listing avec son taux de taxe
                                   const listingCity = allCities.find(c => c.id === listing.city_id);
                                   if (!listingCity) return null;
                                   const isLocal = listing.city_id === profile.city_id;
                                   return (
-                                    <span className={`ml-2 inline-block text-xs font-semibold px-1.5 py-0.5 rounded border ${
+                                    <span className={`inline-block text-[11px] font-semibold px-1.5 py-0.5 rounded border ${
                                       isLocal
                                         ? "bg-emerald-100 text-emerald-800 border-emerald-300"
                                         : "bg-sky-100 text-sky-800 border-sky-300"
@@ -1062,68 +1085,58 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                                 {(() => {
                                   const d = getDaysLeft(listing.expires_at);
                                   if (d === null) return null;
-                                  if (d <= 1) return <span className="ml-1 text-red-500 font-semibold text-xs">⏳ expire demain</span>;
-                                  return <span className="ml-1 text-muted-foreground text-xs">{d}j restants</span>;
+                                  if (d <= 1) return <span className="text-red-500 font-semibold text-[11px]">⏳ expire demain</span>;
+                                  return <span className="text-muted-foreground text-[11px]">{d}j</span>;
                                 })()}
                                 {listing.item_grade !== undefined && listing.item_grade > 0 && (
-                                  <span className="ml-2 inline-block bg-violet-100 text-violet-800 text-xs font-semibold px-1.5 py-0.5 rounded border border-violet-300">
-                                    Grade {listing.item_grade}
+                                  <span className="inline-block bg-violet-100 text-violet-800 text-[11px] font-semibold px-1.5 py-0.5 rounded border border-violet-300">
+                                    G{listing.item_grade}
                                   </span>
                                 )}
                                 {listing.item_durability !== undefined && (
-                                  <span className="ml-1 inline-block bg-slate-100 text-slate-700 text-xs px-1.5 py-0.5 rounded border border-slate-300">
+                                  <span className="inline-block bg-slate-100 text-slate-700 text-[11px] px-1.5 py-0.5 rounded border border-slate-300">
                                     🛡️ {listing.item_durability}/{listing.item_durability}
                                   </span>
                                 )}
-                              </span>
-                              <span className="font-semibold">
-                                {listing.price_per_unit} 💰/u · {listing.quantity} dispo
-                      {(() => {
-                        const hintKey = listing.item_key ||
-                          Object.entries(SUGGESTED_PRICES_T1).find(([k]) =>
-                            ITEMS[k]?.name === listing.item_name
-                          )?.[0] || "";
-                        const hint = getPriceHint(hintKey, listing.price_per_unit, priceMultiplier);
-                        return hint ? <span className={`ml-1 text-xs ${hint.color}`}>({hint.label})</span> : null;
-                      })()}
+                              </div>
 
-                              </span>
-                            </div>
+                              {/* Bloc 2 : Prix unitaire + dispo + hint */}
+                              <div className="text-xs font-body whitespace-nowrap shrink-0">
+                                <span className="font-semibold">{listing.price_per_unit} 💰/u</span>
+                                <span className="text-muted-foreground"> · {listing.quantity} dispo</span>
+                                {(() => {
+                                  const hintKey = listing.item_key ||
+                                    Object.entries(SUGGESTED_PRICES_T1).find(([k]) =>
+                                      ITEMS[k]?.name === listing.item_name
+                                    )?.[0] || "";
+                                  const hint = getPriceHint(hintKey, listing.price_per_unit, priceMultiplier);
+                                  return hint ? <span className={`ml-1 text-[11px] ${hint.color}`}>({hint.label})</span> : null;
+                                })()}
+                              </div>
 
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-muted-foreground font-body w-16">Qté : {qty}</span>
-                              <Slider
-                                min={1} max={listing.quantity} step={1}
-                                value={[qty]}
-                                onValueChange={([v]) => setBuyQtys(prev => ({ ...prev, [listing.id]: v }))}
-                                className="flex-1"
-                              />
-                              <Input
-                                type="number" min={1} max={listing.quantity}
-                                value={qty}
-                                onChange={e => setBuyQtys(prev => ({
-                                  ...prev,
-                                  [listing.id]: Math.max(1, Math.min(listing.quantity, Number(e.target.value))),
-                                }))}
-                                className="w-16 h-7 text-xs text-center"
-                                onFocus={e => e.target.select()}
-                              />
-                            </div>
+                              {/* Bloc 3 : Slider + input quantité (largeur fixe en desktop) */}
+                              <div className="flex items-center gap-2 md:w-56 shrink-0">
+                                <Slider
+                                  min={1} max={listing.quantity} step={1}
+                                  value={[qty]}
+                                  onValueChange={([v]) => setBuyQtys(prev => ({ ...prev, [listing.id]: v }))}
+                                  className="flex-1"
+                                />
+                                <Input
+                                  type="number" min={1} max={listing.quantity}
+                                  value={qty}
+                                  onChange={e => setBuyQtys(prev => ({
+                                    ...prev,
+                                    [listing.id]: Math.max(1, Math.min(listing.quantity, Number(e.target.value))),
+                                  }))}
+                                  className="w-14 h-7 text-xs text-center shrink-0"
+                                  onFocus={e => e.target.select()}
+                                />
+                              </div>
 
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-muted-foreground font-body">
-                                Prix : <strong>{totalBase} 💰</strong>
-                                {taxAmount > 0
-                                  ? <span className="text-amber-600"> · taxe ~{Math.ceil(taxAmount)}💰 due au reset</span>
-                                  : <span className="text-green-600"> · sans taxe</span>}
-                                {listing.city_id !== profile.city_id && (
-                                  <span className="block text-sky-700 italic mt-0.5">
-                                    📦 Achat à distance : voyage requis pour récupérer le colis
-                                  </span>
-                                )}
-                              </span>
+                              {/* Bloc 4 : Bouton acheter (largeur fixe) */}
                               <Button
-                                size="sm" className="font-heading"
+                                size="sm" className="font-heading shrink-0 md:w-32"
                                 onClick={() => handleBuy(listing)}
                                 disabled={buying === listing.id || !canAfford}
                                 variant={canAfford ? "default" : "outline"}
@@ -1133,9 +1146,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                                   : !canAfford
                                     ? "Pas assez d'or"
                                     : listing.city_id !== profile.city_id
-                                      ? `📦 Commander ×${qty}`
+                                      ? `📦 ×${qty}`
                                       : `Acheter ×${qty}`}
                               </Button>
+                            </div>
+
+                            {/* Ligne d'info complementaire : prix total + taxe + colis distance */}
+                            <div className="text-[11px] text-muted-foreground font-body mt-1.5 flex flex-wrap items-center gap-x-2">
+                              <span>Total : <strong>{totalBase} 💰</strong></span>
+                              {taxAmount > 0
+                                ? <span className="text-amber-600">· taxe ~{Math.ceil(taxAmount)}💰</span>
+                                : <span className="text-green-600">· sans taxe</span>}
+                              {listing.city_id !== profile.city_id && (
+                                <span className="text-sky-700 italic">📦 colis à retirer après voyage</span>
+                              )}
                             </div>
                           </div>
                         );

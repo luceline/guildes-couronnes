@@ -77,6 +77,23 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Ragout + Outil multifonction renforcé + Sac de voyage + Potion endurance + Lingot raffiné → Huile inflammable",
   },
 
+  {
+    id: "craft_etai_recolte",
+    name: "Étai de récolte",
+    icon: "🪵",
+    profession: "Bûcheron",
+    tier: 3,
+    inputs: [
+      { key: "planches", quantity: 1 },
+      { key: "charbon", quantity: 1 },
+      { key: "farine", quantity: 1 },
+    ],
+    output: { key: "etai_recolte", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Planches ×1 + Charbon ×1 + Farine ×1 → 1 Étai de récolte",
+  },
+
   // ════ MINEUR ════
   {
     id: "craft_pierre_brute",
@@ -144,6 +161,39 @@ export const CRAFTING_RECIPES_REFACTORED = [
     costGold: 0,
     cooldown: 960,
     description: "Tunique de travail + Ragout + Sac de voyage + Outil multifonction renforcé + Contrat artisan → Poudre corrosive",
+  },
+
+  {
+    id: "craft_pierre_aiguiser",
+    name: "Pierre à aiguiser",
+    icon: "🪊",
+    profession: "Mineur",
+    tier: 2,
+    inputs: [
+      { key: "pierre", quantity: 1 },
+      { key: "minerai_fer", quantity: 1 },
+      { key: "bois_brut", quantity: 1 },
+    ],
+    output: { key: "pierre_aiguiser", quantity: 1 },
+    costGold: 0,
+    cooldown: 120,
+    description: "Pierre ×1 + Minerai ×1 + Bois brut ×1 → 1 Pierre à aiguiser",
+  },
+  {
+    id: "craft_marteau_armurier",
+    name: "Marteau d'armurier",
+    icon: "🔨",
+    profession: "Mineur",
+    tier: 3,
+    inputs: [
+      { key: "charbon", quantity: 1 },
+      { key: "pierre_brute", quantity: 1 },
+      { key: "fil", quantity: 1 },
+    ],
+    output: { key: "marteau_armurier", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Charbon ×1 + Pierre taillée ×1 + Fil ×1 → 1 Marteau d'armurier",
   },
 
   // ════ FERMIER ════
@@ -300,6 +350,23 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Tunique de travail + Outils + Outil multifonction renforcé + Potion endurance + Lingot raffiné → Faux contrat",
   },
 
+  {
+    id: "craft_bandeau_erudit",
+    name: "Bandeau d'érudit",
+    icon: "🎓",
+    profession: "Tisserand",
+    tier: 3,
+    inputs: [
+      { key: "fil", quantity: 1 },
+      { key: "farine", quantity: 1 },
+      { key: "extrait", quantity: 1 },
+    ],
+    output: { key: "bandeau_erudit", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Fil ×1 + Farine ×1 + Extrait ×1 → 1 Bandeau d'érudit",
+  },
+
   // ════ FORGERON ════
   {
     id: "craft_charbon",
@@ -367,6 +434,23 @@ export const CRAFTING_RECIPES_REFACTORED = [
     costGold: 0,
     cooldown: 960,
     description: "Ragout + Outil multifonction renforcé + Outils + Sac de voyage + Potion endurance → Clé forgée",
+  },
+
+  {
+    id: "craft_affutage_maitre",
+    name: "Affûtage de maître",
+    icon: "⚙️",
+    profession: "Forgeron",
+    tier: 3,
+    inputs: [
+      { key: "charbon", quantity: 1 },
+      { key: "pierre_brute", quantity: 1 },
+      { key: "quartz_poli", quantity: 1 },
+    ],
+    output: { key: "affutage_maitre", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Charbon ×1 + Pierre taillée ×1 + Quartz poli ×1 → 1 Affûtage de maître",
   },
 
   // ════ ALCHIMISTE ════
@@ -525,6 +609,23 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Lingot raffiné + Tunique de travail + Outils + Sac de voyage + Outil multifonction renforcé → Lingot royal [Fonderie]",
   },
 
+  {
+    id: "craft_bon_tresor_orfevre",
+    name: "Bon du Trésor",
+    icon: "💼",
+    profession: "Orfèvre",
+    tier: 3,
+    inputs: [
+      { key: "quartz_poli", quantity: 1 },
+      { key: "encre", quantity: 1 },
+      { key: "fil", quantity: 1 },
+    ],
+    output: { key: "bon_tresor", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Quartz poli ×1 + Encre ×1 + Fil ×1 → 1 Bon du Trésor",
+  },
+
   // ════ MARCHAND ════
   {
     id: "craft_encre",
@@ -610,6 +711,39 @@ export const CRAFTING_RECIPES_REFACTORED = [
     costGold: 0,
     cooldown: 960,
     description: "Tunique de travail + Outils + Sac de voyage + Outil multifonction renforcé + Lingot raffiné → Lettre de désinformation",
+  },
+
+  {
+    id: "craft_bon_tresor_marchand",
+    name: "Bon du Trésor",
+    icon: "💼",
+    profession: "Marchand",
+    tier: 3,
+    inputs: [
+      { key: "encre", quantity: 1 },
+      { key: "quartz_poli", quantity: 1 },
+      { key: "planches", quantity: 1 },
+    ],
+    output: { key: "bon_tresor", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Encre ×1 + Quartz poli ×1 + Planches ×1 → 1 Bon du Trésor",
+  },
+  {
+    id: "craft_carnet_commande",
+    name: "Carnet de commande",
+    icon: "📒",
+    profession: "Marchand",
+    tier: 3,
+    inputs: [
+      { key: "encre", quantity: 1 },
+      { key: "farine", quantity: 1 },
+      { key: "planches", quantity: 1 },
+    ],
+    output: { key: "carnet_commande", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Encre ×1 + Farine ×1 + Planches ×1 → 1 Carnet de commande",
   },
 
   // ════════════════════════════════════════════════

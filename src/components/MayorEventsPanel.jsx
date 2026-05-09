@@ -144,7 +144,7 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
         newWarehouse[key] = Math.max(0, (newWarehouse[key] || 0) - qty);
       }
 
-      // 2. Appliquer les effets instantanés (Festin royal, Forge collective)
+      // 2. Appliquer les effets instantanés (Festin royal)
       // Effets instantanés sur les résidents : on les marque avec un flag
       // que les hooks frontend liront au prochain refresh
       let effectsApplied = false;
@@ -167,24 +167,6 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
             await base44.entities.PlayerProfile.update(res.id, updates);
           } catch (e) {
             console.error("[royal_feast] update", res.user_email, ":", e.message);
-            effectsApplyErrors++;
-          }
-        }
-        effectsApplied = true;
-        if (effectsApplyErrors > 0) {
-          toast.error(`⚠️ ${effectsApplyErrors} résident(s) n'ont pas pu être mis à jour.`);
-        }
-      } else if (confirmEvent === "forge_collective") {
-        // Reset compteur réparations à 5/5 pour tous les résidents
-        const residents = await base44.entities.PlayerProfile.filter({ home_city_id: city.id });
-        for (const res of (residents || [])) {
-          try {
-            await base44.entities.PlayerProfile.update(res.id, {
-              daily_repairs_count: 0,
-              daily_repairs_date: new Date().toISOString().split("T")[0],
-            });
-          } catch (e) {
-            console.error("[forge_collective] update", res.user_email, ":", e.message);
             effectsApplyErrors++;
           }
         }

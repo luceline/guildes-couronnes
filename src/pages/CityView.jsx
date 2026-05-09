@@ -17,10 +17,9 @@ import {
   getBuildingCost, getBuildingLevel, getBuildingCount, canBuildMore,
   getCityDailyMaintenance, getTodayDateStr,
   MAYOR_COST_MAX, MAYOR_COST_MAX_PALAIS, MAYOR_DAYS, getCityTier, getCityBonuses, CITY_LEVELS,
-  SCEAU_PRICE, SCEAU_VALUE, ADMIN_EMAILS, getVendeurRank, getContributeurRank, getPvpRank,
-  EQUIPMENT_KEYS, EQUIPMENT_MAX_DURABILITY, EQUIPMENT_DURABILITY, getCombatScore, getAttackScore, getDefenseScore,
+  SCEAU_PRICE, SCEAU_VALUE, ADMIN_EMAILS,
+  EQUIPMENT_KEYS, EQUIPMENT_MAX_DURABILITY, EQUIPMENT_DURABILITY, getCombatScore,
   COMPETITIVE_ITEMS, MAX_HUNGER,
-  isPlayerKO,
 } from "../lib/gameData";
 import { logGold } from '@/lib/goldLog';
 import { removeFromInventory } from '@/lib/inventoryHelpers';
@@ -30,9 +29,7 @@ import MairieShop from "../components/MairieShop";
 // import T5AttackPanel from "../components/T5AttackPanel";
 import HelpTooltip from "../components/HelpTooltip";
 import ElectionPanel from "../components/ElectionPanel";
-import MaireOffresPanel from "../components/MaireOffresPanel";
 import WarehouseUnified from "../components/WarehouseUnified";
-import AtelierCommande from "../components/AtelierCommande";
 import ChallengeForm from "../components/ChallengeForm";
 import MairieTab from "../components/MairieTab";
 import MaireDashboard from "../components/MaireDashboard";
@@ -44,6 +41,17 @@ import { checkCityDome } from "@/lib/cauldronEffects";
 import { notifyTavern } from "@/lib/tavernNotifier";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 import { toast } from "sonner";
+// REFACTO Phase 1 (09/05/2026) - Banque extraite dans son propre composant + handlers
+import BankPanel from "../components/city/BankPanel";
+// REFACTO Phase 2 (09/05/2026) - Onglet Habitants extrait
+import HabitantsContent from "../components/city/HabitantsContent";
+import {
+  handleSaveBankRates as bankSaveRates,
+  handleRequestLoan as bankRequestLoan,
+  handleRepayLoan as bankRepayLoan,
+  handleBankDeposit as bankDeposit,
+  handleClaimDeposit as bankClaimDeposit,
+} from "@/lib/cityBankHandlers";
 
 // T1 items de l'entrepôt : indexés directement par item_key
 const WAREHOUSE_T1 = [
@@ -75,167 +83,6 @@ function findT1ItemInInventory(inventory, itemKey) {
 }
 
 
-// ── Composant Banque de la ville ──
-function BankPanel({ city, profile, isMayor, onSaveRates, onRequestLoan, onRepayLoan, onDeposit, onClaimDeposit }) {
-  const [loanRate, setLoanRate] = useState(city.loan_rate || 0);
-  const [depositRate, setDepositRate] = useState(city.deposit_rate || 0);
-  const [loanAmount, setLoanAmount] = useState(100);
-  const [depositAmount, setDepositAmount] = useState(50);
-  const [saving, setSaving] = useState(false);
-
-  const now = new Date().toISOString().split("T")[0];
-  const activeLoans = (profile.active_loans || []).filter(l => l.city_id === city.id && l.status === "active");
-  const activeDeposits = (profile.active_deposits || []).filter(d => d.city_id === city.id && d.status === "active");
-  const mayorActive = !!(city.mayor_id && city.mayor_until && city.mayor_until >= now);
-
-  return (
-    <div className="rounded-xl border border-yellow-200 bg-yellow-50/20 p-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <span className="text-lg">🏦</span>
-        <h3 className="font-heading font-semibold text-base">Banque de {city.name}</h3>
-        <span className="text-xs text-muted-foreground font-body">· Trésorerie : {city.gold_treasury || 0} 💰</span>
-      </div>
-
-      {/* ── Panneau maire : fixer les taux ── */}
-      {isMayor && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-3">
-          <p className="text-xs font-body font-semibold text-amber-900">👑 Paramètres bancaires (maire)</p>
-          <p className="text-xs text-muted-foreground font-body italic">
-            La taxe marché se fixe depuis l'onglet <strong>Mairie → Gouvernance</strong>.
-          </p>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-body text-muted-foreground">Taux prêt (%) : 0 = désactivé</label>
-              <div className="flex items-center gap-1">
-                <input type="number" min={0} max={50} value={loanRate}
-                  onChange={e => setLoanRate(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
-                  className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
-                  onFocus={e => e.target.select()} />
-                <span className="text-xs text-muted-foreground">% / 7j</span>
-              </div>
-              <p className="text-xs text-muted-foreground font-body">Ex: 100 or → remb. {100 + Math.floor(100 * loanRate / 100)} or</p>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-body text-muted-foreground">Taux dépôt (%) : 0 = désactivé</label>
-              <div className="flex items-center gap-1">
-                <input type="number" min={0} max={30} value={depositRate}
-                  onChange={e => setDepositRate(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
-                  className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
-                  onFocus={e => e.target.select()} />
-                <span className="text-xs text-muted-foreground">% / 7j</span>
-              </div>
-              <p className="text-xs text-muted-foreground font-body">Ex: 100 or → récup. {100 + Math.floor(100 * depositRate / 100)} or</p>
-            </div>
-          </div>
-          <button
-            disabled={saving}
-            onClick={async () => { setSaving(true); await onSaveRates(loanRate, depositRate); setSaving(false); }}
-            className="text-xs font-heading bg-amber-500 hover:bg-amber-600 text-white rounded-md px-3 py-1.5 disabled:opacity-50"
-          >
-            {saving ? "Sauvegarde..." : "💾 Enregistrer les taux"}
-          </button>
-        </div>
-      )}
-
-      {/* ── Infos taux pour les joueurs ── */}
-      {!isMayor && mayorActive && (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-            <p className="text-xs text-muted-foreground font-body mb-1">Taux prêt</p>
-            {(city.loan_rate || 0) > 0
-              ? <p className="font-heading font-bold text-blue-700">{city.loan_rate}% <span className="text-xs font-normal">/ 7j</span></p>
-              : <p className="text-xs text-muted-foreground font-body">Non disponible</p>}
-          </div>
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-            <p className="text-xs text-muted-foreground font-body mb-1">Taux dépôt</p>
-            {(city.deposit_rate || 0) > 0
-              ? <p className="font-heading font-bold text-green-700">{city.deposit_rate}% <span className="text-xs font-normal">/ 7j</span></p>
-              : <p className="text-xs text-muted-foreground font-body">Non disponible</p>}
-          </div>
-        </div>
-      )}
-      {!mayorActive && (
-        <p className="text-xs text-muted-foreground font-body italic">Le siège de la mairie est vide : sans gouverneur, le comptoir sommeille.</p>
-      )}
-
-      {/* ── Prêts ── */}
-      {mayorActive && (city.loan_rate || 0) > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-body font-semibold">💳 Emprunter à la ville</p>
-          {activeLoans.length > 0 ? (
-            activeLoans.map((loan, idx) => (
-              <div key={idx} className="bg-white border border-border rounded-lg p-3 flex justify-between items-center text-sm font-body">
-                <div>
-                  <span className="font-semibold">{loan.amount} 💰</span>
-                  <span className="text-muted-foreground ml-2 text-xs">à rembourser {loan.amount + loan.interest} 💰 avant le {loan.due_at}</span>
-                  {now > loan.due_at && <span className="text-red-600 text-xs ml-2 font-semibold">⚠️ En retard</span>}
-                </div>
-                <button onClick={() => onRepayLoan(loan, idx)}
-                  className="text-xs font-heading bg-red-500 hover:bg-red-600 text-white rounded-md px-2 py-1">
-                  Rembourser {loan.amount + loan.interest} 💰
-                </button>
-              </div>
-            ))
-          ) : (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <input type="number" min={50} max={Math.min(500, city.gold_treasury || 0)} step={50} value={loanAmount}
-                  onChange={e => setLoanAmount(Math.max(50, parseInt(e.target.value) || 50))}
-                  className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
-                  onFocus={e => e.target.select()} />
-                <span className="text-xs text-muted-foreground">or</span>
-              </div>
-              <button onClick={() => onRequestLoan(loanAmount)}
-                className="text-xs font-heading bg-blue-500 hover:bg-blue-600 text-white rounded-md px-3 py-1.5">
-                Emprunter → rembourser {loanAmount + Math.floor(loanAmount * (city.loan_rate || 0) / 100)} 💰 / 7j
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Dépôts ── */}
-      {mayorActive && (city.deposit_rate || 0) > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-body font-semibold">🏦 Déposer de l'or à la ville</p>
-          {activeDeposits.map((dep, idx) => {
-            const matured = now >= dep.due_at;
-            return (
-              <div key={idx} className={`bg-white border rounded-lg p-3 flex justify-between items-center text-sm font-body ${matured ? "border-green-300" : "border-border"}`}>
-                <div>
-                  <span className="font-semibold">{dep.amount} 💰 déposés</span>
-                  <span className="text-muted-foreground ml-2 text-xs">→ {dep.amount + dep.interest} 💰 le {dep.due_at}</span>
-                </div>
-                {matured ? (
-                  <button onClick={() => onClaimDeposit(dep, idx)}
-                    className="text-xs font-heading bg-green-500 hover:bg-green-600 text-white rounded-md px-2 py-1">
-                    Récupérer {dep.amount + dep.interest} 💰
-                  </button>
-                ) : (
-                  <span className="text-xs text-muted-foreground font-body">⏳ {dep.due_at}</span>
-                )}
-              </div>
-            );
-          })}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <input type="number" min={50} max={profile.gold || 0} step={50} value={depositAmount}
-                onChange={e => setDepositAmount(Math.max(50, parseInt(e.target.value) || 50))}
-                className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
-                onFocus={e => e.target.select()} />
-              <span className="text-xs text-muted-foreground">or</span>
-            </div>
-            <button onClick={() => onDeposit(depositAmount)}
-              className="text-xs font-heading bg-green-500 hover:bg-green-600 text-white rounded-md px-3 py-1.5">
-              Déposer → récupérer {depositAmount + Math.floor(depositAmount * (city.deposit_rate || 0) / 100)} 💰 / 7j
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 
@@ -349,116 +196,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
 
 
 
-
-  // ── Banque de la ville ──
-  const handleSaveBankRates = async (loanRate, depositRate) => {
-    await base44.entities.City.update(city.id, {
-      loan_rate: Math.max(0, Math.min(50, loanRate)),
-      deposit_rate: Math.max(0, Math.min(30, depositRate)),
-    });
-    toast.success("🏦 Taux bancaires mis à jour !");
-    onRefresh?.();
-  };
-
-  const handleRequestLoan = async (amount) => {
-    if (!hasComptoir) return;
-    if (profile.home_city_id !== city.id) { toast.error("Vous ne pouvez emprunter que dans votre ville d'origine."); return; }
-    if (!mayorActive) { toast.error("Sans maire en exercice, nul ne peut autoriser un prêt : attendez l'élection d'un gouverneur."); return; }
-    const rate = city.loan_rate || 0;
-    if (rate === 0) { toast.error("Le maire n'a point ouvert le livre des prêts : attendez qu'il active cette faveur."); return; }
-    const existing = (profile.active_loans || []).filter(l => l.city_id === city.id && l.status === "active");
-    if (existing.length > 0) { toast.error("Vous portez déjà une dette envers cette cité : remboursez-la avant d'en contracter une nouvelle."); return; }
-    if ((city.gold_treasury || 0) < amount) { toast.error(`Les coffres de ${city.name} sont trop maigres pour ce prêt : il ne reste que ${city.gold_treasury || 0} 💰 en trésorerie.`); return; }
-    const interest = Math.floor(amount * (rate / 100));
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 7);
-    const loan = { city_id: city.id, city_name: city.name, amount, interest, rate, borrowed_at: new Date().toISOString(), due_at: dueDate.toISOString().split("T")[0], status: "active" };
-    const newLoans = [...(profile.active_loans || []), loan];
-    await base44.entities.PlayerProfile.update(profile.id, {
-      gold: (profile.gold || 0) + amount,
-      active_loans: newLoans,
-    });
-    await base44.entities.City.update(city.id, {
-      gold_treasury: Math.max(0, (city.gold_treasury || 0) - amount),
-    });
-    await logGold(profile.user_email, profile.character_name, city.id, city.name,
-      amount, "pret", `Prêt bancaire de ${city.name} (→ rembourser ${amount + interest} 💰)`);
-    toast.success(`🏦 Le comptoir vous accorde sa confiance ! ${amount} 💰 dans votre bourse : remboursez ${amount + interest} 💰 avant le ${dueDate.toISOString().split("T")[0]}.`);
-    onRefresh?.();
-  };
-
-  const handleRepayLoan = async (loan, idx) => {
-    const total = loan.amount + loan.interest;
-    if ((profile.gold || 0) < total) { toast.error(`Votre bourse est trop légère : il vous faut ${total} 💰 pour solder cette dette.`); return; }
-    const newLoans = (profile.active_loans || []).map((l, i) => i === idx ? { ...l, status: "repaid" } : l);
-    await base44.entities.PlayerProfile.update(profile.id, {
-      gold: (profile.gold || 0) - total,
-      active_loans: newLoans,
-    });
-    await base44.entities.City.update(city.id, {
-      gold_treasury: (city.gold_treasury || 0) + total,
-    });
-    await logGold(profile.user_email, profile.character_name, city.id, city.name,
-      -total, "remboursement", `Remboursement prêt à ${city.name}`);
-    toast.success(`🤝 Votre dette est soldée ! ${total} 💰 rendus à la trésorerie de ${city.name} : votre honneur est sauf.`);
-    onRefresh?.();
-  };
-
-  const handleBankDeposit = async (amount) => {
-    if (!hasComptoir) return;
-    if (profile.home_city_id !== city.id) { toast.error("Vous ne pouvez déposer que dans votre ville d'origine."); return; }
-    if (!mayorActive) { toast.error("Le siège de la mairie est vide : un maire doit d'abord être élu pour gérer les dépôts."); return; }
-    const rate = city.deposit_rate || 0;
-    if (rate === 0) { toast.error("Le comptoir est fermé : le maire n'a pas encore ouvert le livre des dépôts."); return; }
-    if ((profile.gold || 0) < amount) { toast.error("Pas assez d'or."); return; }
-    const interest = Math.floor(amount * (rate / 100));
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 7);
-    const deposit = { city_id: city.id, city_name: city.name, amount, interest, rate, deposited_at: new Date().toISOString(), due_at: dueDate.toISOString().split("T")[0], status: "active" };
-    const newDeposits = [...(profile.active_deposits || []), deposit];
-    await base44.entities.PlayerProfile.update(profile.id, {
-      gold: (profile.gold || 0) - amount,
-      active_deposits: newDeposits,
-    });
-    await base44.entities.City.update(city.id, {
-      gold_treasury: (city.gold_treasury || 0) + amount,
-    });
-    await logGold(profile.user_email, profile.character_name, city.id, city.name,
-      -amount, "depot", `Dépôt bancaire à ${city.name} (→ ${amount + interest} 💰 dans 7j)`);
-    toast.success(`🏦 Dépôt de ${amount} 💰 effectué ! Récupérez ${amount + interest} 💰 dans 7 jours.`);
-    onRefresh?.();
-  };
-
-  const handleClaimDeposit = async (deposit, idx) => {
-    const total = deposit.amount + deposit.interest;
-    const now = new Date().toISOString().split("T")[0];
-    if (now < deposit.due_at) { toast.error(`Votre dépôt est encore à terme jusqu'au ${deposit.due_at} : patience, les intérêts courent !`); return; }
-    if ((city.gold_treasury || 0) < total) {
-      // Trésorerie vide : rembourser uniquement la mise
-      const newDeposits = (profile.active_deposits || []).map((d, i) => i === idx ? { ...d, status: "matured" } : d);
-      await base44.entities.PlayerProfile.update(profile.id, {
-        gold: (profile.gold || 0) + deposit.amount,
-        active_deposits: newDeposits,
-      });
-      await base44.entities.City.update(city.id, {
-        gold_treasury: Math.max(0, (city.gold_treasury || 0) - deposit.amount),
-      });
-      toast.error(`⚠️ La trésorerie manque de fonds pour les intérêts : seule votre mise initiale (${deposit.amount} 💰) vous est rendue.`);
-    } else {
-      const newDeposits = (profile.active_deposits || []).map((d, i) => i === idx ? { ...d, status: "matured" } : d);
-      await base44.entities.PlayerProfile.update(profile.id, {
-        gold: (profile.gold || 0) + total,
-        active_deposits: newDeposits,
-      });
-      await base44.entities.City.update(city.id, {
-        gold_treasury: Math.max(0, (city.gold_treasury || 0) - total),
-      });
-      await logGold(profile.user_email, profile.character_name, city.id, city.name,
-        total, "retrait_depot", `Retrait dépôt ${city.name} (+${deposit.interest} 💰 intérêts)`);
-      toast.success(`💰 Votre dépôt fructifié vous est restitué ! +${total} 💰 dont ${deposit.interest} 💰 d'intérêts bien mérités.`);
-    }
-    onRefresh?.();
-  };
 
 
   // ── Statut maire ──
@@ -971,11 +708,11 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           city={city}
           profile={profile}
           isMayor={isMayor}
-          onSaveRates={handleSaveBankRates}
-          onRequestLoan={handleRequestLoan}
-          onRepayLoan={handleRepayLoan}
-          onDeposit={handleBankDeposit}
-          onClaimDeposit={handleClaimDeposit}
+          onSaveRates={(loanRate, depositRate) => bankSaveRates({ city, onRefresh, loanRate, depositRate })}
+          onRequestLoan={(amount) => bankRequestLoan({ profile, city, hasComptoir, mayorActive, onRefresh, amount })}
+          onRepayLoan={(loan, idx) => bankRepayLoan({ profile, city, onRefresh, loan, idx })}
+          onDeposit={(amount) => bankDeposit({ profile, city, hasComptoir, mayorActive, onRefresh, amount })}
+          onClaimDeposit={(deposit, idx) => bankClaimDeposit({ profile, city, onRefresh, deposit, idx })}
         />
       )}
       {hasComptoir && !isHomeCity && (
@@ -1293,272 +1030,21 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
 
         {/* ── HABITANTS ── */}
         <TabsContent value="habitants" className="mt-4 space-y-4">
-
-          {/* ── Résidents ── */}
-          {(() => {
-            const residents = cityPlayers.filter(p => p.home_city_id === city.id);
-            const visitors = cityPlayers.filter(p => p.home_city_id !== city.id && !p.is_traveling);
-            return (
-              <div className="space-y-3">
-                {/* ── Panel nomination rôles (maire uniquement) ── */}
-                {isMayor && residents.length > 0 && (() => {
-                  const ROLES = [
-                    { key: "percepteur", label: "Percepteur", icon: "💰", desc: "Accès impôts & taxes" },
-                    { key: "chef_guerre", label: "Chef de guerre", icon: "⚔️", desc: "Accès onglet Guerre" },
-                    { key: "acheteur", label: "Acheteur", icon: "🛒", desc: "Accès offres d'achat" },
-                  ];
-                  return (
-                    <Card className="border-amber-200 bg-amber-50/50">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="font-heading text-sm flex items-center gap-2">👑 Nommer des officiers <HelpTooltip text="Le maire peut déléguer trois rôles à ses résidents. Le Percepteur accède aux réglages d'impôts et taxes. Le Chef de guerre gère l'armée et les campagnes. L'Acheteur configure les offres de rachat de l'entrepôt. Les rôles s'affichent en badge dans la liste des habitants." /></CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {ROLES.map(({ key, label, icon, desc }) => {
-                          const currentId   = cityRoles[`${key}_id`];
-                          const currentName = cityRoles[`${key}_name`];
-                          return (
-                            <div key={key} className="flex items-center gap-2 flex-wrap">
-                              <span className="text-base w-6 text-center">{icon}</span>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-xs font-heading font-semibold">{label}</div>
-                                <div className="text-xs font-body text-muted-foreground">{desc}</div>
-                              </div>
-                              {currentId ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-body font-semibold text-amber-800">{currentName}</span>
-                                  <button
-                                    onClick={() => handleSetRole(key, null)}
-                                    className="text-xs text-red-500 hover:text-red-700 font-body underline underline-offset-2">
-                                    Retirer
-                                  </button>
-                                </div>
-                              ) : (
-                                <select
-                                  className="text-xs font-body border border-amber-300 rounded px-2 py-1 bg-white"
-                                  defaultValue=""
-                                  onChange={e => {
-                                    const p = residents.find(r => r.id === e.target.value);
-                                    if (p) handleSetRole(key, p);
-                                    e.target.value = "";
-                                  }}>
-                                  <option value="">Nommer</option>
-                                  {residents.filter(r => r.id !== profile.id).map(r => (
-                                    <option key={r.id} value={r.id}>{r.character_name}</option>
-                                  ))}
-                                </select>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </CardContent>
-                    </Card>
-                  );
-                })()}
-
-                {residents.length > 0 && (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="font-heading text-sm flex items-center gap-2">
-                        🏠 Résidents ({residents.length})
-                        <HelpTooltip
-                          side="bottom"
-                          text={
-                            "Légende des icônes :\n\n" +
-                            "👑 Maire de la cité\n" +
-                            "💰 Percepteur (gère les taxes)\n" +
-                            "⚔️ Chef de guerre (commande l'armée)\n" +
-                            "🛒 Acheteur (achète au marché pour la cité)\n" +
-                            "🟢 Joueur en ligne\n\n" +
-                            "Sous le nom :\n" +
-                            "🏆 Rang vendeur · 🏗️ Rang contributeur entrepôt · ⚔️ Rang PvP\n" +
-                            "⚔️X Score d'attaque · 🛡️X Score de défense\n\n" +
-                            "Boutons :\n" +
-                            "🏪 Atelier : Commander à un artisan ou améliorer ton équipement\n" +
-                            "⚔️ Défier : Lancer un défi PvP\n" +
-                            "🚫 Expulser : Réservé au maire\n" +
-                            "⚒️ M'améliorer : Self-service Bûcheron/Mineur"
-                          }
-                        />
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                        {residents.map(p => {
-                          const isMe = p.id === profile.id;
-                          const online = isPlayerOnline(p);
-                          return (
-                          <div key={p.id} className={`rounded-lg p-3 text-sm font-body ${
-                            online ? "bg-green-50 border border-green-200" : "bg-muted/50"
-                          }`}>
-                            {/* En-tête : avatar + nom + badge online */}
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-2xl shrink-0">{p.is_traveling ? "🐴" : "👤"}</span>
-                              <div className="font-semibold text-base flex-1 truncate">{p.character_name}</div>
-                              {online && (
-                                <span className="text-xs text-green-700 bg-green-100 border border-green-300 rounded px-2 py-0.5 font-body shrink-0">
-                                  🟢 En ligne
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Badges de rôle (sous le nom, sur leur propre ligne) */}
-                            {(city?.mayor_id === p.id || cityRoles?.percepteur_id === p.id || cityRoles?.chef_guerre_id === p.id || cityRoles?.acheteur_id === p.id) && (
-                              <div className="flex flex-wrap gap-1.5 mb-2">
-                                {city?.mayor_id === p.id && <Badge className="bg-amber-500 text-white text-xs font-heading">👑 Maire</Badge>}
-                                {cityRoles?.percepteur_id === p.id && <Badge variant="outline" className="text-blue-700 border-blue-300 text-xs">💰 Percepteur</Badge>}
-                                {cityRoles?.chef_guerre_id === p.id && <Badge variant="outline" className="text-red-700 border-red-300 text-xs">⚔️ Chef de guerre</Badge>}
-                                {cityRoles?.acheteur_id === p.id && <Badge variant="outline" className="text-purple-700 border-purple-300 text-xs">🛒 Acheteur</Badge>}
-                              </div>
-                            )}
-
-                            {/* Métier + rangs + scores (compact, une seule ligne) */}
-                            <div className="text-muted-foreground text-xs flex items-center gap-2 flex-wrap mb-2">
-                              <span className="font-semibold">{p.profession}{p.is_traveling ? " · En voyage" : ""}</span>
-                              <span title={`Ventes: ${p.cumul_ventes_or||0}💰`}>{getVendeurRank(p.cumul_ventes_or||0).icon}</span>
-                              <span title={`Entrepôt: ${p.cumul_contributions_warehouse||0}`}>{getContributeurRank(p.cumul_contributions_warehouse||0).icon}</span>
-                              {(p.cumul_t5_envoyes||0) > 0 && <span title={`T5: ${p.cumul_t5_envoyes}`}>{getPvpRank(p.cumul_t5_envoyes||0).icon}</span>}
-                              {getAttackScore(p) > 0 && <span title="Score d'attaque">⚔️{getAttackScore(p)}</span>}
-                              {getDefenseScore(p) > 0 && <span title="Score de défense">🛡️{getDefenseScore(p)}</span>}
-                              {!isMe && !isHomeCity && (() => {
-                                const hasBourse = (profile.inventory || []).some(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
-                                if (!hasBourse) return null;
-                                return <span className="text-yellow-700 border border-yellow-300 bg-yellow-50 rounded px-1.5 py-0.5 font-body">👜 Bourse active</span>;
-                              })()}
-                            </div>
-
-                            {/* Boutons d'action : flex-wrap propre, en bas */}
-                            {(() => {
-                              const showExpel = !isMe && isMayor;
-                              const showAtelier = !isMe && (p.atelier_vitrine?.active || p.profession === "Bûcheron" || p.profession === "Mineur");
-                              const showDefier = !isMe && !isPlayerKO(profile) && !isPlayerKO(p);
-                              const showSelfImprove = isMe && (p.profession === "Bûcheron" || p.profession === "Mineur");
-                              if (!showExpel && !showAtelier && !showDefier && !showSelfImprove) return null;
-                              return (
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  {showExpel && (
-                                    <Button size="sm" variant="outline"
-                                      className="h-9 text-sm font-heading text-orange-600 border-orange-200 hover:bg-orange-50"
-                                      onClick={() => handleExpel(p)}>
-                                      🚫 Expulser
-                                    </Button>
-                                  )}
-                                  {showAtelier && (
-                                    <Button size="sm" variant="outline"
-                                      className="h-9 text-sm font-heading text-amber-700 border-amber-300 hover:bg-amber-50"
-                                      onClick={() => setSelectedAtelier(selectedAtelier === p.id ? null : p.id)}>
-                                      🏪 Atelier
-                                    </Button>
-                                  )}
-                                  {showDefier && (
-                                    <Button size="sm" variant="outline"
-                                      className="h-9 text-sm font-heading text-red-700 border-red-300 hover:bg-red-50"
-                                      onClick={() => setChallengeTarget(p)}
-                                      title={`Défier ${p.character_name}`}>
-                                      ⚔️ Défier
-                                    </Button>
-                                  )}
-                                  {showSelfImprove && (
-                                    <Button size="sm" variant="outline"
-                                      className="h-9 text-sm font-heading text-green-700 border-green-300 hover:bg-green-50"
-                                      onClick={() => setSelectedAtelier(selectedAtelier === p.id ? null : p.id)}>
-                                      ⚒️ M'améliorer
-                                    </Button>
-                                  )}
-                                </div>
-                              );
-                            })()}
-                          </div>
-                          );
-                        })}
-                      </div>
-                      {/* ── Atelier commande (REFONTE v4 : UpgradeServicePanel retiré) ── */}
-                      {selectedAtelier && (() => {
-                        const prod = residents.find(p => p.id === selectedAtelier);
-                        if (!prod) return null;
-                        return (
-                          <AtelierCommande
-                            producer={prod}
-                            clientProfile={profile}
-                            onClose={() => setSelectedAtelier(null)}
-                            onRefresh={onRefresh}
-                          />
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {visitors.length > 0 && (
-                  <Card className="border-orange-200">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="font-heading text-sm flex items-center gap-2">
-                        🧳 Visiteurs ({visitors.length})
-                        <HelpTooltip
-                          side="bottom"
-                          text={
-                            "Voyageurs de passage dans la cité.\n\n" +
-                            "🟢 En ligne · 🛡️X Score de défense\n\n" +
-                            "⚔️ Défier : Lancer un défi PvP contre ce visiteur"
-                          }
-                        />
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
-                        {visitors.map(p => {
-                          const isMe = p.id === profile.id;
-                          const defenderScore = getDefenseScore(p);
-                          const online = isPlayerOnline(p);
-                          return (
-                            <div key={p.id} className={`rounded-lg p-3 text-sm font-body ${
-                              online ? "bg-green-50/50 border border-green-200" : "bg-orange-50/50 border border-orange-100"
-                            }`}>
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className="text-2xl shrink-0">🧳</span>
-                                <div className="font-semibold text-base flex-1 truncate">{p.character_name}</div>
-                                {online && (
-                                  <span className="text-xs text-green-700 bg-green-100 border border-green-300 rounded px-2 py-0.5 font-body shrink-0">
-                                    🟢 En ligne
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-muted-foreground text-xs flex items-center gap-2 flex-wrap mb-2">
-                                <span className="font-semibold">{p.profession} · de {p.home_city_id ? "ailleurs" : "?"}</span>
-                                {defenderScore > 0 && <span title="Score de défense">🛡️{defenderScore}</span>}
-                              </div>
-                              {!isMe && !isPlayerKO(profile) && !isPlayerKO(p) && (
-                                <div className="flex">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-9 text-sm font-heading text-red-700 border-red-300 hover:bg-red-50"
-                                    onClick={() => setChallengeTarget(p)}
-                                    title={`Défier ${p.character_name}`}
-                                  >
-                                    ⚔️ Défier
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {residents.length === 0 && visitors.length === 0 && (
-                  <p className="text-sm text-muted-foreground font-body text-center py-4 italic">Les rues sont silencieuses… Nul voyageur ne foule les pavés pour l'heure.</p>
-                )}
-                {isMayor && residents.length > 0 && (
-                  <p className="text-xs text-muted-foreground font-body mt-2 italic">
-                    💡 Les joueurs inactifs restent comptabilisés comme résidents tant qu'ils n'ont pas déménagé.
-                  </p>
-                )}
-
-              </div>
-            );
-          })()}
+          <HabitantsContent
+            cityPlayers={cityPlayers}
+            city={city}
+            profile={profile}
+            isMayor={isMayor}
+            isHomeCity={isHomeCity}
+            cityRoles={cityRoles}
+            selectedAtelier={selectedAtelier}
+            setSelectedAtelier={setSelectedAtelier}
+            setChallengeTarget={setChallengeTarget}
+            onSetRole={handleSetRole}
+            onExpel={handleExpel}
+            onRefresh={onRefresh}
+            isPlayerOnline={isPlayerOnline}
+          />
         </TabsContent>
       </Tabs>
 

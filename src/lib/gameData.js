@@ -180,9 +180,8 @@ export const COMBAT_BREAK_PCT_BY_GRADE = [0, 0, 0, 0, 0, 0];
 // ─────────────────────────────────────────────
 // REFONTE v4 — UPGRADES EN LIBRE-SERVICE (depuis l'onglet Combat)
 // Plus d'artisan intermédiaire. Le joueur consomme directement ses ressources T1.
-// 3 ressources requises à chaque upgrade : Bois, Minerai de fer, Quartz brut.
+// 5 ressources requises à chaque upgrade : Bois, Minerai de fer, Quartz brut, Pierre, Laine brute.
 // Blé et Herbes intentionnellement EXCLUS (gardent leur usage consommable).
-// Pierre et Laine brute dédiées à la RÉPARATION (cf. REPAIR_RESOURCES).
 // ─────────────────────────────────────────────
 
 // Items concernés par l'upgrade ATK (épée — slot weapon)
@@ -196,29 +195,32 @@ export const COMBAT_UPGRADE_DEF_ITEMS = ["heaume", "cuirasse", "brassard", "jamb
 // Ratio épée x4 vs armure pour l'équilibrage économique.
 export const COMBAT_UPGRADE_COSTS = {
   // ARMURES — 1 pièce
+  // EQUILIBRAGE v5 (09/05/2026) - 5 ressources egales : bois + fer + quartz + pierre + laine
   def: [
     // index = grade actuel (g0 → g1 = index 0)
-    { bois_brut: 3,  minerai_fer: 3,  quartz_brut: 1  },
-    { bois_brut: 6,  minerai_fer: 6,  quartz_brut: 2  },
-    { bois_brut: 12, minerai_fer: 12, quartz_brut: 4  },
-    { bois_brut: 25, minerai_fer: 25, quartz_brut: 8  },
-    { bois_brut: 50, minerai_fer: 50, quartz_brut: 15 },
+    { bois_brut: 2,  minerai_fer: 2,  quartz_brut: 2,  pierre: 2,  laine_brute: 2  },
+    { bois_brut: 3,  minerai_fer: 3,  quartz_brut: 3,  pierre: 3,  laine_brute: 3  },
+    { bois_brut: 6,  minerai_fer: 6,  quartz_brut: 6,  pierre: 6,  laine_brute: 6  },
+    { bois_brut: 12, minerai_fer: 12, quartz_brut: 12, pierre: 12, laine_brute: 12 },
+    { bois_brut: 23, minerai_fer: 23, quartz_brut: 23, pierre: 23, laine_brute: 23 },
   ],
   // ÉPÉE — x4 vs armure
+  // EQUILIBRAGE v5 (09/05/2026) - 5 ressources egales
   atk: [
-    { bois_brut: 12,  minerai_fer: 12,  quartz_brut: 4  },
-    { bois_brut: 24,  minerai_fer: 24,  quartz_brut: 8  },
-    { bois_brut: 48,  minerai_fer: 48,  quartz_brut: 16 },
-    { bois_brut: 100, minerai_fer: 100, quartz_brut: 32 },
-    { bois_brut: 200, minerai_fer: 200, quartz_brut: 60 },
+    { bois_brut: 6,  minerai_fer: 6,  quartz_brut: 6,  pierre: 6,  laine_brute: 6  },
+    { bois_brut: 12, minerai_fer: 12, quartz_brut: 12, pierre: 12, laine_brute: 12 },
+    { bois_brut: 23, minerai_fer: 23, quartz_brut: 23, pierre: 23, laine_brute: 23 },
+    { bois_brut: 47, minerai_fer: 47, quartz_brut: 47, pierre: 47, laine_brute: 47 },
+    { bois_brut: 92, minerai_fer: 92, quartz_brut: 92, pierre: 92, laine_brute: 92 },
   ],
   // BOUCLIER — coûts identiques à l'épée (premium symétrique : objet d'élite)
+  // EQUILIBRAGE v5 (09/05/2026) - 5 ressources egales
   shield: [
-    { bois_brut: 12,  minerai_fer: 12,  quartz_brut: 4  },
-    { bois_brut: 24,  minerai_fer: 24,  quartz_brut: 8  },
-    { bois_brut: 48,  minerai_fer: 48,  quartz_brut: 16 },
-    { bois_brut: 100, minerai_fer: 100, quartz_brut: 32 },
-    { bois_brut: 200, minerai_fer: 200, quartz_brut: 60 },
+    { bois_brut: 6,  minerai_fer: 6,  quartz_brut: 6,  pierre: 6,  laine_brute: 6  },
+    { bois_brut: 12, minerai_fer: 12, quartz_brut: 12, pierre: 12, laine_brute: 12 },
+    { bois_brut: 23, minerai_fer: 23, quartz_brut: 23, pierre: 23, laine_brute: 23 },
+    { bois_brut: 47, minerai_fer: 47, quartz_brut: 47, pierre: 47, laine_brute: 47 },
+    { bois_brut: 92, minerai_fer: 92, quartz_brut: 92, pierre: 92, laine_brute: 92 },
   ],
 };
 
@@ -237,219 +239,6 @@ export const COMBAT_UPGRADE_PRICE_MAX = 500;
 // Répartition de l'or payé par le client : 80% à l'artisan, 20% au trésor de la ville
 export const COMBAT_UPGRADE_ARTISAN_SHARE = 0.80;
 export const COMBAT_UPGRADE_CITY_SHARE = 0.20;
-
-// Ressources de réparation par slot d'équipement.
-// Réparation manuelle, panel dédié dans l'inventaire, pas de coût en or, pas de cooldown.
-export const REPAIR_RESOURCES = {
-  weapon:    "pierre",       // épée → consomme pierre (Forgeron)
-  shield:    "bois_brut",    // bouclier → consomme bois (Bûcheron)
-  torso:     "quartz_brut",  // cuirasse → consomme quartz brut (Orfèvre)
-  armor:     "laine_brute",  // autres armures (heaume, brassard, jambière) → consomme laine (Tisserand)
-};
-
-/**
- * Renvoie la clé de ressource consommée pour réparer un slot d'équipement.
- * Centralise le mapping slot → ressource pour éviter les ternaires inline
- * dispersés dans les composants.
- *
- * V6.2 — Mapping :
- *   - weapon                   → "pierre"      (Forgeron)
- *   - shield                   → "bois_brut"   (Bûcheron)
- *   - torso_def                → "quartz_brut" (Orfèvre)
- *   - head/arms/legs_def       → "laine_brute" (Tisserand)
- *
- * Ce mapping force la diversification des ressources : un joueur qui veut
- * tout maintenir doit cultiver plusieurs filières, ce qui empêche le
- * monopole d'une seule profession sur l'entretien d'équipement.
- */
-export function getRepairResource(slot) {
-  if (slot === "weapon")    return REPAIR_RESOURCES.weapon;
-  if (slot === "shield")    return REPAIR_RESOURCES.shield;
-  if (slot === "torso_def") return REPAIR_RESOURCES.torso;
-  return REPAIR_RESOURCES.armor;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V6 — Quota journalier de réparation
-// ─────────────────────────────────────────────────────────────────────────────
-// Chaque joueur dispose de N points de réparation par jour. Une réparation +1
-// consomme 1 point. Le compteur se reset implicitement au changement de date
-// (pattern date-based, pas de reset serveur). Le hook getDailyRepairPoints
-// permet d'augmenter le quota plus tard via items, bâtiments, décrets, etc.
-
-export const DAILY_REPAIR_POINTS_BASE = 5;
-
-/** Renvoie le quota total de points de réparation pour un joueur ce jour.
- *  Pour l'instant : base seule. Hook prévu pour extensions futures. */
-export function getDailyRepairPoints(profile) {
-  let total = DAILY_REPAIR_POINTS_BASE;
-  // FUTUR : ajouter ici les bonus selon items équipés (marteau_forgeron),
-  // bâtiments municipaux (forge_perfectionnee), décrets temporaires, etc.
-  return total;
-}
-
-/** Renvoie le nombre de points déjà utilisés aujourd'hui par le joueur.
- *  Si la date stockée n'est pas celle du jour, renvoie 0 (rollover passif). */
-export function getRepairPointsUsedToday(profile) {
-  const today = new Date().toISOString().split("T")[0];
-  const storedDate = profile?.repair_points_date || "";
-  if (storedDate !== today) return 0;
-  return Number(profile?.repair_points_used_today || 0);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// V6.2 — Coût croissant + plafond hebdomadaire glissant
-// ─────────────────────────────────────────────────────────────────────────────
-// Le but : empêcher un joueur peu attaqué de garder son équipement constamment
-// à 10/10 partout. Deux mécaniques se cumulent :
-//
-//   1. Coût croissant : plus la dura courante est élevée, plus la réparation
-//      coûte cher en points et en ressources. Un 9→10 coûte 4 points et
-//      3 ressources, contre 1 point et 1 ressource pour un 0→1.
-//
-//   2. Plafond hebdomadaire glissant : 25 points max sur les 7 derniers jours
-//      (en plus du plafond quotidien de 5 points). Stocké via un historique
-//      JSON dans profile.repair_history = [{ date, points }, ...].
-
-/** Plafond hebdomadaire (7 jours glissants) de points de réparation. */
-export const WEEKLY_REPAIR_POINTS_MAX = 25;
-
-/** Tableau du coût en points pour passer de dura `currentDura` à `currentDura + 1`.
- *  Index 0 = coût pour faire 0→1, index 9 = coût pour faire 9→10.
- *  Au-delà, retourne Infinity (pas réparable au-dessus du max). */
-const REPAIR_COST_POINTS_BY_DURA = [
-  1, // 0 → 1
-  1, // 1 → 2
-  1, // 2 → 3
-  1, // 3 → 4
-  1, // 4 → 5
-  1, // 5 → 6
-  2, // 6 → 7
-  2, // 7 → 8
-  3, // 8 → 9
-  4, // 9 → 10
-];
-
-/** Tableau du coût en ressources pour passer de dura `currentDura` à `currentDura + 1`.
- *  Plafonné à 3 par design (cf. décision produit du 5 mai 2026). */
-const REPAIR_COST_RESOURCES_BY_DURA = [
-  1, // 0 → 1
-  1, // 1 → 2
-  1, // 2 → 3
-  1, // 3 → 4
-  2, // 4 → 5
-  2, // 5 → 6
-  2, // 6 → 7
-  3, // 7 → 8
-  3, // 8 → 9
-  3, // 9 → 10
-];
-
-/** Renvoie le coût en POINTS pour réparer +1 sur une pièce à dura `currentDura`.
- *  currentDura doit être dans [0, EQUIPMENT_MAX_DURABILITY[. Renvoie Infinity sinon. */
-export function getRepairCostInPoints(currentDura) {
-  const dura = Number(currentDura);
-  if (!Number.isFinite(dura) || dura < 0 || dura >= EQUIPMENT_MAX_DURABILITY) return Infinity;
-  return REPAIR_COST_POINTS_BY_DURA[Math.floor(dura)] ?? Infinity;
-}
-
-/** Renvoie le coût en RESSOURCES pour réparer +1 sur une pièce à dura `currentDura`.
- *  currentDura doit être dans [0, EQUIPMENT_MAX_DURABILITY[. Renvoie Infinity sinon. */
-export function getRepairCostInResources(currentDura) {
-  const dura = Number(currentDura);
-  if (!Number.isFinite(dura) || dura < 0 || dura >= EQUIPMENT_MAX_DURABILITY) return Infinity;
-  return REPAIR_COST_RESOURCES_BY_DURA[Math.floor(dura)] ?? Infinity;
-}
-
-/** Renvoie l'historique de réparation des 7 derniers jours (incluant aujourd'hui),
- *  filtré et nettoyé (entrées trop vieilles ignorées). Format: [{ date, points }]. */
-function getRecentRepairHistory(profile) {
-  const raw = Array.isArray(profile?.repair_history) ? profile.repair_history : [];
-  const cutoff = new Date();
-  cutoff.setUTCDate(cutoff.getUTCDate() - 6); // 7 jours glissants : aujourd'hui + 6 jours en arrière
-  const cutoffStr = cutoff.toISOString().split("T")[0];
-  return raw.filter(entry => {
-    if (!entry || typeof entry.date !== "string") return false;
-    return entry.date >= cutoffStr;
-  });
-}
-
-/** Renvoie le nombre de points de réparation utilisés sur les 7 derniers jours. */
-export function getRepairPointsUsedThisWeek(profile) {
-  const history = getRecentRepairHistory(profile);
-  return history.reduce((sum, entry) => sum + (Number(entry.points) || 0), 0);
-}
-
-/** Renvoie le nombre de points hebdomadaires restants. */
-export function getRepairPointsLeftThisWeek(profile) {
-  return Math.max(0, WEEKLY_REPAIR_POINTS_MAX - getRepairPointsUsedThisWeek(profile));
-}
-
-/**
- * Vérifie qu'un joueur peut payer une réparation +1 sur une pièce à dura `currentDura`.
- * Vérifie 3 contraintes :
- *   1. Coût en points <= points journaliers restants
- *   2. Coût en points <= points hebdomadaires restants
- *   3. Pièce pas déjà au max (currentDura < EQUIPMENT_MAX_DURABILITY)
- *
- * Retourne { ok: true, cost: { points, resources } } si OK,
- * sinon { ok: false, reason: "...", cost: { points, resources } }.
- */
-export function canAffordRepairV2(profile, currentDura) {
-  const points = getRepairCostInPoints(currentDura);
-  const resources = getRepairCostInResources(currentDura);
-  const cost = { points, resources };
-
-  if (!Number.isFinite(points)) {
-    return { ok: false, reason: "Durabilité au maximum.", cost };
-  }
-
-  const dailyMax = getDailyRepairPoints(profile);
-  const dailyUsed = getRepairPointsUsedToday(profile);
-  const dailyLeft = Math.max(0, dailyMax - dailyUsed);
-  if (dailyLeft < points) {
-    return { ok: false, reason: `Quota journalier insuffisant (${dailyLeft}/${dailyMax} restants, besoin de ${points}).`, cost };
-  }
-
-  const weeklyLeft = getRepairPointsLeftThisWeek(profile);
-  if (weeklyLeft < points) {
-    return { ok: false, reason: `Quota hebdomadaire insuffisant (${weeklyLeft}/${WEEKLY_REPAIR_POINTS_MAX} restants, besoin de ${points}).`, cost };
-  }
-
-  return { ok: true, cost };
-}
-
-/**
- * Construit le patch d'update à appliquer en plus de la réparation V2.
- * Met à jour 3 champs sur le profil :
- *   - repair_points_used_today (cumul du jour)
- *   - repair_points_date       (date du jour, pour le rollover)
- *   - repair_history           (historique 7 jours pour le plafond hebdo)
- *
- * Le caller doit appeler canAffordRepairV2 AVANT pour valider, sinon le patch
- * peut violer les plafonds.
- */
-export function buildRepairQuotaUpdateV2(profile, currentDura) {
-  const points = getRepairCostInPoints(currentDura);
-  const today = new Date().toISOString().split("T")[0];
-  const usedToday = getRepairPointsUsedToday(profile);
-
-  // Mise à jour de l'historique hebdo : on filtre l'ancien (>7j) et on ajoute le nouveau.
-  // Si une entrée pour aujourd'hui existe déjà, on l'incrémente plutôt que d'ajouter.
-  const history = getRecentRepairHistory(profile).map(e => ({ ...e }));
-  const todayIdx = history.findIndex(e => e.date === today);
-  if (todayIdx >= 0) {
-    history[todayIdx].points = (Number(history[todayIdx].points) || 0) + points;
-  } else {
-    history.push({ date: today, points });
-  }
-
-  return {
-    repair_points_used_today: usedToday + points,
-    repair_points_date: today,
-    repair_history: history,
-  };
-}
 
 // Renvoie le coût d'amélioration pour un grade donné et un type (atk/def).
 // Format de retour : objet { bois_brut, minerai_fer, quartz_brut } avec les quantités requises.

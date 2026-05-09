@@ -56,15 +56,6 @@ export const CITY_EVENTS_CATALOG = {
     cost_value: 100,
     effect_buff: true,
   },
-  forge_collective: {
-    key: "forge_collective",
-    name: "Forge collective",
-    icon: "🔧",
-    description: "Réinitialise les 5/5 réparations du jour pour tous les résidents.",
-    cost_type: "per_resident",
-    cost_value: 20,
-    effect_buff: false, // effet instantané
-  },
   razzia: {
     key: "razzia",
     name: "Razzia",

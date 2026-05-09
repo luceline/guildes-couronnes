@@ -36,7 +36,7 @@ import GameModal from "../components/GameModal";
 import ItemTooltip from "../components/ItemTooltip";
 import HelpTooltip from "../components/HelpTooltip";
 import AtelierVitrine from "../components/AtelierVitrine";
-import InventoryPanel from "../components/InventoryPanel";
+import RepairGearModal from "../components/RepairGearModal";
 import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "../lib/playerLevelSystem";
 import { findInventoryItem, getInventoryQty as getInvQty, removeFromInventory, addToInventory, hasInInventory } from "../lib/inventoryHelpers";
 import { showXPToast } from "../lib/xpToasts";
@@ -83,6 +83,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   // ── Sprint 4C.2 : modales chaudron items à cible ──
   const [targetModal, setTargetModal] = useState(null); // { itemDef, type: "steal" | "spy", value }
   const [spyReport, setSpyReport] = useState(null);
+  const [repairModal, setRepairModal] = useState(null); // { itemDef } - Marteau d'armurier (effect repair_combat_gear)
   const [targetSubmitting, setTargetSubmitting] = useState(false);
   // REFONTE église : passe d'un compteur 1/2 à un random 10% par action.
   // Plus besoin de compteur de session.
@@ -447,6 +448,144 @@ export default function Production({ profile, city, homeCity, onRefresh, default
         }
         return;
       }
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Marteau d'armurier : ouvre une modale de répartition au lieu de consommer directement ──
+    if (itemDef.effect === "repair_combat_gear") {
+      setRepairModal({ itemDef });
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Pierre a aiguiser / Affutage de maitre : recharge l'outil d'artisan (cap 50) ──
+    if (itemDef.effect === "recharge_artisan_tool") {
+      if (!profile.artisan_tool_obtained) {
+        toast.error("Vous n'avez pas encore obtenu votre Outil d'artisan ! Cliquez sur 'Obtenir gratuitement' dans l'onglet Fabriquer.");
+        return;
+      }
+      const currentCharges = profile.artisan_tool_charges || 0;
+      if (currentCharges >= ARTISAN_TOOL_MAX_CHARGES) {
+        toast(`🔨 Outil deja au maximum (${ARTISAN_TOOL_MAX_CHARGES}/${ARTISAN_TOOL_MAX_CHARGES}). Conservez votre ${itemDef.name} pour plus tard.`);
+        return;
+      }
+      const rechargeValue = itemDef.value || 0;
+      const newCharges = Math.min(ARTISAN_TOOL_MAX_CHARGES, currentCharges + rechargeValue);
+      const realApplied = newCharges - currentCharges;
+      const newInv = (profile.inventory || [])
+        .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          artisan_tool_charges: newCharges,
+        });
+        toast.success(`🔨 Outil d'artisan recharge : ${currentCharges} -> ${newCharges} / ${ARTISAN_TOOL_MAX_CHARGES} (+${realApplied})`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[recharge_artisan_tool]", e);
+        toast.error("Erreur lors de la recharge de l'outil.");
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Etai de recolte : buff +25% chance bonus recolte pendant 1h ──
+    // Reutilise le mecanisme existant biome_harvest_bonus_expires_at (active dans Production craft T1).
+    // duration_minutes provient de l'item def (60 par defaut pour etai_recolte).
+    if (itemDef.effect === "harvest_bonus_buff") {
+      const durationMinutes = itemDef.duration_minutes || 60;
+      const expiresAtBuff = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+      const newInv = (profile.inventory || [])
+        .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          biome_harvest_bonus_expires_at: expiresAtBuff,
+        });
+        toast.success(`🪵 ${itemDef.name} : +${itemDef.value || 25}% chance bonus de recolte pendant ${durationMinutes} min !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[harvest_bonus_buff]", e);
+        toast.error("Erreur lors de l'activation du buff.");
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Bon du Tresor : +50 or sur prochaine epopee ──
+    // Set le champ next_epopee_gold_bonus, consomme automatiquement par CombatEpic au prochain epique.
+    if (itemDef.effect === "epopee_gold_bonus") {
+      const currentBonus = profile.next_epopee_gold_bonus || 0;
+      if (currentBonus > 0) {
+        toast.error(`💼 Vous avez deja un Bon du Tresor en attente (+${currentBonus}💰). Utilisez votre prochaine epopee pour l'encaisser.`);
+        return;
+      }
+      const bonusValue = itemDef.value || 50;
+      const newInv = (profile.inventory || [])
+        .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          next_epopee_gold_bonus: bonusValue,
+        });
+        toast.success(`💼 ${itemDef.name} active : votre prochaine epopee rapportera +${bonusValue}💰 bonus !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[epopee_gold_bonus]", e);
+        toast.error("Erreur lors de l'activation du bonus.");
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Bandeau d'erudit : +1 ressource rare prochaine epopee ──
+    // Set le champ next_epopee_drop_bonus, consomme automatiquement par CombatEpic.
+    if (itemDef.effect === "epopee_rare_bonus") {
+      const currentBonus = profile.next_epopee_drop_bonus || 0;
+      if (currentBonus > 0) {
+        toast.error(`🎓 Vous avez deja un Bandeau d'erudit actif (+${currentBonus} ressource rare). Utilisez votre prochaine epopee.`);
+        return;
+      }
+      const bonusValue = itemDef.value || 1;
+      const newInv = (profile.inventory || [])
+        .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          next_epopee_drop_bonus: bonusValue,
+        });
+        toast.success(`🎓 ${itemDef.name} active : votre prochaine epopee garantit +${bonusValue} ressource rare !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[epopee_rare_bonus]", e);
+        toast.error("Erreur lors de l'activation du bonus.");
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Carnet de commande : quete bonus +35 or pour prochaine vente T2+ au marche ──
+    // Set le champ pending_market_sale_bonus, consomme par Market.handleSell quand le joueur met en vente un T2+.
+    if (itemDef.effect === "quest_market_sale") {
+      const currentBonus = profile.pending_market_sale_bonus || 0;
+      if (currentBonus > 0) {
+        toast.error(`📒 Vous avez deja un Bon de commande en attente (+${currentBonus}💰). Vendez d'abord 1 item T2+ au marche pour pouvoir en activer un autre.`);
+        return;
+      }
+      const bonusValue = itemDef.value || 35;
+      const newInv = (profile.inventory || [])
+        .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          pending_market_sale_bonus: bonusValue,
+        });
+        toast.success(`📒 ${itemDef.name} active : votre prochaine mise en vente d'un item T2+ vous rapportera +${bonusValue}💰 bonus !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[quest_market_sale]", e);
+        toast.error("Erreur lors de l'activation du bon.");
+      }
+      return;
     }
 
     const now = new Date();
@@ -920,6 +1059,31 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     loadObjectives();
   };
 
+  // ── NOUVEAU v3 (09/05/2026) - Obtenir l'outil d'artisan personnel (1ere fois, gratuit) ──
+  // L'outil est materialise par 2 champs profile :
+  //   - artisan_tool_obtained (bool) : a-t-il deja recupere son outil au moins une fois ?
+  //   - artisan_tool_charges (number) : nombre de charges restantes (0-50)
+  // Au premier clic : obtained = true, charges = 50. Le bouton disparait apres.
+  // Cap fixe a 50 charges, surplus perdu lors des recharges (pierre_aiguiser/affutage_maitre).
+  const ARTISAN_TOOL_MAX_CHARGES = 50;
+  const handleObtenirOutil = async () => {
+    if (profile.artisan_tool_obtained) {
+      toast("Vous possédez déjà votre outil d'artisan.");
+      return;
+    }
+    try {
+      await base44.entities.PlayerProfile.update(profile.id, {
+        artisan_tool_obtained: true,
+        artisan_tool_charges: ARTISAN_TOOL_MAX_CHARGES,
+      });
+      toast.success(`🔨 Vous avez obtenu votre Outil d'artisan ! ${ARTISAN_TOOL_MAX_CHARGES} charges disponibles.`);
+      onRefresh?.();
+    } catch (e) {
+      console.error("[obtenirOutil]", e);
+      toast.error("Erreur lors de l'obtention de l'outil.");
+    }
+  };
+
   const handleCraft = async (recipe) => {
     if (profile.is_traveling) { toast.error("🐴 Impossible de fabriquer pendant un voyage !"); return; }
     // NB : check faim/énergie effectué par applyRandomActionCost plus bas (avec toast).
@@ -929,6 +1093,22 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     // L'ancienne check besace pour T4 a été retirée (la besace est maintenant un passif voyage).
     const outputTier = ITEMS[recipe.output.key]?.tier || 1;
     const equipInv = profile.inventory || [];
+
+    // ── NOUVEAU v3 (09/05/2026) - Check outil d'artisan pour T2+ ──
+    // Securite cote frontend : le filtre d'affichage masque deja les recettes T2+ si pas d'outil,
+    // mais on double-check ici au cas ou (manipulation directe, race condition, etc).
+    if (outputTier >= 2) {
+      if (!profile.artisan_tool_obtained) {
+        toast.error("🔨 Vous n'avez pas encore votre Outil d'artisan ! Cliquez sur 'Obtenir gratuitement' en haut de l'onglet Fabriquer.");
+        return;
+      }
+      const charges = profile.artisan_tool_charges || 0;
+      if (charges <= 0) {
+        toast.error("🔨 Outil d'artisan vide ! Rechargez-le avec une Pierre à aiguiser (+15) ou un Affûtage de maître (+50).");
+        return;
+      }
+    }
+
     if (outputTier >= 4) {
       const hasEpeeCourte = equipInv.some(i => i.item_key === "epee_courte" && (i.durability ?? 0) > 0);
       if (!hasEpeeCourte) { toast.error("🛠️ Un Outil multifonction (avec durabilité) est requis pour crafter du T4 !"); return; }
@@ -1142,6 +1322,11 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     const craftXP = getCraftXPReward(craftedTier);
     const xpGain = craftXP > 0 ? grantXP(profile, craftXP) : null;
 
+    // ── NOUVEAU v3 (09/05/2026) - Decrement -1 charge d'outil d'artisan pour tout craft T2+ ──
+    const artisanToolUpdate = (craftedTier >= 2 && profile.artisan_tool_obtained)
+      ? { artisan_tool_charges: Math.max(0, (profile.artisan_tool_charges || 0) - 1) }
+      : {};
+
     await base44.entities.PlayerProfile.update(profile.id, {
       inventory: finalInv,
       fatigue: newFatigue,
@@ -1154,6 +1339,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
       ...(parcheminCraftUsed ? { next_t4_no_tool: false } : {}),
       ...bourseInitUpdate,
       ...(xpGain?.updates || {}),
+      ...artisanToolUpdate,
     });
 
     if (parcheminCraftUsed) {
@@ -1372,7 +1558,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
           <TabsTrigger value="farm">🌾 Récolter</TabsTrigger>
           <TabsTrigger value="craft">⚒️ Fabriquer</TabsTrigger>
           <TabsTrigger value="atelier">🏪 Mon atelier</TabsTrigger>
-          <TabsTrigger value="inventory">📦 Inventaire</TabsTrigger>
         </TabsList>
 
         <TabsContent value="farm" className="mt-4 space-y-3">
@@ -1511,9 +1696,98 @@ export default function Production({ profile, city, homeCity, onRefresh, default
 
           {/* Recettes standard T2-T5 */}
           <div className="mt-4">
-            <h4 className="font-heading text-sm font-semibold mb-2">⚒️ Recettes standard (T2-T5)</h4>
+            {/* NOUVEAU v3 (09/05/2026) - Outil d'artisan : badge si possede, carte d'invitation sinon */}
+            {profile.artisan_tool_obtained ? (() => {
+              // Detection des items de recharge en inventaire (pour boutons rapides)
+              const inv = profile.inventory || [];
+              const pierreAiguiserQty = inv.find(i => i.item_key === "pierre_aiguiser")?.quantity || 0;
+              const affutageMaitreQty = inv.find(i => i.item_key === "affutage_maitre")?.quantity || 0;
+              const charges = profile.artisan_tool_charges || 0;
+              const atMax = charges >= ARTISAN_TOOL_MAX_CHARGES;
+              return (
+                <div className={`mb-3 px-3 py-2 rounded text-sm flex items-center justify-between gap-2 flex-wrap ${
+                  charges <= 0
+                    ? "bg-red-50 border border-red-200 text-red-800"
+                    : charges <= 5
+                      ? "bg-amber-50 border border-amber-200 text-amber-800"
+                      : "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                }`}>
+                  <span className="flex items-center gap-1.5">
+                    🔨 <span className="font-semibold">Outil d'artisan :</span>
+                    <span className="font-bold">{charges} / {ARTISAN_TOOL_MAX_CHARGES} charges</span>
+                    {charges <= 0 && (
+                      <span className="text-xs italic ml-2">Rechargez avec une Pierre à aiguiser ou un Affûtage de maître</span>
+                    )}
+                  </span>
+                  {/* Boutons rapides de recharge (si item dispo et pas au max) */}
+                  {!atMax && (pierreAiguiserQty > 0 || affutageMaitreQty > 0) && (
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      {pierreAiguiserQty > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2 bg-white"
+                          disabled={crafting === "consume_pierre_aiguiser"}
+                          onClick={() => handleConsumeTempEffect({ ...ITEMS["pierre_aiguiser"], key: "pierre_aiguiser" })}
+                          title={`Consommer 1 Pierre à aiguiser (+15 charges, cap ${ARTISAN_TOOL_MAX_CHARGES})`}
+                        >
+                          🪨 Pierre à aiguiser ×{pierreAiguiserQty} (+15)
+                        </Button>
+                      )}
+                      {affutageMaitreQty > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2 bg-white"
+                          disabled={crafting === "consume_affutage_maitre"}
+                          onClick={() => handleConsumeTempEffect({ ...ITEMS["affutage_maitre"], key: "affutage_maitre" })}
+                          title={`Consommer 1 Affûtage de maître (+50 charges, cap ${ARTISAN_TOOL_MAX_CHARGES})`}
+                        >
+                          ⚙️ Affûtage de maître ×{affutageMaitreQty} (+50)
+                        </Button>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })() : (
+              <Card className="mb-3 border-2 border-dashed border-amber-400 bg-amber-50">
+                <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-3xl">🔨</span>
+                    <div className="min-w-0">
+                      <div className="font-heading font-semibold text-amber-900">Obtenez votre Outil d'artisan</div>
+                      <div className="text-xs text-amber-800 font-body">Outil personnel gratuit. Indispensable pour fabriquer du T2 et T3. 50 charges au départ, rechargeable.</div>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleObtenirOutil}
+                    className="bg-amber-700 hover:bg-amber-800 text-white font-heading shrink-0"
+                  >
+                    🔨 Obtenir gratuitement
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            <h4 className="font-heading text-sm font-semibold mb-2">⚒️ Recettes standard (T2-T3)</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {CRAFTING_RECIPES.filter(recipe => !recipe.profession || recipe.profession === profile?.profession).map(recipe => {
+              {/* TEMP MASQUAGE T4/T5 (09/05/2026) - Restaurer en retirant le filtre tier <= 3 quand le joueur Lucas le demandera. Les recettes T4/T5 existent toujours dans CRAFTING_RECIPES, juste cachees a l affichage. */}
+              {/* NOUVEAU v3 (09/05/2026) - Filtre outil d'artisan : si pas obtenu ou charges <= 0, on cache toutes les recettes T2+ */}
+              {CRAFTING_RECIPES.filter(recipe => {
+                const recipeTier = recipe.tier || 1;
+                if (!recipe.profession || recipe.profession === profile?.profession) {
+                  // Filtre profession OK
+                } else {
+                  return false;
+                }
+                if (recipeTier > 3) return false; // TEMP MASQUAGE T4/T5
+                if (recipeTier >= 2) {
+                  // Outil d'artisan requis pour T2+
+                  if (!profile.artisan_tool_obtained) return false;
+                  if ((profile.artisan_tool_charges || 0) <= 0) return false;
+                }
+                return true;
+              }).map(recipe => {
                 const possible = canCraft(recipe);
                 const outItem = ITEMS[recipe.output.key];
                 const recipeCraftCost = TIER_ACTION_COST?.[outItem?.tier || 1] || 1;
@@ -1574,12 +1848,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
           <div className="space-y-4">
             <AtelierVitrine profile={profile} onRefresh={onRefresh} />
           </div>
-        </TabsContent>
-
-        <TabsContent value="inventory" className="mt-4">
-          {/* Inventaire centralisé : utilise le composant InventoryPanel pour avoir
-              le même rendu que la page /inventaire (anti-doublon, confirmations…). */}
-          <InventoryPanel profile={profile} city={city} homeCity={homeCity} onRefresh={onRefresh} />
         </TabsContent>
       </Tabs>
 
@@ -1700,6 +1968,54 @@ export default function Production({ profile, city, homeCity, onRefresh, default
         open={!!spyReport}
         onClose={() => setSpyReport(null)}
         report={spyReport}
+      />
+    )}
+    {/* NOUVEAU v3 (09/05/2026) - Modale de répartition des points du Marteau d'armurier */}
+    {repairModal && (
+      <RepairGearModal
+        itemDef={repairModal.itemDef}
+        profile={profile}
+        onClose={() => setRepairModal(null)}
+        onConfirm={async (distribution) => {
+          // Application : pour chaque slot, ajouter les points à la durabilité (cap 10)
+          const newEquipment = { ...(profile.equipment || {}) };
+          let totalApplied = 0;
+          const detailLines = [];
+          for (const [slotKey, points] of Object.entries(distribution)) {
+            if (!points || points <= 0) continue;
+            const eq = newEquipment[slotKey];
+            if (!eq) continue;
+            const curDura = eq.durability ?? EQUIPMENT_MAX_DURABILITY;
+            const newDura = Math.min(EQUIPMENT_MAX_DURABILITY, curDura + points);
+            const realApplied = newDura - curDura;
+            if (realApplied <= 0) continue;
+            newEquipment[slotKey] = { ...eq, durability: newDura };
+            totalApplied += realApplied;
+            const itemDef2 = ITEMS[eq.item_key];
+            detailLines.push(`${itemDef2?.icon || ""} ${itemDef2?.name || eq.item_key} : ${curDura} → ${newDura}`);
+          }
+
+          // Décrémenter le marteau
+          const itemDef = repairModal.itemDef;
+          const newInv = (profile.inventory || [])
+            .map(i => (i.item_key === itemDef.key || i.item_name === itemDef.name) ? { ...i, quantity: i.quantity - 1 } : i)
+            .filter(i => i.quantity > 0);
+
+          try {
+            await base44.entities.PlayerProfile.update(profile.id, {
+              inventory: newInv,
+              equipment: newEquipment,
+            });
+            toast.success(
+              `🔨 ${itemDef.name} consommé. +${totalApplied} dura répartis : ${detailLines.join(", ")}`
+            );
+            setRepairModal(null);
+            onRefresh?.();
+          } catch (e) {
+            console.error("[repair_combat_gear]", e);
+            toast.error("Erreur lors de la réparation.");
+          }
+        }}
       />
     )}
     </div>

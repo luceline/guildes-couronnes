@@ -8,6 +8,7 @@ import { isBiomeBuffActive, activateBiomeHarvestBonus } from "@/lib/playerBuffs"
 import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
 import TargetCityModal from "@/components/TargetCityModal";
 import SpyReportModal from "@/components/SpyReportModal";
+import RepairGearModal from "@/components/RepairGearModal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -53,6 +54,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
   const [targetModal, setTargetModal] = useState(null); // { itemDef, type: "steal"|"spy", value }
   const [spyReport, setSpyReport] = useState(null);
   const [targetSubmitting, setTargetSubmitting] = useState(false);
+  const [repairModal, setRepairModal] = useState(null); // { itemDef } - Marteau d'armurier (effect repair_combat_gear)
 
   const handleConfirmTarget = async (selectedCity) => {
     if (!targetModal) return;
@@ -318,6 +320,155 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         }
         return;
       }
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Marteau d'armurier : ouvre une modale de répartition au lieu de consommer directement ──
+    if (itemDef.effect === "repair_combat_gear") {
+      setRepairModal({ itemDef });
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Pierre a aiguiser / Affutage de maitre : recharge l'outil d'artisan (cap 50) ──
+    if (itemDef.effect === "recharge_artisan_tool") {
+      const ARTISAN_TOOL_MAX_CHARGES = 50;
+      if (!profile.artisan_tool_obtained) {
+        toast.error("Vous n'avez pas encore obtenu votre Outil d'artisan ! Allez dans l'onglet Fabriquer pour le recuperer gratuitement.");
+        return;
+      }
+      const currentCharges = profile.artisan_tool_charges || 0;
+      if (currentCharges >= ARTISAN_TOOL_MAX_CHARGES) {
+        toast(`🔨 Outil deja au maximum (${ARTISAN_TOOL_MAX_CHARGES}/${ARTISAN_TOOL_MAX_CHARGES}). Conservez votre ${itemDef.name} pour plus tard.`);
+        return;
+      }
+      const rechargeValue = itemDef.value || 0;
+      const newCharges = Math.min(ARTISAN_TOOL_MAX_CHARGES, currentCharges + rechargeValue);
+      const realApplied = newCharges - currentCharges;
+      const newInv = inventory
+        .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      setActivating(itemDef.key);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          artisan_tool_charges: newCharges,
+        });
+        toast.success(`🔨 Outil d'artisan recharge : ${currentCharges} -> ${newCharges} / ${ARTISAN_TOOL_MAX_CHARGES} (+${realApplied})`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[recharge_artisan_tool]", e);
+        toast.error("Erreur lors de la recharge de l'outil.");
+      } finally {
+        setActivating(null);
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Etai de recolte : buff +25% chance bonus recolte pendant 1h ──
+    if (itemDef.effect === "harvest_bonus_buff") {
+      const durationMinutes = itemDef.duration_minutes || 60;
+      const expiresAtBuff = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+      const newInv = inventory
+        .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      setActivating(itemDef.key);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          biome_harvest_bonus_expires_at: expiresAtBuff,
+        });
+        toast.success(`🪵 ${itemDef.name} : +${itemDef.value || 25}% chance bonus de recolte pendant ${durationMinutes} min !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[harvest_bonus_buff]", e);
+        toast.error("Erreur lors de l'activation du buff.");
+      } finally {
+        setActivating(null);
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Bon du Tresor : +50 or sur prochaine epopee ──
+    if (itemDef.effect === "epopee_gold_bonus") {
+      const currentBonus = profile.next_epopee_gold_bonus || 0;
+      if (currentBonus > 0) {
+        toast.error(`💼 Vous avez deja un Bon du Tresor en attente (+${currentBonus}💰). Utilisez votre prochaine epopee pour l'encaisser.`);
+        return;
+      }
+      const bonusValue = itemDef.value || 50;
+      const newInv = inventory
+        .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      setActivating(itemDef.key);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          next_epopee_gold_bonus: bonusValue,
+        });
+        toast.success(`💼 ${itemDef.name} active : votre prochaine epopee rapportera +${bonusValue}💰 bonus !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[epopee_gold_bonus]", e);
+        toast.error("Erreur lors de l'activation du bonus.");
+      } finally {
+        setActivating(null);
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Bandeau d'erudit : +1 ressource rare prochaine epopee ──
+    if (itemDef.effect === "epopee_rare_bonus") {
+      const currentBonus = profile.next_epopee_drop_bonus || 0;
+      if (currentBonus > 0) {
+        toast.error(`🎓 Vous avez deja un Bandeau d'erudit actif (+${currentBonus} ressource rare). Utilisez votre prochaine epopee.`);
+        return;
+      }
+      const bonusValue = itemDef.value || 1;
+      const newInv = inventory
+        .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      setActivating(itemDef.key);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          next_epopee_drop_bonus: bonusValue,
+        });
+        toast.success(`🎓 ${itemDef.name} active : votre prochaine epopee garantit +${bonusValue} ressource rare !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[epopee_rare_bonus]", e);
+        toast.error("Erreur lors de l'activation du bonus.");
+      } finally {
+        setActivating(null);
+      }
+      return;
+    }
+
+    // ── NOUVEAU v3 (09/05/2026) - Carnet de commande : quete bonus +35 or pour prochaine vente T2+ ──
+    if (itemDef.effect === "quest_market_sale") {
+      const currentBonus = profile.pending_market_sale_bonus || 0;
+      if (currentBonus > 0) {
+        toast.error(`📒 Vous avez deja un Bon de commande en attente (+${currentBonus}💰). Vendez d'abord 1 item T2+ au marche pour pouvoir en activer un autre.`);
+        return;
+      }
+      const bonusValue = itemDef.value || 35;
+      const newInv = inventory
+        .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+        .filter(i => i.quantity > 0);
+      setActivating(itemDef.key);
+      try {
+        await base44.entities.PlayerProfile.update(profile.id, {
+          inventory: newInv,
+          pending_market_sale_bonus: bonusValue,
+        });
+        toast.success(`📒 ${itemDef.name} active : votre prochaine mise en vente d'un item T2+ vous rapportera +${bonusValue}💰 bonus !`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[quest_market_sale]", e);
+        toast.error("Erreur lors de l'activation du bon.");
+      } finally {
+        setActivating(null);
+      }
+      return;
     }
 
     setActivating(itemDef.key);
@@ -708,6 +859,54 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
           open={!!spyReport}
           onClose={() => setSpyReport(null)}
           report={spyReport}
+        />
+      )}
+      {/* NOUVEAU v3 (09/05/2026) - Modale de répartition des points du Marteau d'armurier */}
+      {repairModal && (
+        <RepairGearModal
+          itemDef={repairModal.itemDef}
+          profile={profile}
+          onClose={() => setRepairModal(null)}
+          onConfirm={async (distribution) => {
+            // Application : pour chaque slot, ajouter les points à la durabilité (cap 10)
+            const newEquipment = { ...(profile.equipment || {}) };
+            let totalApplied = 0;
+            const detailLines = [];
+            for (const [slotKey, points] of Object.entries(distribution)) {
+              if (!points || points <= 0) continue;
+              const eq = newEquipment[slotKey];
+              if (!eq) continue;
+              const curDura = eq.durability ?? EQUIPMENT_MAX_DURABILITY;
+              const newDura = Math.min(EQUIPMENT_MAX_DURABILITY, curDura + points);
+              const realApplied = newDura - curDura;
+              if (realApplied <= 0) continue;
+              newEquipment[slotKey] = { ...eq, durability: newDura };
+              totalApplied += realApplied;
+              const itemDef2 = ITEMS[eq.item_key];
+              detailLines.push(`${itemDef2?.icon || ""} ${itemDef2?.name || eq.item_key} : ${curDura} → ${newDura}`);
+            }
+
+            // Décrémenter le marteau
+            const itemDef = repairModal.itemDef;
+            const newInv = inventory
+              .map(i => i.item_key === itemDef.key ? { ...i, quantity: i.quantity - 1 } : i)
+              .filter(i => i.quantity > 0);
+
+            try {
+              await base44.entities.PlayerProfile.update(profile.id, {
+                inventory: newInv,
+                equipment: newEquipment,
+              });
+              toast.success(
+                `🔨 ${itemDef.name} consommé. +${totalApplied} dura répartis : ${detailLines.join(", ")}`
+              );
+              setRepairModal(null);
+              onRefresh?.();
+            } catch (e) {
+              console.error("[repair_combat_gear]", e);
+              toast.error("Erreur lors de la réparation.");
+            }
+          }}
         />
       )}
     </div>

@@ -274,6 +274,8 @@ export default function TavernPage() {
       ) : (
         <>
           {/* ── Sleep section ── */}
+          {/* TEMP DESACTIVE (09/05/2026) - Repos taverne retire du jeu, on garde le code en commentaire pour reactivation eventuelle */}
+          {/*
           <Card className={foodOnMarket.length > 0 ? "border-orange-200" : "border-amber-200"}>
             <CardHeader className="pb-2">
               <CardTitle className="font-heading text-base flex items-center gap-2">
@@ -338,6 +340,7 @@ export default function TavernPage() {
               </Button>
             </CardContent>
           </Card>
+          */}
 
           {/* ── Chat section ── */}
           <Tabs defaultValue="grande-salle">
