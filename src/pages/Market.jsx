@@ -10,17 +10,21 @@ import { getItemName, getCanonicalItemKey } from "../lib/itemHelpers";
 import { removeFromInventory } from "../lib/inventoryHelpers";
 import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice, calculateDynamicPrices } from "../lib/pricingData";
 import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
+// Tombola du Marchand : enregistrement participation + plafond 5/jour.
+import { recordBilletPurchase, canBuyBillets } from "../lib/tombolaClient";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Search } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ITEM_CATEGORIES } from "../lib/gameData";
 import ItemTooltip from "../components/ItemTooltip";
 import MarketInsights from "../components/MarketInsights";
 import { toast } from "sonner";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { logGold } from '@/lib/goldLog';
 
 
@@ -65,10 +69,15 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   const [loading, setLoading] = useState(true);
   const [sellOpen, setSellOpen] = useState(false);
   const [sellForm, setSellForm] = useState({ item_index: "", quantity: 1, price: 1, itemKey: "" });
+  // Picker d'item à vendre : drawer mobile-friendly avec barre de recherche (10/05/2026)
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState("");
   const [buying, setBuying] = useState(null);
   const [buyQtys, setBuyQtys] = useState({});
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterCity, setFilterCity] = useState("all"); // "all" = marché unifié, "local" = ville actuelle
+  // 11/05/2026 : filtre tier (T1, T1.5, T2, T3, T4, T5). "all" = tous tiers
+  const [filterTier, setFilterTier] = useState("all");
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
   const [dynamicPrices, setDynamicPrices] = useState({});
   const [worldEvents, setWorldEvents] = useState(null);
@@ -161,14 +170,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   // Guilde marchands +5% ventes
 
   // ── SELL : poste dans la ville actuelle ──
-  const isPermit = (i) => i.item_key === "autorisation_marche" || i.item_name === "Autorisation de marché";
-  const hasPermit = (profile.inventory || []).some(isPermit);
-  
-  // L'Autorisation de mise sur le marché peut être vendue sans bon d'autorisation
-  const getHasPermitForItem = (itemKey) => {
-    if (itemKey === "autorisation_marche" || itemKey === "") return true;
-    return hasPermit;
-  };
+  // REFONTE MARCHAND (10/05/2026) : l'Autorisation de marché n'est plus requise
+  // pour vendre. N'importe qui peut poster une annonce sans permit.
+  // Helpers isPermit/hasPermit/getHasPermitForItem retirés (devenus orphelins).
 
   const handleSell = async () => {
     const idx = parseInt(sellForm.item_index);
@@ -204,16 +208,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       }
     }
 
-    // Vérifier le bon d'autorisation (sauf pour l'Autorisation elle-même)
-    if (!getHasPermitForItem(item.item_key)) {
-      toast.error("📜 Les gardes du marché vous barrent la route : il vous faut une Autorisation de mise sur le marché pour exposer vos marchandises !");
-      return;
-    }
-    // Consommer l'autorisation SAUF si c'est l'Autorisation qu'on vend
-    let inventoryAfterPermit = [...(profile.inventory || [])];
-    if (!isPermit(item)) {
-      inventoryAfterPermit = removeFromInventory(inventoryAfterPermit, "autorisation_marche", 1);
-    }
+    // REFONTE MARCHAND (10/05/2026) : l'Autorisation de marché n'est plus requise.
+    // Plus de vérification ni de consommation : tout joueur peut poster librement.
+    const inventoryAfterPermit = [...(profile.inventory || [])];
 
     // Construction du listing : on capture grade et durability si présents,
     // pour qu'ils soient transmis fidèlement à l'acheteur (REFONTE v5).
@@ -227,7 +224,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       item_tier:        ITEMS[item.item_key]?.tier || 0,
       quantity:         sellForm.quantity,
       quantity_initial: sellForm.quantity,
-      price_per_unit:   sellForm.price,
+      // REFONTE MARCHAND v2 (10/05/2026) : billet_fortune a un prix imposé de 3 or.
+      price_per_unit:   item.item_key === "billet_fortune" ? 3 : sellForm.price,
       status:           "active",
       created_date:     new Date().toISOString().split("T")[0],
       expires_at:       new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
@@ -321,6 +319,91 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     const taxAmount = listingTaxRate > 0 ? totalBase * listingTaxRate / 100 : 0;
     const totalCost = totalBase; // l'acheteur ne paie QUE le prix de base
 
+    // ── REFONTE MARCHAND v2 (10/05/2026) : Billet de fortune (Tombola) ──
+    // Cas spécial : prix imposé 3 or, split 1/1/1 (vendeur Marchand / cagnotte / détruit).
+    // Le billet n'est PAS ajouté à l'inventaire (consommé à l'achat pour participer au tirage).
+    // Plafond : 5 billets/jour (15 sur le cycle de 3 jours).
+    // SESSION 2 (10/05/2026) : la cagnotte est désormais incrémentée dans TombolaState
+    // et la participation joueur enregistrée dans TombolaParticipations.
+    const isBilletFortune = listing.item_key === "billet_fortune";
+    if (isBilletFortune) {
+      // Prix forcé : refus si le listing n'est pas à 3 or (sécurité)
+      if (listing.price_per_unit !== 3) {
+        toast.error("🎫 Prix de billet incorrect : le billet de fortune doit être à 3 or.");
+        return;
+      }
+      const totalBilletCost = 3 * qty;
+      if ((profile.gold || 0) < totalBilletCost) {
+        toast.error(`🎫 Pas assez d'or : il vous faut ${totalBilletCost}💰.`);
+        return;
+      }
+      // Plafond 5 billets/jour : check avant tout débit
+      const canBuy = await canBuyBillets(profile, qty);
+      if (!canBuy.ok) {
+        toast.error(`🎫 ${canBuy.reason}`);
+        return;
+      }
+
+      setBuying(listing.id);
+      try {
+        // Enregistrer la participation en premier (cagnotte + plafond + cycle).
+        // Si l'enregistrement échoue, on bloque l'achat avant tout débit.
+        const purchaseResult = await recordBilletPurchase(profile, qty);
+        if (!purchaseResult.ok) {
+          toast.error(`🎫 ${purchaseResult.error}`);
+          return;
+        }
+
+        // Marquer le listing comme vendu (au moins partiellement)
+        const remaining = listing.quantity - qty;
+        if (remaining <= 0) {
+          await base44.entities.MarketListing.update(listing.id, { status: "sold", quantity: 0 });
+        } else {
+          await base44.entities.MarketListing.update(listing.id, { quantity: remaining });
+        }
+        // Acheteur : -3 or, billet NON ajouté à l'inventaire
+        await base44.entities.PlayerProfile.update(profile.id, {
+          gold: (profile.gold || 0) - totalBilletCost,
+        });
+        await logGold(profile.user_email, profile.character_name, listing.city_id, "",
+          -totalBilletCost, "achat", `Billet de fortune ×${qty} (Tombola)`);
+        // Vendeur Marchand : +1 or par billet (1/3 du prix)
+        const sellers = await base44.entities.PlayerProfile.filter({ user_email: listing.seller_email });
+        if (sellers.length > 0) {
+          const sellerShare = qty * 1;
+          await base44.entities.PlayerProfile.update(sellers[0].id, {
+            gold: (sellers[0].gold || 0) + sellerShare,
+            cumul_ventes_or: (sellers[0].cumul_ventes_or || 0) + sellerShare,
+          });
+          await logGold(listing.seller_email, sellers[0].character_name, listing.city_id, "",
+            sellerShare, "vente", `Vente ${qty}× Billet de fortune (1💰/billet, Tombola)`);
+        }
+        // Cagnotte (1 or par billet) : ajoutée à TombolaState par recordBilletPurchase ci-dessus.
+        // Destruction (1 or par billet) : permanente (or sort du jeu, pas de log).
+        // Historique trade
+        await base44.entities.TradeHistory.create({
+          buyer_email:    profile.user_email,
+          seller_email:   listing.seller_email,
+          city_id:        listing.city_id,
+          item_name:      listing.item_name,
+          item_category:  listing.item_category,
+          item_key:       listing.item_key,
+          quantity:       qty,
+          unit_price:     3,
+          total_price:    totalBilletCost,
+          tax_amount:     0,
+        }).catch(() => {});
+        toast.success(`🎰 Billet de fortune ×${qty} acheté ! Bonne chance au prochain tirage.`);
+        loadAll();
+      } catch (e) {
+        console.error("[billet_fortune buy]", e);
+        toast.error("Erreur lors de l'achat du billet.");
+      } finally {
+        setBuying(null);
+      }
+      return;
+    }
+
     // ── Sceau royal system : règles spéciales ──
     const isSceauSystem = listing.item_name === "Sceau royal" && listing.seller_email === "system";
     if (isSceauSystem) {
@@ -357,10 +440,12 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
     // ── Parchemin : exonération de taxe ──
     const hasParchemin = (profile.inventory || []).some(i => i.item_key === "parchemin" || i.item_name === "Parchemin");
+    // ── REFONTE MARCHAND (10/05/2026) : Marchand exonéré de taxe à l'achat ──
+    const isMarchand = profile.profession === "Marchand";
     // ── Quartz/Lingots Orfèvre : réduction de taxe ──
     const taxDiscountRate = getMarketTaxDiscount(profile);
     const discountedTaxAmount = taxDiscountRate > 0 ? Math.floor(taxAmount * (1 - taxDiscountRate)) : taxAmount;
-    const effectiveTaxAmount = hasParchemin ? 0 : discountedTaxAmount;
+    const effectiveTaxAmount = (hasParchemin || isMarchand) ? 0 : discountedTaxAmount;
 
     // ── Sceau royal : absorbe la taxe accumulée ──
     const sceauBalance = profile.sceau_balance || 0;
@@ -549,11 +634,12 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     }
     await base44.entities.PlayerProfile.update(profile.id, buyerUpdates);
 
-    // ── Vendeur : reçoit totalBase + bonus Marchand + bonus Caravane ──
+    // ── Vendeur : reçoit totalBase + bonus Caravane ──
+    // REFONTE MARCHAND (10/05/2026) : ancien bonus "Marchand vendeur récupère 50%
+    // de la taxe acheteur" retiré. Désormais le privilège Marchand est :
+    // (1) exonération de taxe à l'achat, (2) revente entrepôt sa ville (200 or/j).
     const sellers = await base44.entities.PlayerProfile.filter({ user_email: listing.seller_email });
     if (sellers.length > 0) {
-      const isMarchand = sellers[0].profession === "Marchand";
-      const taxBonus = isMarchand ? Math.floor(effectiveTaxAmount * 0.5) : 0;
       const caravane = worldEvents?.caravane;
       const nowHour = new Date().getHours();
       const caravaneActive = caravane?.active &&
@@ -563,7 +649,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       const caravaneBonus = caravaneActive
         ? Math.floor(totalBase * ((caravane.price_multiplier || 2.5) - 1))
         : 0;
-      const sellerTotal = totalBase + taxBonus + caravaneBonus;
+      const sellerTotal = totalBase + caravaneBonus;
       const { repaid: sellerRepaid, debtByCity: sellerDebtByCity, goldAfterDebt: sellerGoldNet, cityPayments: sellerCityPayments } = computeDebtRepayment(sellers[0].debt_by_city || {}, sellerTotal);
       await base44.entities.PlayerProfile.update(sellers[0].id, {
         gold: (sellers[0].gold || 0) + sellerGoldNet,
@@ -583,7 +669,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       }
       await logGold(listing.seller_email, sellers[0].character_name, city?.id, city?.name,
         sellerTotal, "vente",
-        `Vente ${qty}× ${getItemName(listing.item_key, listing.item_name)}${taxBonus > 0 ? ` (+${taxBonus} bonus Marchand)` : ""}${caravaneBonus > 0 ? ` (+${caravaneBonus} bonus Caravane)` : ""}${sellerRepaid > 0 ? ` (−${sellerRepaid} remboursement dette)` : ""}`
+        `Vente ${qty}× ${getItemName(listing.item_key, listing.item_name)}${caravaneBonus > 0 ? ` (+${caravaneBonus} bonus Caravane)` : ""}${sellerRepaid > 0 ? ` (−${sellerRepaid} remboursement dette)` : ""}`
       );
     }
 
@@ -794,10 +880,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
     ? listings
     : listings.filter(l => l.item_category === filterCategory);
 
+  // 11/05/2026 : Filtre tier (T1, T1.5, T2, T3, T4, T5)
+  // On lit ITEMS[item_key]?.tier en priorité (résolution live), fallback sur
+  // l.item_tier (stocké à la création). "all" = pas de filtre.
+  const tierFiltered = filterTier === "all"
+    ? categoryFiltered
+    : categoryFiltered.filter(l => {
+        const tier = ITEMS[l.item_key]?.tier ?? l.item_tier ?? 0;
+        return String(tier) === filterTier;
+      });
+
   // Filtre ville : "all" = marché unifié (toutes villes), "local" = ville actuelle uniquement
   const filteredListings = filterCity === "local"
-    ? categoryFiltered.filter(l => l.city_id === profile.city_id)
-    : categoryFiltered;
+    ? tierFiltered.filter(l => l.city_id === profile.city_id)
+    : tierFiltered;
 
   // Regroupement par clé canonique : on traduit les anciens listings (item_key
   // vide ou item_key obsolète) vers la clé d'aujourd'hui via getCanonicalItemKey.
@@ -873,8 +969,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
         <Dialog open={sellOpen} onOpenChange={setSellOpen}>
            <DialogTrigger asChild>
-             <Button className="font-heading" disabled={!hasPermit}>
-               Vendre 🏷️{!hasPermit && " (pas d'autorisation)"}
+             <Button className="font-heading">
+               Vendre 🏷️
              </Button>
            </DialogTrigger>
           <DialogContent>
@@ -886,36 +982,35 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 📍 Annonce postée sur le marché de <strong>{city.name}</strong>.
                 {` L'acheteur paiera +${taxRate}% de taxes reversées à ${city.name}.`}
               </p>
-              {!hasPermit ? (
-                <p className="text-xs text-red-600 font-body bg-red-50 border border-red-200 rounded p-2">
-                  📜 <strong>Autorisation requise</strong> — Il vous faut une <em>Autorisation de mise sur le marché</em> (produite par les Marchands, Tier 1) pour poster une annonce.
-                </p>
-              ) : (
-                <p className="text-xs text-green-700 font-body bg-green-50 border border-green-200 rounded p-2">
-                  📜 1 Autorisation de mise sur le marché sera consommée à la validation.
-                </p>
-              )}
               <div className="space-y-2">
                 <Label className="font-body">Objet à vendre</Label>
-                <Select
-                  value={sellForm.item_index}
-                  onValueChange={v => {
-                    const selectedItem = (profile.inventory || []).filter(i => i.quantity > 0)[parseInt(v)];
-                    const resolvedKey = selectedItem?.item_key ||
-                      Object.entries(ITEMS).find(([, def]) => def.name === selectedItem?.item_name)?.[0] || "";
-                    setSellForm({ ...sellForm, item_index: v, quantity: 1, itemKey: resolvedKey });
-                  }}
-                >
-                  <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                  <SelectContent>
-                    {/* TEMP MASQUAGE T4/T5 (09/05/2026) - Empeche la mise en vente de T4/T5. Restaurer en retirant le filtre tier <= 3 quand Lucas le demandera. */}
-                    {(profile.inventory || []).filter(i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3).map((item, idx) => (
-                      <SelectItem key={idx} value={String(idx)}>
-                        {ITEM_CATEGORIES[item.item_category]?.icon} {item.item_name} (×{item.quantity})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  // Liste filtrée par tier (T4/T5 masqués pour la vente)
+                  const sellableInventory = (profile.inventory || []).filter(
+                    i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3
+                  );
+                  const selectedItem = sellForm.item_index !== ""
+                    ? sellableInventory[parseInt(sellForm.item_index)]
+                    : null;
+                  return (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start font-body h-11"
+                      onClick={() => { setPickerQuery(""); setPickerOpen(true); }}
+                    >
+                      {selectedItem ? (
+                        <span className="flex items-center gap-2 truncate">
+                          <span>{ITEM_CATEGORIES[selectedItem.item_category]?.icon}</span>
+                          <span className="truncate">{selectedItem.item_name}</span>
+                          <span className="text-muted-foreground text-xs ml-auto">×{selectedItem.quantity}</span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Choisir un objet…</span>
+                      )}
+                    </Button>
+                  );
+                })()}
               </div>
               {sellForm.item_index !== "" && (() => {
                 // TEMP MASQUAGE T4/T5 (09/05/2026) - Le filtre tier <= 3 doit rester aligne avec celui du selecteur ci-dessus. A retirer simultanement.
@@ -938,11 +1033,18 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               <div className="space-y-2">
                 <Label className="font-body flex items-center gap-1">Prix unitaire (or) <span className="text-xs text-muted-foreground font-normal">(annonce active 3 jours)</span></Label>
                 <Input
-                  type="number" min={1} value={sellForm.price}
+                  type="number" inputMode="numeric" pattern="[0-9]*" min={1}
+                  value={sellForm.itemKey === "billet_fortune" ? 3 : sellForm.price}
+                  disabled={sellForm.itemKey === "billet_fortune"}
                   onChange={e => setSellForm({ ...sellForm, price: parseInt(e.target.value) || 1 })}
                   onFocus={e => e.target.select()}
                 />
-                {sellForm.itemKey && sellForm.price > 0 && (() => {
+                {sellForm.itemKey === "billet_fortune" && (
+                  <p className="text-xs font-body mt-1 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                    🎫 Prix imposé : 3 or par billet (1💰 vendeur · 1💰 cagnotte · 1💰 détruit). Plafond acheteur : 5 billets/cycle.
+                  </p>
+                )}
+                {sellForm.itemKey && sellForm.itemKey !== "billet_fortune" && sellForm.price > 0 && (() => {
                   const hint = getPriceHint(sellForm.itemKey, sellForm.price, priceMultiplier, dynamicPrices);
                   return hint ? (
                     <p className={`text-xs font-body mt-1 ${hint.color}`}>{hint.label}</p>
@@ -962,6 +1064,99 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Drawer picker d'item à vendre (10/05/2026)
+         * Remplace l'ancien SelectContent shadcn qui scrollait mal sur mobile.
+         * Inclut une barre de recherche pour filtrer rapidement parmi un grand
+         * inventaire. Filtre tier <= 3 (T4/T5 masqués) — aligné avec les autres
+         * lieux qui filtrent l'inventaire vendable. */}
+        <Drawer open={pickerOpen} onOpenChange={setPickerOpen}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader>
+              <DrawerTitle className="font-heading">Choisir un objet à vendre</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-4 space-y-3 overflow-y-auto">
+              {/* Barre de recherche */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Rechercher un objet…"
+                  value={pickerQuery}
+                  onChange={(e) => setPickerQuery(e.target.value)}
+                  className="pl-9 font-body"
+                  autoFocus={false}
+                />
+              </div>
+              {/* Liste filtrée */}
+              {(() => {
+                const sellableInventory = (profile.inventory || []).filter(
+                  i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3
+                );
+                const q = pickerQuery.trim().toLowerCase();
+                const filtered = q
+                  ? sellableInventory.filter(i =>
+                      (i.item_name || "").toLowerCase().includes(q)
+                      || (i.item_key || "").toLowerCase().includes(q)
+                    )
+                  : sellableInventory;
+
+                if (sellableInventory.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground font-body text-center py-6">
+                      Votre inventaire est vide.
+                    </p>
+                  );
+                }
+                if (filtered.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground font-body text-center py-6">
+                      Aucun objet ne correspond à « {pickerQuery} ».
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-1 pb-4">
+                    {filtered.map((item) => {
+                      // Index dans la liste NON filtrée (sellForm.item_index est l'index dans sellableInventory)
+                      const realIdx = sellableInventory.indexOf(item);
+                      const isSelected = sellForm.item_index === String(realIdx);
+                      return (
+                        <button
+                          key={realIdx}
+                          type="button"
+                          onClick={() => {
+                            const resolvedKey = item.item_key ||
+                              Object.entries(ITEMS).find(([, def]) => def.name === item.item_name)?.[0] || "";
+                            // Billet de fortune : prix forcé à 3 or (Tombola)
+                            const forcedPrice = resolvedKey === "billet_fortune" ? 3 : sellForm.price;
+                            setSellForm({
+                              ...sellForm,
+                              item_index: String(realIdx),
+                              quantity: 1,
+                              itemKey: resolvedKey,
+                              price: forcedPrice,
+                            });
+                            setPickerOpen(false);
+                          }}
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left font-body transition-colors ${
+                            isSelected
+                              ? "bg-primary/10 border border-primary/40"
+                              : "hover:bg-muted border border-transparent"
+                          }`}
+                        >
+                          <span className="text-xl">{ITEM_CATEGORIES[item.item_category]?.icon || "📦"}</span>
+                          <span className="flex-1 truncate">{item.item_name}</span>
+                          <Badge variant="secondary" className="font-body text-xs">×{item.quantity}</Badge>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
 
       <MarketInsights />
@@ -991,6 +1186,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 ))}
               </select>
             )}
+            {/* 11/05/2026 : filtre tier (T1, T1.5, T2, T3, T4, T5) */}
+            <select
+              value={filterTier}
+              onChange={e => setFilterTier(e.target.value)}
+              className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
+            >
+              <option value="all">🎯 Tous tiers</option>
+              <option value="1">T1</option>
+              <option value="1.5">T1.5</option>
+              <option value="2">T2</option>
+              <option value="3">T3</option>
+              <option value="4">T4</option>
+              <option value="5">T5</option>
+            </select>
             <select
               value={filterCity}
               onChange={e => setFilterCity(e.target.value)}
@@ -1064,8 +1273,11 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                               : "border-border"
                           }`}>
                             {/* Layout : ligne unique en desktop, empile en mobile */}
-                            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3">
-                              {/* Bloc 1 : Vendeur + ville + badges (flex 1 = prend l'espace disponible) */}
+                            <div className="flex flex-col md:flex-row md:items-center gap-1.5 md:gap-3">
+                              {/* Ligne 1 (mobile) / Bloc gauche (desktop) :
+                                  Vendeur + ville + durée + grade + prix/u + qty dispo + hint
+                                  11/05/2026 : prix/dispo fusionnés avec les infos vendeur
+                                  pour gagner une ligne en mobile. */}
                               <div className="flex-1 min-w-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-body">
                                 <span className="text-muted-foreground font-medium">par {listing.seller_name}</span>
                                 {(() => {
@@ -1093,62 +1305,59 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                                     G{listing.item_grade}
                                   </span>
                                 )}
-                                {listing.item_durability !== undefined && (
-                                  <span className="inline-block bg-slate-100 text-slate-700 text-[11px] px-1.5 py-0.5 rounded border border-slate-300">
-                                    🛡️ {listing.item_durability}/{listing.item_durability}
-                                  </span>
-                                )}
-                              </div>
+                                {/* 11/05/2026 : badge durability retiré — toujours plein
+                                    (un item ne peut être mis en vente qu'à durabilité max). */}
 
-                              {/* Bloc 2 : Prix unitaire + dispo + hint */}
-                              <div className="text-xs font-body whitespace-nowrap shrink-0">
-                                <span className="font-semibold">{listing.price_per_unit} 💰/u</span>
-                                <span className="text-muted-foreground"> · {listing.quantity} dispo</span>
+                                {/* Séparateur visuel entre infos vendeur et prix/dispo */}
+                                <span className="text-muted-foreground/40">·</span>
+
+                                {/* Prix unitaire + dispo + hint (fusionnés sur la même ligne) */}
+                                <span className="font-semibold whitespace-nowrap">{listing.price_per_unit}💰/u</span>
+                                <span className="text-muted-foreground whitespace-nowrap">· {listing.quantity} dispo</span>
                                 {(() => {
                                   const hintKey = listing.item_key ||
                                     Object.entries(SUGGESTED_PRICES_T1).find(([k]) =>
                                       ITEMS[k]?.name === listing.item_name
                                     )?.[0] || "";
                                   const hint = getPriceHint(hintKey, listing.price_per_unit, priceMultiplier);
-                                  return hint ? <span className={`ml-1 text-[11px] ${hint.color}`}>({hint.label})</span> : null;
+                                  return hint ? <span className={`text-[11px] ${hint.color}`}>({hint.label})</span> : null;
                                 })()}
                               </div>
 
-                              {/* Bloc 3 : Slider + input quantité (largeur fixe en desktop) */}
-                              <div className="flex items-center gap-2 md:w-56 shrink-0">
+                              {/* Ligne 2 (mobile) / Bloc droite (desktop) :
+                                  Slider + qty input + bouton Acheter sur la même ligne. */}
+                              <div className="flex items-center gap-2 shrink-0">
                                 <Slider
                                   min={1} max={listing.quantity} step={1}
                                   value={[qty]}
                                   onValueChange={([v]) => setBuyQtys(prev => ({ ...prev, [listing.id]: v }))}
-                                  className="flex-1"
+                                  className="flex-1 md:w-32"
                                 />
                                 <Input
-                                  type="number" min={1} max={listing.quantity}
+                                  type="number" inputMode="numeric" pattern="[0-9]*" min={1} max={listing.quantity}
                                   value={qty}
                                   onChange={e => setBuyQtys(prev => ({
                                     ...prev,
                                     [listing.id]: Math.max(1, Math.min(listing.quantity, Number(e.target.value))),
                                   }))}
-                                  className="w-14 h-7 text-xs text-center shrink-0"
+                                  className="w-12 h-7 text-xs text-center shrink-0"
                                   onFocus={e => e.target.select()}
                                 />
+                                <Button
+                                  size="sm" className="font-heading shrink-0 h-7 text-xs px-2 md:w-28"
+                                  onClick={() => handleBuy(listing)}
+                                  disabled={buying === listing.id || !canAfford}
+                                  variant={canAfford ? "default" : "outline"}
+                                >
+                                  {buying === listing.id
+                                    ? "..."
+                                    : !canAfford
+                                      ? "Pas assez"
+                                      : listing.city_id !== profile.city_id
+                                        ? `📦 ×${qty}`
+                                        : `Acheter ×${qty}`}
+                                </Button>
                               </div>
-
-                              {/* Bloc 4 : Bouton acheter (largeur fixe) */}
-                              <Button
-                                size="sm" className="font-heading shrink-0 md:w-32"
-                                onClick={() => handleBuy(listing)}
-                                disabled={buying === listing.id || !canAfford}
-                                variant={canAfford ? "default" : "outline"}
-                              >
-                                {buying === listing.id
-                                  ? "..."
-                                  : !canAfford
-                                    ? "Pas assez d'or"
-                                    : listing.city_id !== profile.city_id
-                                      ? `📦 ×${qty}`
-                                      : `Acheter ×${qty}`}
-                              </Button>
                             </div>
 
                             {/* Ligne d'info complementaire : prix total + taxe + colis distance */}

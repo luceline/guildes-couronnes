@@ -106,6 +106,8 @@ export default function BountyBoard({ profile, cityId, cityName }) {
             <label className="text-xs font-body text-muted-foreground shrink-0">Récompense (💰)</label>
             <Input
               type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
               min={1}
               max={profile.gold || 0}
               value={rewardGold}

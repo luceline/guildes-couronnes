@@ -152,7 +152,7 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
     const t = formatDuration(getBiomeHarvestRemainingMs(profile));
     buffs.push({
       icon: "🌾", label: "+1 récolte T1", detail: `(${t})`,
-      tooltip: `La prochaine production T1 donne +1 ressource bonus. Expire dans ${t}.`,
+      tooltip: `Étai de récolte actif : +1 ressource récolte bonus. Expire dans ${t}.`,
       color: "text-emerald-700 bg-emerald-50 border-emerald-200",
     });
   }
@@ -223,6 +223,27 @@ export default function PlayerStatusBar({ profile, homeCity, city, onRefresh }) 
       icon: "🪙", label: `+${pct}% or épopée`, detail: "prochaine épopée",
       tooltip: `Pièce porte-bonheur active : +${pct}% d'or gagné lors de votre prochaine épopée. Consommée à la fin de l'épopée.`,
       color: "text-yellow-700 bg-yellow-50 border-yellow-200",
+    });
+  }
+
+  // ── NOUVEAU v3 (09/05/2026) - Bonus FIXES ──
+  // 💼 Bon du Trésor : +N or fixe sur prochaine épopée (additif)
+  if ((profile.next_epopee_gold_flat || 0) > 0) {
+    const n = profile.next_epopee_gold_flat;
+    buffs.push({
+      icon: "💼", label: `+${n}💰 or épopée`, detail: "prochaine épopée",
+      tooltip: `Bon du Trésor actif : +${n} or fixe gagné en fin de votre prochaine épopée. Consommé à la fin de l'épopée.`,
+      color: "text-yellow-700 bg-yellow-50 border-yellow-200",
+    });
+  }
+
+  // 🎓 Bandeau d'érudit : +N ressource rare fixe sur prochaine épopée
+  if ((profile.next_epopee_rare_flat || 0) > 0) {
+    const n = profile.next_epopee_rare_flat;
+    buffs.push({
+      icon: "🎓", label: `+${n} ressource rare épopée`, detail: "prochaine épopée",
+      tooltip: `Bandeau d'érudit actif : +${n} ressource rare garantie en fin de votre prochaine épopée. Consommé à la fin de l'épopée.`,
+      color: "text-emerald-700 bg-emerald-50 border-emerald-200",
     });
   }
 

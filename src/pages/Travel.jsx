@@ -3,8 +3,10 @@ import { base44 } from "@/api/base44Client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import PlayerStatusBar from "../components/PlayerStatusBar";
+// PlayerStatusBar retiree (10/05/2026) : Travel est desormais ouvert via drawer
+// dans VillageView qui affiche deja la status bar globalement.
 import BiomeHub from "../components/BiomeHub";
+import BiomeView from "../components/BiomeView";
 import { toast } from "sonner";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { logGold } from '@/lib/goldLog';
@@ -83,6 +85,45 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
         await checkAndAwardObjective({ obj, addedQty: 1, profile, city: null });
       }
     } catch(e) { console.error("Erreur validation objectifs voyage:", e); }
+  };
+
+  // Voyage vers un biome (10/05/2026) : remplace l'ancien "Explorer" qui était
+  // une simple téléportation. Maintenant : 2 minutes d'attente + coût d'1 PA
+  // (faim ou énergie aléatoire). À l'arrivée, completeTravel détecte
+  // travel_destination_id.startsWith("biome:") et bascule sur la BiomeView.
+  const handleTravelToBiome = async (biomeKey) => {
+    if (!profile || profile.is_traveling) return;
+    if (hungryBlocked) {
+      toast.error("Vous avez trop faim pour partir en voyage.");
+      return;
+    }
+
+    // Coût d'1 PA aléatoire (faim ou énergie)
+    const costResult = applyRandomActionCost(profile, 1);
+    if (!costResult.ok) {
+      toast.error(costResult.errorMessage);
+      return;
+    }
+
+    const TRAVEL_DURATION_MINUTES = 2;
+    const arrivalTime = new Date(Date.now() + TRAVEL_DURATION_MINUTES * 60 * 1000).toISOString();
+
+    try {
+      await base44.entities.PlayerProfile.update(profile.id, {
+        is_traveling: true,
+        travel_destination_id: `biome:${biomeKey}`,
+        travel_arrival_time: arrivalTime,
+        hunger: costResult.newHunger,
+        fatigue: costResult.newFatigue,
+        current_biome: null, // sécurité : pas dans un biome pendant le voyage
+      });
+      const biomeName = BIOMES[biomeKey]?.name || biomeKey;
+      toast.success(`🐴 En route vers ${biomeName} (${TRAVEL_DURATION_MINUTES} min)`);
+      onRefresh?.();
+    } catch (e) {
+      console.error("Erreur voyage biome:", e);
+      toast.error("Impossible de partir en voyage pour le moment.");
+    }
   };
   const completeTravel = async () => {
     if (!profile) return;
@@ -323,25 +364,18 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
   if (!profile) return null;
 
-  // Si un biome est sélectionné, afficher le BiomeHub
+  // Si un biome est sélectionné, afficher la BiomeView (map immersive 10/05/2026)
+  // au lieu du BiomeHub direct. La BiomeView gère elle-même son drawer pour
+  // BiomeHub (récolte), CombatEpic (épopée) et InventairePage (coffre).
   if (selectedBiome) {
     return (
-      <div className="space-y-6 pb-20 md:pb-0">
-        <Button
-          variant="outline"
-          className="font-heading"
-          onClick={() => setSelectedBiome(null)}
-        >
-          ← Retour au voyage
-        </Button>
-        <BiomeHub
-          profile={profile}
-          biomeKey={selectedBiome}
-          biomeInfo={BIOMES[selectedBiome]}
-          city={city}
-          onRefresh={onRefresh}
-        />
-      </div>
+      <BiomeView
+        profile={profile}
+        city={city}
+        onRefresh={onRefresh}
+        biomeKey={selectedBiome}
+        onExit={() => setSelectedBiome(null)}
+      />
     );
   }
 
@@ -374,8 +408,6 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
-
       {getPassiveTravelDiscount(profile) > 0 && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 text-sm font-body text-emerald-800">
           🎒 <strong>Sac de voyage</strong> : −50% sur la durée de tous vos voyages (passif permanent tant que le sac est en stock).
@@ -685,10 +717,10 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
                    <Button
                      size="sm"
                      className="w-full font-heading mt-2"
-                     onClick={() => setSelectedBiome(key)}
-                     disabled={hungryBlocked}
+                     onClick={() => handleTravelToBiome(key)}
+                     disabled={hungryBlocked || profile.is_traveling}
                    >
-                     🗺️ Explorer
+                     🐴 Voyager (2 min)
                    </Button>
                  </CardContent>
                </Card>

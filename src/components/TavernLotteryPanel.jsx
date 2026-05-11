@@ -21,6 +21,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import QuantityInput from "@/components/QuantityInput";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { logGold } from "@/lib/goldLog";
@@ -271,15 +272,14 @@ export default function TavernLotteryPanel({ profile, city, onRefresh }) {
             {ticketsRemaining > 0 && !frozen && (
               <div className="bg-card border border-border rounded-lg p-3 space-y-2">
                 <div className="text-xs font-body font-semibold">Acheter des tickets</div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
+                <div className="flex items-center gap-2 flex-wrap">
+                  <QuantityInput
+                    value={parseInt(purchaseQty, 10) || 1}
+                    onChange={(n) => setPurchaseQty(String(n))}
                     min={1}
                     max={ticketsRemaining}
-                    value={purchaseQty}
-                    onChange={e => setPurchaseQty(e.target.value)}
+                    showMax
                     disabled={submitting}
-                    className="font-body text-sm w-20"
                   />
                   <span className="text-xs font-body text-muted-foreground">
                     × {TICKET_PRICE}💰 = <span className="font-semibold">{(parseInt(purchaseQty, 10) || 0) * TICKET_PRICE}💰</span>

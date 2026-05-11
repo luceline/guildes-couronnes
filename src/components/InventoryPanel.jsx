@@ -388,8 +388,11 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     }
 
     // ── NOUVEAU v3 (09/05/2026) - Bon du Tresor : +50 or sur prochaine epopee ──
+    // FIX 10/05/2026 : utilisait par erreur next_epopee_gold_bonus (ancien
+    // multiplicateur de piece_porte_bonheur), provoquant un affichage +5000%
+    // (50 * 100). Bon champ = next_epopee_gold_flat (additif fixe).
     if (itemDef.effect === "epopee_gold_bonus") {
-      const currentBonus = profile.next_epopee_gold_bonus || 0;
+      const currentBonus = profile.next_epopee_gold_flat || 0;
       if (currentBonus > 0) {
         toast.error(`💼 Vous avez deja un Bon du Tresor en attente (+${currentBonus}💰). Utilisez votre prochaine epopee pour l'encaisser.`);
         return;
@@ -402,7 +405,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
       try {
         await base44.entities.PlayerProfile.update(profile.id, {
           inventory: newInv,
-          next_epopee_gold_bonus: bonusValue,
+          next_epopee_gold_flat: bonusValue,
         });
         toast.success(`💼 ${itemDef.name} active : votre prochaine epopee rapportera +${bonusValue}💰 bonus !`);
         onRefresh?.();
@@ -416,8 +419,10 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     }
 
     // ── NOUVEAU v3 (09/05/2026) - Bandeau d'erudit : +1 ressource rare prochaine epopee ──
+    // FIX 10/05/2026 : utilisait par erreur next_epopee_drop_bonus (ancien
+    // multiplicateur de trefle_chance, exprime en %). Bon champ = next_epopee_rare_flat.
     if (itemDef.effect === "epopee_rare_bonus") {
-      const currentBonus = profile.next_epopee_drop_bonus || 0;
+      const currentBonus = profile.next_epopee_rare_flat || 0;
       if (currentBonus > 0) {
         toast.error(`🎓 Vous avez deja un Bandeau d'erudit actif (+${currentBonus} ressource rare). Utilisez votre prochaine epopee.`);
         return;
@@ -430,7 +435,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
       try {
         await base44.entities.PlayerProfile.update(profile.id, {
           inventory: newInv,
-          next_epopee_drop_bonus: bonusValue,
+          next_epopee_rare_flat: bonusValue,
         });
         toast.success(`🎓 ${itemDef.name} active : votre prochaine epopee garantit +${bonusValue} ressource rare !`);
         onRefresh?.();

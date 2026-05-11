@@ -32,6 +32,7 @@ function getPriceMultiplier(orMoyen) {
 }
 
 // Liste des T1 en dur avec leurs prix max conseillés : source de vérité indépendante de la DB
+// REFONTE MARCHAND (10/05/2026) : autorisation_marche retirée (T1 sans valeur).
 const T1_ITEMS_MAIRIE = [
   { key: "bois_brut",    name: "Bois brut",      icon: "🪵", category: "bois",       basePrice: 6 },
   { key: "pierre",       name: "Pierre",          icon: "🧱", category: "pierre",     basePrice: 6 },
@@ -40,7 +41,6 @@ const T1_ITEMS_MAIRIE = [
   { key: "laine_brute",  name: "Laine brute",     icon: "🧶", category: "tissu",      basePrice: 6 },
   { key: "herbes",       name: "Herbes",          icon: "🌿", category: "potions",    basePrice: 3 },
   { key: "quartz_brut",  name: "Quartz brut",     icon: "🔮", category: "bijoux",     basePrice: 6 },
-  { key: "autorisation_marche", name: "Autorisation de marché", icon: "📜", category: "parchemins", basePrice: 5 },
 ];
 
 export default function MairieShop({ profile, city, onRefresh }) {

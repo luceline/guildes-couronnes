@@ -70,8 +70,8 @@ export const CITY_EVENTS_CATALOG = {
 };
 
 // ─── T1 acceptés pour les événements ────────────────────────────────────
-// Les 8 ressources T1 récoltables (incluant autorisation_marche pour cohérence
-// avec le reste du jeu, mais le maire peut choisir de l'exclure)
+// Les 7 ressources T1 récoltables.
+// REFONTE MARCHAND (10/05/2026) : autorisation_marche retirée (T1 sans valeur).
 export const ACCEPTED_T1_KEYS = [
   "bois_brut",
   "minerai_fer",
@@ -80,7 +80,6 @@ export const ACCEPTED_T1_KEYS = [
   "herbes",
   "quartz_brut",
   "pierre",
-  "autorisation_marche",
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────

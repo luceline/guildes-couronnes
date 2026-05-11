@@ -555,21 +555,52 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
   return (
     <>
       <Card className={`border-2 ${cauldron.rank === 3 ? "border-purple-500" : "border-purple-300"} bg-gradient-to-br from-purple-50/40 to-pink-50/40`}>
-        <CardContent className="pt-4 space-y-3">
-          {/* Hero */}
+        <CardContent className="pt-3 space-y-2">
+          {/* 11/05/2026 : hero compacté sur 1 ligne (titre redondant retiré,
+              déjà présent dans le drawer header et la page parente). */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <div className="text-3xl">🪄</div>
-              <div>
-                <div className="font-heading text-base">Chaudron magique</div>
-                <Badge className={`text-[10px] ${getRankColor(cauldron.rank)}`}>
-                  {getRankLabel(cauldron.rank)}
-                </Badge>
+              <div className="text-2xl">🪄</div>
+              <Badge className={`text-[11px] ${getRankColor(cauldron.rank)}`}>
+                {getRankLabel(cauldron.rank)}
+              </Badge>
+              <span className="text-[11px] text-muted-foreground font-body italic">
+                {cauldron.total_uses || 0} util.
+              </span>
+            </div>
+
+            {/* Évolution : barre de progression compacte + bouton (rang < 3) */}
+            {cauldron.rank < 3 && (
+              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-md">
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-0.5">
+                    <span className="text-[10px] font-body font-semibold whitespace-nowrap">→ R{cauldron.rank + 1}</span>
+                    <span className="text-[10px] font-body text-muted-foreground tabular-nums">
+                      {feedProgress}/{nextThreshold}💰
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-purple-500 transition-all"
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="font-heading h-7 text-xs px-2 shrink-0"
+                  onClick={() => setFeedModalOpen(true)}
+                >
+                  📥 Nourrir
+                </Button>
               </div>
-            </div>
-            <div className="text-xs text-muted-foreground font-body italic">
-              {cauldron.total_uses || 0} utilisation{(cauldron.total_uses || 0) > 1 ? "s" : ""}
-            </div>
+            )}
+            {cauldron.rank === 3 && (
+              <span className="text-[11px] italic font-body text-purple-800">
+                ✨ Rang max atteint
+              </span>
+            )}
           </div>
 
           {/* Section utilisation quotidienne : A en desktop, B en mobile (tabs) */}
@@ -642,37 +673,9 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
             </>
           )}
 
-          {/* Section évolution */}
-          {cauldron.rank < 3 && (
-            <div className="bg-card border border-border rounded-lg p-3 space-y-2">
-              <div className="flex justify-between items-baseline">
-                <span className="text-xs font-body font-semibold">Évolution rang {cauldron.rank + 1}</span>
-                <span className="text-xs font-body text-muted-foreground">
-                  {feedProgress}/{nextThreshold} 💰 virtuels
-                </span>
-              </div>
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-purple-500 transition-all"
-                  style={{ width: `${progressPct}%` }}
-                />
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full font-heading"
-                onClick={() => setFeedModalOpen(true)}
-              >
-                📥 Nourrir le chaudron
-              </Button>
-            </div>
-          )}
-
-          {cauldron.rank === 3 && (
-            <div className="bg-purple-100 border border-purple-300 rounded-lg p-2 text-center text-[11px] italic font-body text-purple-800">
-              ✨ Votre chaudron a atteint le rang maximum. La pleine puissance des arts magiques s'offre à vous.
-            </div>
-          )}
+          {/* 11/05/2026 : section évolution déplacée dans le hero ci-dessus
+              (gain de hauteur). Rendu conditionnel rank < 3 / rank === 3
+              déjà géré là-haut. */}
         </CardContent>
       </Card>
 
@@ -755,6 +758,8 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
                       </div>
                       <Input
                         type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                         min={0}
                         max={slot.quantity}
                         value={inBasket}

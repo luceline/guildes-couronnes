@@ -1,19 +1,101 @@
+import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { DISCORD_INVITE_URL } from "@/lib/links";
 
+// Hook PWA : détecte si l'install est possible (via beforeinstallprompt)
+// et expose une fonction pour déclencher le prompt.
+//
+// Comportement par OS :
+// - Android Chrome/Edge : declenche `beforeinstallprompt`, bouton actif
+// - iOS Safari : pas d'API d'install standard (Apple), affiche instructions
+// - Desktop Chrome/Edge : déclenche `beforeinstallprompt` aussi
+function usePWAInstall() {
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // Détection si déjà installée (mode standalone = lancé depuis l'icône PWA)
+    const checkInstalled = () => {
+      if (typeof window === "undefined") return false;
+      return window.matchMedia?.("(display-mode: standalone)").matches
+        || window.navigator?.standalone === true;  // iOS Safari
+    };
+    setIsInstalled(checkInstalled());
+
+    // Capture l'event d'installation pour le déclencher au clic
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    // Détecte l'installation réussie pour cacher le bouton
+    const installedHandler = () => setIsInstalled(true);
+    window.addEventListener("appinstalled", installedHandler);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handler);
+      window.removeEventListener("appinstalled", installedHandler);
+    };
+  }, []);
+
+  // Détecte l'OS pour le message de fallback iOS
+  const isIOS = typeof navigator !== "undefined"
+    && /iPad|iPhone|iPod/.test(navigator.userAgent)
+    && !window.MSStream;
+
+  const promptInstall = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setIsInstalled(true);
+    }
+    setDeferredPrompt(null);
+  };
+
+  return { canInstall: !!deferredPrompt, promptInstall, isInstalled, isIOS };
+}
+
 export default function LandingPage() {
   const { navigateToLogin } = useAuth();
+  const { canInstall, promptInstall, isInstalled, isIOS } = usePWAInstall();
 
   return (
     <div style={{ background: "#0e0b05", minHeight: "100vh", fontFamily: "Georgia, serif", color: "#f5e6c0", overflowX: "hidden" }}>
 
 
-    {/* ── Bannière PWA installation ── */}
-    <div style={{ background: "#c9a44a", padding: "0.6rem 1rem", textAlign: "center", position: "sticky", top: 0, zIndex: 100 }}>
-      <p style={{ fontFamily: "sans-serif", fontSize: 12, fontWeight: 600, color: "#0e0b05", margin: 0, letterSpacing: 0.5 }}>
-        📲 Installez le jeu sur votre appareil : Chrome/Edge : icône ⊕ dans la barre d'adresse · Safari iOS : Partager ↑ → "Sur l'écran d'accueil"
-      </p>
-    </div>
+    {/* ── Bannière PWA installation (10/05/2026) ─────────────────────── */}
+    {/* - Si installable (Chrome/Edge Android) : bouton actif "Installer l'app" */}
+    {/* - Si iOS Safari : instructions d'install via Partager → Sur l'écran d'accueil */}
+    {/* - Si déjà installée : bannière cachée */}
+    {!isInstalled && (
+      <div style={{ background: "#c9a44a", padding: "0.6rem 1rem", textAlign: "center", position: "sticky", top: 0, zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", gap: "0.8rem", flexWrap: "wrap" }}>
+        {canInstall ? (
+          <>
+            <p style={{ fontFamily: "sans-serif", fontSize: 12, fontWeight: 600, color: "#0e0b05", margin: 0, letterSpacing: 0.5 }}>
+              📲 Installez Guildes &amp; Couronnes pour jouer en plein écran paysage
+            </p>
+            <button
+              onClick={promptInstall}
+              style={{ padding: "0.4rem 1.2rem", background: "#0e0b05", color: "#c9a44a", border: "none", fontFamily: "sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", cursor: "pointer", borderRadius: 4, transition: "opacity 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.opacity = 0.85}
+              onMouseLeave={e => e.currentTarget.style.opacity = 1}
+            >
+              ⬇️ Installer l'app
+            </button>
+          </>
+        ) : isIOS ? (
+          <p style={{ fontFamily: "sans-serif", fontSize: 12, fontWeight: 600, color: "#0e0b05", margin: 0, letterSpacing: 0.5 }}>
+            📲 iPhone/iPad : appuyez sur Partager <span style={{ display: "inline-block", padding: "0 0.3rem" }}>↑</span> puis "Sur l'écran d'accueil"
+          </p>
+        ) : (
+          <p style={{ fontFamily: "sans-serif", fontSize: 12, fontWeight: 600, color: "#0e0b05", margin: 0, letterSpacing: 0.5 }}>
+            📲 Installez le jeu : ouvrez le menu de votre navigateur et choisissez "Installer l'application"
+          </p>
+        )}
+      </div>
+    )}
 
       {/* HERO */}
       <div style={{ position: "relative", minHeight: 340, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3.5rem 1rem 2rem", overflow: "hidden", background: "#0e0b05" }}>

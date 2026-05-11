@@ -19,7 +19,7 @@
 //   tier 4   (Cite)             -> mairie_n3
 //   tier 5+  (Capitale/Empire)  -> mairie_n4
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCityTier } from "@/lib/gameData";
 import {
@@ -35,18 +35,43 @@ import ProductionPage from "@/pages/ProductionPage";
 import MarketPage from "@/pages/MarketPage";
 import EntrepotPage from "@/pages/EntrepotPage";
 import CombatPage from "@/pages/CombatPage";
+import PavillonPage from "@/pages/PavillonPage";
+import TravelPage from "@/pages/TravelPage";
+import TavernPage from "@/pages/TavernPage";
+import MairieDrawer from "@/components/MairieDrawer";
+import SavoirHubPage from "@/pages/SavoirHubPage";
+import ComptoirDrawer from "@/components/ComptoirDrawer";
+import SystemMessageBanner from "@/components/SystemMessageBanner";
+import RankingPageWrapper from "@/pages/RankingPageWrapper";
+import RoyalStatuePanel from "@/components/RoyalStatuePanel";
+import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
 
 const SPRITE_BASE = "/sprites/village";
 
 // Mapping des batiments qui s ouvrent en drawer (au lieu de naviguer)
+// Le flag needsProps indique que le Component a besoin de profile/city/onRefresh
+// (par defaut les drawers sont autonomes : ils chargent leurs propres donnees).
 const DRAWER_TARGETS = {
-  quetes: { title: "Tableau des quetes", Component: QuestesPage },
+  quetes: { title: "Quêtes du jour", Component: QuestesPage },
   chaudron: { title: "Chaudron magique", Component: ChaudronPage },
   logement: { title: "Inventaire", Component: InventairePage },
   atelier: { title: "Atelier", Component: ProductionPage },
   marche: { title: "Marche", Component: MarketPage },
   arene: { title: "Arene", Component: CombatPage },
   entrepot: { title: "Entrepot", Component: EntrepotPage },
+  ecurie: { title: "Ecurie", Component: TravelPage },
+  taverne: { title: "Taverne", Component: TavernPage },
+  pavillon: { title: "Pavillon de la Fortune", Component: PavillonPage },
+  mairie: { title: "Mairie", Component: MairieDrawer, needsProps: true },
+  bibliotheque: { title: "Bibliotheque", Component: SavoirHubPage },
+  // Comptoir : drawer toujours accessible. Le composant gère lui-même
+  // l'affichage conditionnel "Banque" selon hasComptoir + isHomeCity.
+  comptoir: { title: "Comptoir bancaire", Component: ComptoirDrawer, needsProps: true },
+  // Classement : accessible via le sprite trophée (toujours visible — 10/05/2026)
+  classement: { title: "Classement", Component: RankingPageWrapper },
+  // Statue royale (10/05/2026) : drawer d'offrandes, accessible quand la
+  // statue est hébergée par la ville actuelle.
+  statue_royale: { title: "Statue royale", Component: RoyalStatuePanel, needsProps: true },
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -74,15 +99,15 @@ function spriteWidth(gridW, gridH, scale) {
 // Routage des clics
 // ─────────────────────────────────────────────────────────────────────────
 const CLICK_ROUTES = {
-  taverne:      { type: "navigate", path: "/taverne"     },
+  // taverne : ouvert en drawer via DRAWER_TARGETS
   // marche : ouvert en drawer via DRAWER_TARGETS
   // atelier : ouvert en drawer via DRAWER_TARGETS
-  ecurie:       { type: "navigate", path: "/travel"      },
+  // ecurie : ouvert en drawer via DRAWER_TARGETS
   // arene : ouvert en drawer via DRAWER_TARGETS
-  bibliotheque: { type: "navigate", path: "/savoir"      },
+  // bibliotheque : ouverte en drawer via DRAWER_TARGETS (Phase 4 — 10/05/2026)
   quetes:       { type: "navigate", path: "/quetes"      },
   chaudron:     { type: "navigate", path: "/production"  },
-  mairie:       { type: "modal",    tab:  "mairie"       },
+  // mairie : ouverte en drawer via DRAWER_TARGETS (Phase 4 — 10/05/2026)
   // entrepot : ouvert en drawer via DRAWER_TARGETS
 };
 
@@ -108,17 +133,26 @@ function logementSprite(housingLevel) {
 // Batiments fixes : toujours affiches (placement issu de l'editeur)
 // ─────────────────────────────────────────────────────────────────────────
 const FIXED_BUILDINGS = [
-  { key: "mairie",       sprite: "DYNAMIC",                     col: 9,  row: 4, gridW: 3, gridH: 3, scale: 0.5, flip: false, label: "Mairie",         target: "mairie"       },
-  { key: "taverne",      sprite: "taverne",                     col: 12, row: 4, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Taverne",        target: "taverne"      },
-  { key: "marche",       sprite: "construction_marche",         col: 10, row: 7, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Marche",         target: "marche"       },
-  { key: "atelier",      sprite: "atelier",                     col: 10, row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Atelier",        target: "atelier"      },
-  { key: "chaudron",     sprite: "chaudron",                    col: 8,  row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: true,  label: "Chaudron",       target: "chaudron"     },
-  { key: "ecurie",       sprite: "ecurie",                      col: 7,  row: 4, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Ecurie",         target: "ecurie"       },
-  { key: "entrepot",     sprite: "entrepot",                    col: 12, row: 6, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Entrepot",       target: "entrepot"     },
-  { key: "quetes",       sprite: "construction_tableau_quetes", col: 6,  row: 5, gridW: 1, gridH: 2, scale: 0.5, flip: false, label: "Tableau quetes", target: "quetes"       },
-  { key: "bibliotheque", sprite: "construction_bibliotheque",   col: 5,  row: 3, gridW: 2, gridH: 2, scale: 0.5, flip: true,  label: "Bibliotheque",   target: "bibliotheque" },
-  { key: "arene",        sprite: "construction_arene",          col: 12, row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Arene",          target: "arene"        },
-  { key: "logement",     sprite: "DYNAMIC_LOGEMENT",            col: 6,  row: 9, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Mon logement",   target: "logement"     },
+  { key: "mairie",       sprite: "DYNAMIC",                     col: 9,  row: 4, gridW: 3, gridH: 3, scale: 0.5, flip: false, label: "Gouvernance",       target: "mairie"       },
+  { key: "taverne",      sprite: "taverne",                     col: 12, row: 4, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Taverne",           target: "taverne"      },
+  { key: "marche",       sprite: "construction_marche",         col: 10, row: 7, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Acheter & vendre",  target: "marche"       },
+  { key: "atelier",      sprite: "atelier",                     col: 10, row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Fabriquer",         target: "atelier"      },
+  { key: "chaudron",     sprite: "chaudron",                    col: 8,  row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: true,  label: "Potions & objets",  target: "chaudron"     },
+  { key: "ecurie",       sprite: "ecurie",                      col: 7,  row: 4, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Voyager",           target: "ecurie"       },
+  { key: "entrepot",     sprite: "entrepot",                    col: 12, row: 6, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Entrepôt",          target: "entrepot"     },
+  { key: "quetes",       sprite: "construction_tableau_quetes", col: 6,  row: 5, gridW: 1, gridH: 2, scale: 0.5, flip: false, label: "Quêtes du jour",    target: "quetes"       },
+  { key: "bibliotheque", sprite: "construction_bibliotheque",   col: 5,  row: 3, gridW: 2, gridH: 2, scale: 0.5, flip: true,  label: "Savoir & aide",     target: "bibliotheque" },
+  { key: "arene",        sprite: "construction_arene",          col: 12, row: 2, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Combat PvP",        target: "arene"        },
+  { key: "pavillon",     sprite: "construction_pavillon_fortune", col: 17, row: 7, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Loterie",         target: "pavillon"     },
+  { key: "logement",     sprite: "DYNAMIC_LOGEMENT",            col: 6,  row: 9, gridW: 2, gridH: 2, scale: 0.5, flip: false, label: "Inventaire",        target: "logement"     },
+  // Comptoir bancaire : sprite TOUJOURS visible (10/05/2026).
+  // Il sert d'accès au "Dashboard joueur" (transactions personnelles)
+  // pour tous les joueurs. Les fonctions banque (prêts, taux) sont
+  // disponibles uniquement si la ville l'a construit (vérif côté drawer).
+  { key: "comptoir",     sprite: "construction_banque",         col: 6,  row: 7, gridW: 2, gridH: 2, scale: 0.5, flip: true,  label: "Banque",            target: "comptoir"     },
+  // Trophée : sprite TOUJOURS visible (10/05/2026). Sert d'accès au
+  // classement des joueurs/cités du royaume.
+  { key: "trophee",      sprite: "construction_trophee",        col: 9,  row: 7, gridW: 1, gridH: 1, scale: 0.5, flip: false, label: "Classement",        target: "classement"   },
 ];
 
 // Batiments fixes upgradables : recoivent glow + badge si construits en BDD
@@ -144,7 +178,7 @@ const BUILD_SLOTS = {
   hospice:       { type: "hospice",       sprite: "construction_hospice",        col: 14, row: 2,  gridW: 2, gridH: 2, scale: 0.5, flip: false },
   grenier:       { type: "grenier",       sprite: "construction_grenier",        col: 17, row: 4,  gridW: 2, gridH: 2, scale: 0.5, flip: false },
   eglise:        { type: "eglise",        sprite: "construction_sanctuaire",     col: 14, row: 4,  gridW: 2, gridH: 2, scale: 0.5, flip: false },
-  comptoir:      { type: "comptoir",      sprite: "construction_banque",         col: 6,  row: 7,  gridW: 2, gridH: 2, scale: 0.5, flip: true  },
+  // comptoir : déplacé dans FIXED_BUILDINGS (toujours visible — 10/05/2026)
   relais:        { type: "relais",        sprite: "construction_relais_postal",  col: 8,  row: 8,  gridW: 2, gridH: 2, scale: 0.5, flip: false },
 
   // Maisons (max 2 par ville) : 2 slots distincts qui pointent sur "maison"
@@ -155,8 +189,38 @@ const BUILD_SLOTS = {
   // Statue royale (entite separee mais affichee comme un building si presente dans city.buildings)
   statue_royale: { type: "statue_royale", sprite: "construction_statue_royale",  col: 16, row: 6,  gridW: 1, gridH: 1, scale: 1.35, flip: false },
 
-  // Trophee
-  trophee:       { type: "trophee",       sprite: "construction_trophee",        col: 9,  row: 7,  gridW: 1, gridH: 1, scale: 0.5, flip: false },
+  // trophee : déplacé dans FIXED_BUILDINGS (toujours visible — 10/05/2026, redirige vers classement)
+};
+
+// 11/05/2026 - BUILDING_LABELS supprimé : les bâtiments construits (scierie,
+// mine, moulin, etc.) n'ont plus de label affiché. Ce sont des bâtiments
+// d'effet passif (production, bonus), sans drawer associé, donc l'affichage
+// d'un label apportait peu d'info au joueur et encombrait la map.
+
+// ─────────────────────────────────────────────────────────────────────────
+// LABEL_OFFSETS — Position des vignettes flottantes sous chaque bâtiment
+// ─────────────────────────────────────────────────────────────────────────
+// Par défaut, le label est centré juste sous le bâtiment.
+// Si certains labels sont mal positionnés (cachés, sortent de l'écran,
+// se chevauchent avec un autre), on les décale ici :
+//
+//   dx : décalage horizontal en pixels (+ = droite, - = gauche)
+//   dy : décalage vertical en pixels (+ = bas, - = haut)
+//
+// Valeurs ajustées via l'éditeur visuel label_editor.html (11/05/2026).
+// Pour réajuster : ouvre l'éditeur, repositionne les labels, exporte le
+// nouveau LABEL_OFFSETS et colle-le ici.
+const LABEL_OFFSETS = {
+  mairie:       { dx: -4,  dy: -30 },
+  taverne:      { dx: -1,  dy: -34 },
+  marche:       { dx: 31,  dy: -12 },
+  atelier:      { dx: -6,  dy: -36 },
+  chaudron:     { dx: -5,  dy: -34 },
+  ecurie:       { dx: 9,   dy: -11 },
+  quetes:       { dx: -4,  dy: -32 },
+  bibliotheque: { dx: -25, dy: -40 },
+  arene:        { dx: -6,  dy: -42 },
+  comptoir:     { dx: -3,  dy: -33 },
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -184,9 +248,23 @@ const DECORS = [
 // ─────────────────────────────────────────────────────────────────────────
 // Composant principal
 // ─────────────────────────────────────────────────────────────────────────
-export default function VillageView({ profile, city, onOpenModal, onShowBuildingInfo }) {
+export default function VillageView({ profile, city, onOpenModal, onShowBuildingInfo, onRefresh }) {
   const navigate = useNavigate();
   const [openDrawer, setOpenDrawer] = useState(null);
+
+  // ── Statue royale (10/05/2026) ──────────────────────────────────────
+  // La statue royale est une entité séparée (RoyalStatue) en BDD, pas dans
+  // city.buildings. On la charge à part et on l'ajoute comme sprite si elle
+  // est hébergée par la ville actuelle (current_city_id).
+  const [royalStatue, setRoyalStatue] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    loadActiveStatue()
+      .then((s) => { if (!cancelled) setRoyalStatue(s); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [city?.id]);
+  const statueIsHere = !!royalStatue && isStatueInCity(royalStatue, city?.id);
 
   const handleBuildingClick = (target) => {
     if (DRAWER_TARGETS[target]) {
@@ -280,11 +358,27 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
       sprite: s.sprite,
       col: s.col, row: s.row, gridW: s.gridW, gridH: s.gridH,
       scale: s.scale, flip: s.flip,
-      label: s.type,
+      // 11/05/2026 : les bâtiments construits (scierie, mine, moulin...) sont
+      // des effets passifs sans drawer/menu, donc pas de label affiché.
+      // La statue royale a son propre label (cf. bloc ci-dessous).
+      label: null,
       target: s.type,
       level: s.level,
       upgraded: false,
     })),
+    // Statue royale (10/05/2026) : entité séparée RoyalStatue en BDD,
+    // pas dans city.buildings. On l'ajoute si elle est hébergée par la
+    // ville actuelle (current_city_id).
+    ...(statueIsHere ? [{
+      key: "statue_royale",
+      sprite: "construction_statue_royale",
+      col: 16, row: 6, gridW: 1, gridH: 1,
+      scale: 1.35, flip: false,
+      label: "Statue royale",
+      target: "statue_royale",
+      level: 1,
+      upgraded: false,
+    }] : []),
   ].map(b => {
     const center = gridCenter(b.col, b.row, b.gridW, b.gridH);
     return { ...b, cx: center.cx, cy: center.cy };
@@ -294,6 +388,14 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
     <div className="village-view-wrapper">
       {/* SOL : fond vert uni (decor a ajouter plus tard) */}
       <div className="village-ground" />
+
+      {/* Bandeau système en overlay sur la map (visible uniquement sur mobile,
+       * 10/05/2026). Sur desktop, le bandeau est rendu globalement par App.jsx
+       * en haut de page. Sur mobile, on l'intègre dans la map pour ne pas
+       * voler de la place verticale. */}
+      <div className="md:hidden absolute top-0 left-0 right-0 z-20 pointer-events-none">
+        <SystemMessageBanner mode="overlay" />
+      </div>
 
       {/* SCENE : decors + batiments */}
       <div className="village-view-stage">
@@ -314,6 +416,7 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
         {allBuildings.map(b => (
           <SpriteImg
             key={b.key}
+            buildingKey={b.key}
             src={`${SPRITE_BASE}/${b.sprite}.png`}
             cx={b.cx} cy={b.cy}
             widthPct={spriteWidth(b.gridW, b.gridH, b.scale)}
@@ -348,6 +451,28 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
           overflow: hidden;
           box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4),
                       inset 0 0 60px rgba(0, 0, 0, 0.25);
+        }
+        /* Mobile paysage (10/05/2026) : la map fit l'espace dispo via flexbox.
+           On vire l'aspect-ratio (qui forçait la hauteur en fonction de la largeur).
+           La hauteur est gérée par flex-1 dans une chaîne flex (main → CityView → VillageView).
+           Cela permet au SystemMessageBanner et autres éléments de prendre leur place
+           naturelle sans pousser la map hors de l'écran. */
+        @media (max-width: 768px) and (orientation: landscape) {
+          .village-view-wrapper {
+            aspect-ratio: auto;
+            flex: 1 1 auto;
+            min-height: 0;
+            height: 100%;
+            border-radius: 0;
+            box-shadow: none;
+          }
+          /* Ground : on vire le rognage (cover) → l'image se redimensionne pour
+             remplir tout le wrapper, même si l'aspect ratio est différent */
+          .village-view-wrapper .village-ground {
+            background-size: 100% 100%;
+          }
+          /* Note : pas de scale ici. Le bandeau système est en overlay au-dessus
+             de la map (z-20), donc la map a toute la hauteur dispo. */
         }
         @media (min-width: 640px) {
           .village-view-wrapper {
@@ -467,11 +592,11 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
 
         .village-sprite-label {
           position: absolute;
-          bottom: -8px;
+          bottom: -10px;
           left: 50%;
           transform: translateX(-50%);
           padding: 2px 8px;
-          background: rgba(20, 16, 12, 0.9);
+          background: rgba(20, 16, 12, 0.92);
           color: #f5e9c8;
           font-size: 11px;
           font-family: var(--font-body, sans-serif);
@@ -481,11 +606,31 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
           opacity: 0;
           transition: opacity 0.15s ease-out;
           pointer-events: none;
-          z-index: 1;
+          z-index: 5;
+          border: 1px solid rgba(245, 233, 200, 0.2);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+          /* Animation fade-in à chaque montage (changement de label en
+             rotation). Le key={index} dans React force un re-mount. */
+          animation: village-label-fade 0.4s ease-out;
         }
 
+        @keyframes village-label-fade {
+          0%   { opacity: 0; transform: translate(-50%, 4px); }
+          100% { opacity: var(--label-opacity, 1); transform: translate(-50%, 0); }
+        }
+
+        /* Desktop classique (souris) : visible uniquement au hover, comme avant. */
         .village-sprite:hover .village-sprite-label {
           opacity: 1;
+        }
+
+        /* Mobile / tactile : labels toujours visibles pour aider à la
+           navigation (les joueurs perdus n'ont pas de hover). 11/05/2026 */
+        @media (pointer: coarse), (hover: none) {
+          .village-sprite-label {
+            opacity: 0.92;
+            --label-opacity: 0.92;
+          }
         }
 
         .village-sprite-level {
@@ -522,7 +667,12 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-6 flex-1">
             {openDrawer && DRAWER_TARGETS[openDrawer] && (() => {
-              const Comp = DRAWER_TARGETS[openDrawer].Component;
+              const target = DRAWER_TARGETS[openDrawer];
+              const Comp = target.Component;
+              if (target.needsProps) {
+                // Drawer qui a besoin du contexte ville (mairie)
+                return <Comp profile={profile} city={city} onRefresh={onRefresh} />;
+              }
               return <Comp />;
             })()}
           </div>
@@ -535,7 +685,7 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
 // ─────────────────────────────────────────────────────────────────────────
 // Sous-composant : un sprite positionne en absolu
 // ─────────────────────────────────────────────────────────────────────────
-function SpriteImg({ src, cx, cy, widthPct, zIndex = 0, flip, label, level, upgraded, decorative, onClick }) {
+function SpriteImg({ src, cx, cy, widthPct, zIndex = 0, flip, label, level, upgraded, decorative, onClick, buildingKey }) {
   // Affichage du badge level :
   // - sur un batiment fixe upgradable construit : badge des N1
   // - sur un batiment construit "classique" : badge des N2
@@ -570,8 +720,35 @@ function SpriteImg({ src, cx, cy, widthPct, zIndex = 0, flip, label, level, upgr
         <span className="village-sprite-level">N{level}</span>
       )}
       {label && !decorative && (
-        <span className="village-sprite-label">{label}</span>
+        <BuildingLabel label={label} buildingKey={buildingKey} />
       )}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sous-composant : label flottant sous un bâtiment
+// 11/05/2026 - Label fixe (string simple). Sur mobile (pointer: coarse) le
+// label est toujours visible (cf. CSS `village-sprite-label`). La rotation
+// auto a été retirée : on affiche directement la fonction du bâtiment
+// (ex: "Voyager" plutôt que "Écurie / Voyager" en rotation) pour une
+// compréhension immédiate.
+// ─────────────────────────────────────────────────────────────────────────
+function BuildingLabel({ label, buildingKey }) {
+  // Offset personnalisé selon le bâtiment (cf. LABEL_OFFSETS en haut du fichier).
+  // Si pas d'entrée → label centré par défaut sous le bâtiment.
+  const offset = (buildingKey && LABEL_OFFSETS[buildingKey]) || { dx: 0, dy: 0 };
+  const hasOffset = offset.dx !== 0 || offset.dy !== 0;
+  // Si un offset custom est défini, on désactive l'animation par défaut
+  // (qui utilise translate aussi → conflit visuel) et on applique
+  // directement notre transform statique.
+  const customStyle = hasOffset
+    ? { transform: `translate(calc(-50% + ${offset.dx}px), ${offset.dy}px)`, animation: "none" }
+    : undefined;
+
+  return (
+    <span className="village-sprite-label" style={customStyle}>
+      {label}
+    </span>
   );
 }

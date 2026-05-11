@@ -160,12 +160,17 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       const isWaveCompleted = finalState?.status === "wave_complete";
 
       // ── Hook chaudron : bonus or et drop pour l'épopée ──
-      // 🪙 Pièce porte-bonheur : +20% or
-      // 🍀 Trèfle de chance : +20% drop par mob tué (refonte mai 2026 : 5% → 20%)
+      // 🪙 Pièce porte-bonheur : +20% or (multiplicateur)
+      // 🍀 Trèfle de chance : +20% drop par mob tué (multiplicateur)
       // 🎯 Œil de l'archer : épopée bonus → AUCUN or gagné (drops + XP conservés)
+      // ── NOUVEAU v3 (09/05/2026) - bonus FIXES (additifs, appliques en fin d'epopee) ──
+      // 💼 Bon du Tresor : +N or fixe en fin d'epopee (next_epopee_gold_flat)
+      // 🎓 Bandeau d'erudit : +N ressource rare fixe en fin d'epopee (next_epopee_rare_flat)
       const epopeeBonusNoGold = !!localProfile.epopee_bonus_no_gold;
       const goldBonus = localProfile.next_epopee_gold_bonus || 0;
       const dropBonus = localProfile.next_epopee_drop_bonus || 0;
+      const goldFlat  = localProfile.next_epopee_gold_flat || 0;
+      const rareFlat  = localProfile.next_epopee_rare_flat || 0;
       const killCountForBonus = rewards?.killCount || 0;
 
       // Si flag Œil de l'archer actif : on annule TOUTE source d'or de la vague
@@ -184,6 +189,18 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
           if (Math.random() < dropBonus) bonusDrops += 1;
         }
       }
+
+      // ── NOUVEAU v3 (09/05/2026) - Application bonus FIXES (Bon du Tresor + Bandeau d'erudit) ──
+      // Ces bonus sont additifs et appliques UNIQUEMENT a la derniere vague reussie (fin d'epopee).
+      // Si le joueur meurt ou n'est pas a la derniere vague, ils sont preserves pour la prochaine.
+      const isLastWaveCalc = waveIndex >= MAX_WAVES_PER_DAY - 1;
+      const isEpicEndForFlat = isWaveCompleted && isLastWaveCalc && !isDead;
+      let flatGold = 0;
+      let flatRareDrops = 0;
+      if (isEpicEndForFlat) {
+        if (!epopeeBonusNoGold && goldFlat > 0) flatGold = goldFlat;
+        if (rareFlat > 0 && biomeRare?.key) flatRareDrops = rareFlat;
+      }
       // ── Fin Hook chaudron ──
 
       // CHOIX A (refonte v5) : le bonus PV de maîtrise est combat-only.
@@ -192,18 +209,21 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
       // Mort = reset à 1 PV. Sinon, clamp à 10.
       const hpToStore = isDead ? 1 : Math.min(COMBAT_MAX_HP, playerEndHp);
 
-      // Cumul des récompenses (avec bonus chaudron, ou 0 si Œil de l'archer)
-      const newTotalGold = totalGold + waveGold + bonusGold;
-      const newDropsCount = totalDrops + (rewards?.dropCount || 0) + bonusDrops;
-      // Drops à ajouter dans l'inventaire (bonus inclus)
+      // Cumul des récompenses (avec bonus chaudron multi + flat, ou 0 si Œil de l'archer)
+      const newTotalGold = totalGold + waveGold + bonusGold + flatGold;
+      const newDropsCount = totalDrops + (rewards?.dropCount || 0) + bonusDrops + flatRareDrops;
+      // Drops à ajouter dans l'inventaire (bonus chaudron + flat inclus)
       const dropsToAdd = (rewards?.drops || []).filter(d => d.key);
       for (let i = 0; i < bonusDrops; i++) {
+        dropsToAdd.push({ key: biomeRare?.key, fromMonsterIdx: -1, position: -1 });
+      }
+      for (let i = 0; i < flatRareDrops; i++) {
         dropsToAdd.push({ key: biomeRare?.key, fromMonsterIdx: -1, position: -1 });
       }
 
       // Construction des updates BDD
       const updates = {
-        gold: (localProfile.gold || 0) + waveGold + bonusGold,
+        gold: (localProfile.gold || 0) + waveGold + bonusGold + flatGold,
         hp: hpToStore,
         combat_total_gold: newTotalGold,
         combat_total_drops: newDropsCount,
@@ -265,6 +285,13 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         }
         if (localProfile.next_epopee_drop_bonus) {
           updates.next_epopee_drop_bonus = 0;
+        }
+        // ── NOUVEAU v3 (09/05/2026) - Reset des bonus FIXES en fin d'epopee ──
+        if (localProfile.next_epopee_gold_flat) {
+          updates.next_epopee_gold_flat = 0;
+        }
+        if (localProfile.next_epopee_rare_flat) {
+          updates.next_epopee_rare_flat = 0;
         }
         // Œil de l'archer : reset du flag à la fin de l'épopée bonus
         if (localProfile.epopee_bonus_no_gold) {

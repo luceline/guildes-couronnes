@@ -58,7 +58,7 @@ export const PROFESSIONS = {
   Orfèvre:    { icon: "🏅", description: "Seul à produire des lingots d'or — mais dépend du Mineur (quartz poli), du Forgeron (lingots fer) et du Bûcheron (charbon).",
     startItems: [{ item_key: "quartz_brut", item_name: "Quartz brut", item_category: "or",         quantity: 12 },
                  { item_key: "charbon",     item_name: "Charbon",     item_category: "fer",        quantity: 4 }] },
-  Marchand:   { icon: "🏪", description: "Organise convois et contrats. Récupère 50% des taxes sur ses propres ventes.",
+  Marchand:   { icon: "🏪", description: "Privilèges singuliers : exonération de taxe à l'achat sur tous les marchés, et revente quotidienne à l'entrepôt de sa propre ville (jusqu'à 200💰/jour, prix marché) même sans offre du maire.",
     startItems: [{ item_key: "tissu",       item_name: "Tissu",       item_category: "tissu",      quantity: 10 },
                  { item_key: "planches",    item_name: "Planches",    item_category: "bois",       quantity: 8 }] },
 };
@@ -362,12 +362,35 @@ export function getFatigueRegenInterval(housingLevel) {
   return intervals[housingLevel] || 3600000; // fallback tente
 }
 
-// Items qui restaurent la faim (définis ici pour être accessibles partout)
+// Items qui restaurent la faim — DÉRIVÉ AUTOMATIQUEMENT depuis craftingData.ITEMS
+// REFACTO 09/05/2026 : source unique de vérité = ITEMS_DEF (craftingData.js).
+// Évite la divergence entre `value`/`use` côté craftingData et cet objet.
+// Pattern identique à FOOD_ITEMS_WITH_FATIGUE dans craftingData.js.
+//
+// Filtre : trigger=consumed + effect=hunger_restore
+// → Capture automatiquement : ble, farine, pain, botte_paille, miel_fees,
+//   et tout futur item qui aurait ces deux propriétés.
+//
+// POUR MODIFIER UNE VALEUR : changer uniquement `value` dans craftingData.js ITEMS,
+// la mise à jour se propage partout automatiquement.
+//
+// Cas spécial ajouté manuellement après la dérivation :
+// - potion_endur : T4 dont l'effet principal est army_energy mais qui restaure
+//   aussi 2 points de faim au consommateur (legacy, à clarifier en session future).
 export const HUNGER_FOOD_ITEMS = {
-  ble:     { hunger_restore: 1, label: "Blé",     icon: "🌾" },
-  farine:  { hunger_restore: 5, label: "Farine",  icon: "🧺" },
-  pain:    { hunger_restore: 5, label: "Pain",     icon: "🍞" },
-  ragout:  { hunger_restore: 10, label: "Ragoût",  icon: "🍲" },
+  ...Object.fromEntries(
+    Object.entries(ITEMS_DEF)
+      .filter(([, v]) =>
+        v.trigger === "consumed" &&
+        v.effect === "hunger_restore"
+      )
+      .map(([key, v]) => [key, {
+        hunger_restore: v.value,
+        label: v.name,
+        icon: v.icon,
+      }])
+  ),
+  // Legacy : potion_endur restaure 2 faim malgré son effect "army_energy"
   potion_endur: { hunger_restore: 2, label: "Potion d'endurance", icon: "💪" },
 };
 

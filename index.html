@@ -1,10 +1,37 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/icon-192.png" /><meta name="apple-mobile-web-app-capable" content="yes" /><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" /><meta name="apple-mobile-web-app-title" content="Guildes" /><link rel="apple-touch-icon" href="/icon-192.png" /><meta name="theme-color" content="#c9a44a" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="manifest" href="/manifest.json" />
+
+    <!-- 11/05/2026 : viewport "PWA gaming" — empêche le pinch-zoom utilisateur
+         (cause classique des décalages d'affichage sur smartphones grand format
+         type Pixel 8 Pro). user-scalable=no est standard dans les jeux mobiles.
+         viewport-fit=cover : étend l'affichage sous notch / dynamic island
+         (combiné avec env(safe-area-inset-*) dans le CSS).
+         interactive-widget=resizes-content : le clavier mobile redimensionne le
+         viewport au lieu de scroller la page, évitant que les inputs disparaissent. -->
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+
+    <!-- PWA : manifest généré par vite-plugin-pwa (10/05/2026) -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Icônes : nouveau blason royal (10/05/2026) -->
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+
+    <!-- iOS Safari : meta web-app -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="G&amp;C" />
+
+    <!-- Empêche la coloration auto des liens type tel/email par iOS -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Theme color : aligné avec le manifest (brun médiéval #8b5e3c) -->
+    <meta name="theme-color" content="#8b5e3c" />
+
     <title>Guildes & Couronnes</title>
   </head>
   <body>
@@ -12,4 +39,3 @@
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
-

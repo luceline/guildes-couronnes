@@ -55,16 +55,6 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
     return { handled: true, updates };
   }
 
-  if (itemDef.effect === "hunger_and_fatigue") {
-    // Miel des fées : +10 faim ET +10 énergie
-    const maxH = getMaxHunger ? getMaxHunger(profile, cityHungerBonus) : 20;
-    const maxF = getMaxFatigue ? getMaxFatigue(profile, 0) : 20;
-    const value = itemDef.value || 10;
-    updates.hunger = Math.min(maxH, (profile.hunger ?? maxH) + value);
-    updates.fatigue = Math.min(maxF, (profile.fatigue ?? maxF) + value);
-    return { handled: true, updates };
-  }
-
   if (itemDef.effect === "next_epopee_drop_bonus") {
     // Trèfle de chance
     updates.next_epopee_drop_bonus = itemDef.value || 0.05;
@@ -92,15 +82,6 @@ export function applyCauldronEffect(itemDef, profile, city, opts = {}) {
     updates.craft_speed_buff_until = expiresAt;
     updates.craft_speed_buff_value = itemDef.value || 0.30;
     return { handled: true, updates };
-  }
-
-  if (itemDef.effect === "fatigue_max_restore") {
-    // Pierre énergétique : restaure entièrement l'énergie courante au max
-    const maxF = getMaxFatigue ? getMaxFatigue(profile, 0) : 20;
-    const before = profile.fatigue ?? 0;
-    updates.fatigue = maxF;
-    toastMessage = `⚡ Énergie restaurée : ${before} → ${maxF}. Vous voilà revigoré !`;
-    return { handled: true, updates, toastMessage };
   }
 
   if (itemDef.effect === "reset_all_cooldowns") {

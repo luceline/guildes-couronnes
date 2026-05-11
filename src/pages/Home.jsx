@@ -1,15 +1,23 @@
 import { applyHungerRegen } from "../lib/hungerRegen";
 import { useState, useEffect, useCallback } from "react";
+import { Navigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import CharacterCreation from "./CharacterCreation";
 import Dashboard from "./Dashboard";
-import Tutorial from "../components/Tutorial";
-import PatchnoteModal from "../components/PatchnoteModal";
 import { MAX_HUNGER, getFatigueRegenInterval } from "../lib/gameData";
 import { getMaxFatigue } from "../lib/gameData";
 import { updateLastActive, runInactivityCheck } from "../lib/inactivityCheck";
 import { getProfessionsList } from "../lib/professions";
 import { toast } from "sonner";
+
+// Détection mobile : sur mobile on redirige vers /city (full-screen map),
+// sur desktop on affiche le Dashboard (page d'accueil classique).
+// Note : window.matchMedia est lu une fois au mount, pas réactif au resize
+// (rare changement entre mobile/desktop pendant une session).
+function isMobileScreen() {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(max-width: 767px)").matches;
+}
 
 // ── Migration Producteur → nouveau métier ──
 // Liste centralisée — voir @/lib/professions. Évite que d'anciens métiers
@@ -58,7 +66,6 @@ export default function Home() {
   const [homeCity, setHomeCity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hasProfile, setHasProfile] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
 
   const loadProfile = useCallback(async () => {
     const user = await base44.auth.me();
@@ -112,7 +119,12 @@ export default function Home() {
   }
 
   if (!hasProfile) {
-    return <CharacterCreation onComplete={() => { loadProfile(); setShowTutorial(true); }} />;
+    // Après character creation, on déclenche le tuto via localStorage
+    // (le GameLayout le lira et l'affichera au prochain render).
+    return <CharacterCreation onComplete={() => {
+      try { localStorage.setItem("show-tutorial-once", "1"); } catch(_) {}
+      loadProfile();
+    }} />;
   }
 
   // Migration Producteur → nouveau métier au choix
@@ -120,11 +132,30 @@ export default function Home() {
     return <ProfessionMigration profile={profile} onComplete={loadProfile} />;
   }
 
+  // ── Render conditionnel mobile/desktop (10/05/2026) ─────────────────
+  // - Mobile : redirige vers /city (full-screen map, immersion gameplay).
+  //   Le Dashboard reste accessible via les drawers attachés aux bâtiments
+  //   de la map (Comptoir = transactions, Tableau de quêtes = checklist).
+  // - Desktop : affiche le Dashboard classique (productivité, vue d'ensemble).
+  // ────────────────────────────────────────────────────────────────────
+  if (isMobileScreen()) {
+    return <Navigate to="/city" replace />;
+  }
+
   return (
-    <>
-      {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
-      <PatchnoteModal />
-      <Dashboard profile={profile} city={city} homeCity={homeCity} onShowTutorial={() => setShowTutorial(true)} onProfileUpdate={loadProfile} />
-    </>
+    <Dashboard
+      profile={profile}
+      city={city}
+      homeCity={homeCity}
+      onShowTutorial={() => {
+        // Le tuto est désormais déclenché depuis le bouton "Aide" du header
+        // (GameLayout). Si Dashboard appelle ce callback, on déclenche via
+        // localStorage : GameLayout lit ce flag au prochain render.
+        try { localStorage.setItem("show-tutorial-once", "1"); } catch (_) {}
+        // Force un re-render léger en triggant un storage event
+        window.dispatchEvent(new Event("storage"));
+      }}
+      onProfileUpdate={loadProfile}
+    />
   );
 }

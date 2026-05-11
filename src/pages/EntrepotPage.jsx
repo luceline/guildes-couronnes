@@ -10,7 +10,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { usePlayerData } from "../lib/usePlayerData";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { logGold } from "@/lib/goldLog";
 import WarehouseUnified from "@/components/WarehouseUnified";
 import MairieShop from "@/components/MairieShop";
@@ -50,10 +49,9 @@ export default function EntrepotPage() {
   const isHomeCity = profile.home_city_id === city.id;
 
   return (
-    <div className="space-y-4 pb-20 md:pb-0 max-w-3xl mx-auto">
-      <h2 className="font-heading text-2xl font-semibold heading-medieval">
-        🏪 Entrepôt
-      </h2>
+    <div className="space-y-3 pb-20 md:pb-0 max-w-5xl mx-auto">
+      {/* 11/05/2026 : h2 "🏪 Entrepôt" retiré (déjà dans drawer header).
+          Card wrapper "📦 Approvisionnement" retiré (redondant avec le sous-onglet). */}
 
       {/* Sous-onglets : Approvisionnement / Urgence */}
       <div className="flex gap-2 flex-wrap">
@@ -76,26 +74,17 @@ export default function EntrepotPage() {
       </div>
 
       {subTab === "appro" && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-lg flex items-center gap-2">
-              📦 Approvisionnement
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <WarehouseUnified
-              city={city}
-              profile={profile}
-              isHomeCity={isHomeCity}
-              contributing={contributing}
-              setContributing={setContributing}
-              depositObjectives={depositObjectives}
-              depositT1Objectives={depositT1Objectives}
-              logGold={logGold}
-              onRefresh={refresh}
-            />
-          </CardContent>
-        </Card>
+        <WarehouseUnified
+          city={city}
+          profile={profile}
+          isHomeCity={isHomeCity}
+          contributing={contributing}
+          setContributing={setContributing}
+          depositObjectives={depositObjectives}
+          depositT1Objectives={depositT1Objectives}
+          logGold={logGold}
+          onRefresh={refresh}
+        />
       )}
 
       {subTab === "urgence" && (

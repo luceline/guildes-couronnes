@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { removeFromInventory } from "@/lib/inventoryHelpers";
@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ITEM_CATEGORIES } from "../lib/gameData";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
+// REFONTE MARCHAND (10/05/2026) : prix dynamique pour la revente Marchand à l'entrepôt.
+import { SUGGESTED_PRICES_T1 } from "../lib/pricingData";
 
 const WAREHOUSE_LABELS = {
   bois_brut:   "Bois brut",
@@ -106,6 +108,80 @@ export default function WarehouseUnified({
   const [selectedTier, setSelectedTier] = useState("t1");
   const [amounts, setAmounts] = useState({});
 
+  // ── REFONTE MARCHAND (10/05/2026) ──────────────────────────────────────
+  // Le Marchand peut revendre n'importe quel T1 à l'entrepôt même si le maire
+  // a désactivé la fonction. Le prix appliqué = moyenne réelle du marché pour
+  // cet item, clampée dans la fourchette suggérée [min, max].
+  // On charge les listings actifs au mount pour calculer ces moyennes.
+  const isMarchand = profile?.profession === "Marchand";
+  const [marketPrices, setMarketPrices] = useState({}); // { itemKey: prixClampé }
+  useEffect(() => {
+    if (!isMarchand) return; // Pas besoin de charger pour les non-Marchands.
+    let cancelled = false;
+    base44.entities.MarketListing.filter({ status: "active" }).then(listings => {
+      if (cancelled) return;
+      const computed = {};
+      Object.entries(SUGGESTED_PRICES_T1).forEach(([key, range]) => {
+        const matching = (listings || []).filter(l => l.item_key === key && l.price_per_unit > 0);
+        let price;
+        if (matching.length > 0) {
+          // Moyenne réelle des listings actifs pour cet item.
+          const sum = matching.reduce((s, l) => s + l.price_per_unit, 0);
+          const avg = sum / matching.length;
+          // Clamp dans [min, max] de la fourchette suggérée.
+          price = Math.max(range.min, Math.min(range.max, Math.round(avg)));
+        } else {
+          // Aucun listing → fallback sur le max conseillé.
+          price = range.max;
+        }
+        computed[key] = price;
+      });
+      setMarketPrices(computed);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isMarchand]);
+
+  /**
+   * Prix de revente d'un T1 par le Marchand à l'entrepôt.
+   * (10/05/2026) On ajoute +1 or au prix de marché pour que le Marchand fasse
+   * un bénéfice sur la revente à l'entrepôt (sans cela, il ne gagnait rien
+   * par rapport à une vente directe sur le marché).
+   * @returns {number} Prix par unité (or)
+   */
+  const getMerchantSellPrice = (itemKey) => {
+    const basePrice = marketPrices[itemKey] || SUGGESTED_PRICES_T1[itemKey]?.max || 0;
+    return basePrice > 0 ? basePrice + 1 : 0;
+  };
+
+  // ── Quota journalier Marchand : 200 or/jour à l'entrepôt ────────────────
+  // Le Marchand ne peut pas revendre plus de 200 or par jour à l'entrepôt
+  // (offre maire + prix dynamique cumulés). Stocké dans le profil :
+  //   merchant_warehouse_sold_today: { date: "YYYY-MM-DD", amount: <or vendu> }
+  // Reset auto au changement de date.
+  const MERCHANT_DAILY_GOLD_CAP = 200;
+  const todayStrMerchant = new Date().toISOString().split("T")[0];
+  const getMerchantSoldToday = () => {
+    const data = profile?.merchant_warehouse_sold_today;
+    if (!data || data.date !== todayStrMerchant) return 0;
+    return data.amount || 0;
+  };
+  /**
+   * Renvoie l'or maximum encore vendable aujourd'hui (0 si plafond atteint).
+   * Pour un non-Marchand, retourne Infinity (pas de quota).
+   */
+  const getMerchantRemainingGold = () => {
+    if (!isMarchand) return Infinity;
+    return Math.max(0, MERCHANT_DAILY_GOLD_CAP - getMerchantSoldToday());
+  };
+  /**
+   * Construit le nouvel objet merchant_warehouse_sold_today après une vente.
+   * @returns {Object|null} null si non-Marchand
+   */
+  const buildNewMerchantSoldToday = (addedGold) => {
+    if (!isMarchand) return null;
+    return { date: todayStrMerchant, amount: getMerchantSoldToday() + addedGold };
+  };
+
   const warehouse = city.warehouse || {};
   const dailyMaintenance = city?.maintenance_daily || {};
 
@@ -118,7 +194,9 @@ export default function WarehouseUnified({
   const handleDepositT1 = async (itemKey, qty, isSale = false) => {
     const isGold = itemKey === "or";
 
-    if (isSale && !city.warehouse_rachat_enabled) {
+    // REFONTE MARCHAND (10/05/2026) : le Marchand peut revendre même si le rachat
+    // est désactivé par le maire. Pour les autres joueurs, le check reste actif.
+    if (isSale && !city.warehouse_rachat_enabled && !isMarchand) {
       toast.error("📦 Le rachat est désactivé : le maire doit l'activer via la Mairie.");
       return;
     }
@@ -134,6 +212,75 @@ export default function WarehouseUnified({
     const offer = offers[itemKey];
     const hasOffer = offer && offer.price > 0 && offer.qty_max > 0;
 
+    // ── REFONTE MARCHAND (10/05/2026) ─────────────────────────────────────
+    // Mode B : Marchand + vente + pas d'offre du maire → vente quand même au prix
+    // dynamique clampé (moyenne marché bornée par la fourchette suggérée).
+    // Privilège local : seulement dans la ville d'origine du Marchand.
+    // Quota : 200 or/jour partagé avec le mode A (offre maire).
+    if (isSale && isMarchand && !hasOffer && !isGold) {
+      if (!isHomeCity) {
+        toast.error("🏪 Marchand : ce privilège ne s'exerce qu'à l'entrepôt de votre ville d'origine.");
+        return;
+      }
+      const pricePerUnit = getMerchantSellPrice(itemKey);
+      if (!pricePerUnit) {
+        toast.error("📦 Cet item ne peut pas être revendu à l'entrepôt par le Marchand.");
+        return;
+      }
+      // Plafonner la quantité par le quota or restant.
+      const remainingGold = getMerchantRemainingGold();
+      if (remainingGold <= 0) {
+        toast.error(`📦 Quota Marchand atteint : ${MERCHANT_DAILY_GOLD_CAP}💰/jour à l'entrepôt. Revenez demain.`);
+        return;
+      }
+      const maxQtyByQuota = Math.floor(remainingGold / pricePerUnit);
+      if (maxQtyByQuota === 0) {
+        toast.error(`📦 Le prix unitaire (${pricePerUnit}💰) dépasse votre quota Marchand restant (${remainingGold}💰).`);
+        return;
+      }
+      const actualQty = Math.min(qty, maxQtyByQuota);
+      const totalGold = actualQty * pricePerUnit;
+      if ((city.gold_treasury || 0) < totalGold) {
+        toast.error("🏦 Les coffres de la ville sont à sec : la mairie ne peut honorer cette revente.");
+        return;
+      }
+      const newInv = removeFromInventory(profile.inventory, itemKey, actualQty);
+      const newWarehouse = { ...(warehouse || {}), [itemKey]: ((warehouse?.[itemKey]) || 0) + actualQty };
+      try {
+        setContributing(true);
+        await Promise.all([
+          base44.entities.City.update(city.id, {
+            warehouse: newWarehouse,
+            gold_treasury: (city.gold_treasury || 0) - totalGold,
+          }),
+          base44.entities.PlayerProfile.update(profile.id, {
+            gold: (profile.gold || 0) + totalGold,
+            inventory: newInv,
+            cumul_ventes_or: (profile.cumul_ventes_or || 0) + totalGold,
+            cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + actualQty,
+            merchant_warehouse_sold_today: buildNewMerchantSoldToday(totalGold),
+          }),
+        ]);
+        await logGold(profile.user_email, profile.character_name, city.id, city.name,
+          totalGold, "rachat_entrepot", `Revente Marchand T1 : ${actualQty}× ${itemKey}`);
+        const partial = actualQty < qty ? ` (quota : ${actualQty}/${qty})` : "";
+        toast.success(`🏪 Marchand : ${actualQty}× ${itemKey} revendus pour ${totalGold}💰${partial}.`);
+        await logWarehouse(profile, city, "deposit", itemKey, WAREHOUSE_LABELS[itemKey] || itemKey, actualQty, "player");
+        if (isHomeCity) for (const obj of depositObjectives) {
+          if (obj.target_item === itemKey) {
+            await checkAndAwardObjective({ obj, addedQty: actualQty, profile, city });
+          }
+        }
+        onRefresh?.();
+      } catch (e) {
+        console.error("[Marchand revente entrepôt]", e);
+        toast.error("Erreur lors de la revente.");
+      } finally {
+        setContributing(false);
+      }
+      return;
+    }
+
     // Mode vente avec offre
     if (isSale && hasOffer) {
       const pricePerUnit = offer.price;
@@ -145,7 +292,24 @@ export default function WarehouseUnified({
       if (boughtToday >= offer.qty_max) {
         toast.error(`📦 Le quota journalier de ${itemKey} est épuisé : la ville ne rachète plus rien de ce genre aujourd'hui.`); return;
       }
-      const actualQty = Math.min(qty, offer.qty_max - boughtToday);
+      let actualQty = Math.min(qty, offer.qty_max - boughtToday);
+
+      // ── REFONTE MARCHAND (10/05/2026) : quota global 200 or/jour ────────
+      // Si Marchand : plafonner la quantité par le quota or restant.
+      if (isMarchand) {
+        const remainingGold = getMerchantRemainingGold();
+        if (remainingGold <= 0) {
+          toast.error(`📦 Quota Marchand atteint : ${MERCHANT_DAILY_GOLD_CAP}💰/jour à l'entrepôt. Revenez demain.`);
+          return;
+        }
+        const maxQtyByQuota = Math.floor(remainingGold / pricePerUnit);
+        if (maxQtyByQuota === 0) {
+          toast.error(`📦 Le prix unitaire (${pricePerUnit}💰) dépasse votre quota Marchand restant (${remainingGold}💰).`);
+          return;
+        }
+        actualQty = Math.min(actualQty, maxQtyByQuota);
+      }
+
       const actualGold = actualQty * pricePerUnit;
 
       const newInv = isGold
@@ -167,6 +331,8 @@ export default function WarehouseUnified({
             inventory: isGold ? newInv : newInv,
             cumul_ventes_or: (profile.cumul_ventes_or || 0) + actualGold,
             cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + actualQty,
+            // Quota Marchand : tracker l'or vendu aujourd'hui (null pour non-Marchand)
+            ...(isMarchand ? { merchant_warehouse_sold_today: buildNewMerchantSoldToday(actualGold) } : {}),
           }),
         ]);
         await logGold(profile.user_email, profile.character_name, city.id, city.name,
@@ -392,10 +558,9 @@ export default function WarehouseUnified({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-lg flex items-center gap-2">📦 Entrepôt - Dépôts</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="pt-3 space-y-3">
+        {/* 11/05/2026 : CardTitle "📦 Entrepôt - Dépôts" retiré (info déjà
+            donnée par le drawer header + sous-onglet "Approvisionnement"). */}
         {/* Filtre tier */}
         <div className="flex gap-2">
           {[
@@ -419,7 +584,7 @@ export default function WarehouseUnified({
 
         {/* Grille d'items */}
         {selectedTier === "t1" ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {[...items].map(item => {
               const isGold = item.key === "or";
               const playerStock = isGold
@@ -436,7 +601,7 @@ export default function WarehouseUnified({
 
               if (playerStock === 0 && !isGold) {
                 return (
-                  <div key={item.key} className="space-y-1">
+                  <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
                     <div className="flex items-center gap-2 text-xs font-body rounded-lg px-3 py-2 bg-muted/30 text-muted-foreground">
                       <span>{item.icon}</span>
                       <span className="flex-1 font-semibold">{item.name}</span>
@@ -452,7 +617,7 @@ export default function WarehouseUnified({
               }
 
               return (
-                <div key={item.key} className="space-y-1">
+                <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
                   <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
                     <span className="text-lg w-8 text-center">{item.icon}</span>
                     <div className="flex-1 min-w-0">
@@ -463,9 +628,11 @@ export default function WarehouseUnified({
                         {dailyUse > 0 && <span> · consommation : {dailyUse}/j</span>}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <Input
                          type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                          min={1}
                          max={playerStock}
                          value={Math.min(amount, playerStock)}
@@ -493,6 +660,8 @@ export default function WarehouseUnified({
                       <div className="flex items-center gap-1.5 self-end sm:self-auto">
                         <Input
                            type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                            min={1}
                            max={Math.min(playerStock, remaining)}
                            value={Math.min(amount, playerStock, remaining)}
@@ -513,6 +682,49 @@ export default function WarehouseUnified({
                       </div>
                     </div>
                   )}
+
+                  {/* ── REFONTE MARCHAND (10/05/2026) : bandeau revente Marchand ── */}
+                  {/* Le Marchand peut revendre n'importe quel T1 à l'entrepôt à prix dynamique, */}
+                  {/* uniquement dans sa VILLE D'ORIGINE, et seulement si pas déjà couvert       */}
+                  {/* par le bandeau "offre maire" ci-dessus.                                    */}
+                  {isMarchand && isHomeCity && !isGold && !(hasOffer && remaining > 0 && city.warehouse_rachat_enabled) && (() => {
+                    const merchantPrice = getMerchantSellPrice(item.key);
+                    const remainingGold = getMerchantRemainingGold();
+                    if (!merchantPrice) return null;
+                    const maxQtyByQuota = Math.floor(remainingGold / merchantPrice);
+                    const maxSellable = Math.min(playerStock, maxQtyByQuota);
+                    const quotaReached = remainingGold <= 0 || maxSellable === 0;
+                    return (
+                      <div className="flex flex-col gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 sm:flex-row sm:items-center">
+                        <span className="text-xs font-body text-amber-800 flex-1">
+                          🏪 <strong>Marchand</strong> : revendez à <strong>{merchantPrice} or</strong>/u (prix marché). Quota restant aujourd'hui : <strong>{remainingGold}💰</strong> / {MERCHANT_DAILY_GOLD_CAP}💰.
+                        </span>
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                          <Input
+                             type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
+                             min={1}
+                             max={Math.max(1, maxSellable)}
+                             value={Math.min(amount, Math.max(1, maxSellable))}
+                             onChange={e => setAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(maxSellable, Number(e.target.value))) }))}
+                             className="w-14 h-7 text-xs text-center text-foreground border-amber-300"
+                             disabled={contributing || quotaReached}
+                             onFocus={e => e.target.select()}
+                           />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs font-body shrink-0 text-amber-700 border-amber-300 hover:bg-amber-100"
+                            onClick={() => handleDepositT1(item.key, Math.min(amount, maxSellable), true)}
+                            disabled={contributing || quotaReached}
+                          >
+                            {contributing ? "..." : quotaReached ? "Quota atteint" : "Vendre"}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {hasOffer && remaining === 0 && (
                     <div className="text-xs font-body text-muted-foreground bg-muted/30 rounded-lg px-3 py-1.5">
                       🏪 La ville rachète ce produit : quota journalier atteint, revenez demain.
@@ -523,7 +735,7 @@ export default function WarehouseUnified({
             })}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
             {items.map(item => {
               const playerQty = (profile.inventory || []).find(i => i.item_key === item.key)?.quantity || 0;
               const warehouseStock = isHomeCity ? (warehouse[item.key] || 0) : null;
@@ -536,7 +748,7 @@ export default function WarehouseUnified({
 
               if (playerQty === 0) {
                 return (
-                  <div key={item.key} className="space-y-1">
+                  <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
                     <div className="flex items-center gap-2 text-xs font-body rounded-lg px-3 py-2 bg-muted/30 text-muted-foreground">
                       <span>{item.icon}</span>
                       <span className="flex-1 font-semibold">{item.name}</span>
@@ -552,7 +764,7 @@ export default function WarehouseUnified({
               }
 
               return (
-                <div key={item.key} className="space-y-1">
+                <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
                   <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
                     <span className="text-lg w-8 text-center">{item.icon}</span>
                     <div className="flex-1 min-w-0">
@@ -562,9 +774,11 @@ export default function WarehouseUnified({
                         Votre stock : {playerQty}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <Input
                          type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                          min={1}
                          max={playerQty}
                          value={Math.min(amount, playerQty)}
@@ -592,6 +806,8 @@ export default function WarehouseUnified({
                       <div className="flex items-center gap-1.5 self-end sm:self-auto">
                         <Input
                            type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                            min={1}
                            max={Math.min(playerQty, remaining)}
                            value={Math.min(amount, playerQty, remaining)}

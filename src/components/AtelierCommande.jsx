@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { logGold } from "@/lib/goldLog";
 import { findInventoryItem, removeFromInventory } from "@/lib/inventoryHelpers";
 import { isBiomeBuffActive, getBiomeDoubleProdChance } from "@/lib/playerBuffs";
+// Tombola du Marchand : enregistrement participation + plafond 5/jour.
+import { recordBilletPurchase, canBuyBillets } from "@/lib/tombolaClient";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
@@ -111,6 +113,73 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
       if (!hasIngredients(recipe.inputs)) {
         toast.error("Vous n'avez pas les ingrédients nécessaires."); return;
       }
+    }
+
+    // ── REFONTE MARCHAND v2 (10/05/2026) : Billet de fortune via atelier ──
+    // Cas spécial : prix imposé 3 or, split 1/1/1, billet non livré (consommé pour Tombola).
+    // Override total du flux normal : ni inputs, ni output inventaire, ni commission ville,
+    // ni bonus biome/level. Juste : -3 or client / +1 or Marchand / +1 cagnotte / 1 or détruit.
+    // SESSION 2 (10/05/2026) : cagnotte branchée sur TombolaState + plafond 5/jour.
+    const outputKeyForBilletCheck = isT1 ? recipe.outputKey : recipe.output?.key;
+    if (outputKeyForBilletCheck === "billet_fortune") {
+      const billetPrice = 3;
+      if ((clientProfile.gold || 0) < billetPrice) {
+        toast.error(`🎫 Pas assez d'or : il vous faut ${billetPrice}💰.`); return;
+      }
+      // Plafond 5 billets/jour : check avant tout débit
+      const canBuy = await canBuyBillets(clientProfile, 1);
+      if (!canBuy.ok) {
+        toast.error(`🎫 ${canBuy.reason}`);
+        return;
+      }
+      setOrdering(recipeId);
+      try {
+        // Enregistrer la participation en premier (cagnotte + plafond + cycle).
+        // Si l'enregistrement échoue, on bloque l'achat avant tout débit.
+        const purchaseResult = await recordBilletPurchase(clientProfile, 1);
+        if (!purchaseResult.ok) {
+          toast.error(`🎫 ${purchaseResult.error}`);
+          return;
+        }
+        const [freshClient, freshProducer] = await Promise.all([
+          base44.entities.PlayerProfile.get(clientProfile.id),
+          base44.entities.PlayerProfile.get(producer.id),
+        ]);
+        // -3 or client (billet non ajouté à l'inventaire)
+        await base44.entities.PlayerProfile.update(freshClient.id, {
+          gold: (freshClient.gold || 0) - billetPrice,
+        });
+        // +1 or Marchand producteur
+        await base44.entities.PlayerProfile.update(freshProducer.id, {
+          gold: (freshProducer.gold || 0) + 1,
+          cumul_ventes_or: (freshProducer.cumul_ventes_or || 0) + 1,
+        });
+        // Cagnotte (1 or) : ajoutée à TombolaState par recordBilletPurchase ci-dessus.
+        // Destruction (1 or) : permanente (pas de log côté ville).
+        // Logs
+        await logGold({
+          profile: freshClient,
+          city: { id: clientProfile.city_id, name: clientProfile.city_name || "" },
+          amount: -billetPrice,
+          type: "achat",
+          description: `Billet de fortune (Tombola) via atelier ${producer.character_name}`,
+        });
+        await logGold({
+          profile: freshProducer,
+          city: { id: clientProfile.city_id, name: clientProfile.city_name || "" },
+          amount: 1,
+          type: "vente",
+          description: `Billet de fortune vendu (1💰/billet, Tombola) à ${freshClient.character_name || "client"}`,
+        });
+        toast.success(`🎰 Billet de fortune acheté ! Bonne chance au prochain tirage.`);
+        onRefresh?.();
+      } catch (e) {
+        console.error("[atelier billet_fortune]", e);
+        toast.error("Erreur lors de l'achat du billet.");
+      } finally {
+        setOrdering(null);
+      }
+      return;
     }
 
     // ── REFONTE ITEMS v5 : Anti-doublon items combat (épée + 4 armures) ──

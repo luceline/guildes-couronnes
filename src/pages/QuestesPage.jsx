@@ -21,9 +21,7 @@ export default function QuestesPage() {
   if (!profile) return null;
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 max-w-2xl mx-auto">
-      <h2 className="font-heading text-2xl font-semibold heading-medieval">🎯 Quêtes</h2>
-
+    <div className="space-y-4 pb-20 md:pb-0 max-w-5xl mx-auto">
       <DailyQuestsWidget profile={profile} city={city} />
 
       {contracts.length > 0 && (

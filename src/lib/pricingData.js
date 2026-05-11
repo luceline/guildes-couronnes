@@ -27,8 +27,11 @@ export const SUGGESTED_PRICES_T1 = {
 };
 
 // ── PRIX SPÉCIAUX (items non-craftés, parchemins fixes) ──
+// REFONTE MARCHAND v2 (10/05/2026) : autorisation_marche supprimée.
+// billet_fortune : prix forcé à 3 or côté UI ET côté logique d'achat marché
+// (cf. pages/Market.jsx). La fourchette ci-dessous n'est qu'indicative.
 export const SUGGESTED_PRICES_SPECIAL = {
-  autorisation_marche: { min: 3, max: 8 },
+  billet_fortune:      { min: 3, max: 3 },
   contrat_artisan:     { min: 55, max: 80  },
 };
 

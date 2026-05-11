@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { generatePlayerObjectives } from "../lib/objectiveGenerator";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -142,11 +142,10 @@ export default function DailyQuestsWidget({ profile, city }) {
     <Card className={allDone ? "border-amber-400 shadow-md shadow-amber-100" : ""}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="font-heading text-lg flex items-center gap-2">
-            🎯 Quêtes du jour
+          <div className="font-heading text-lg flex items-center gap-2">
             <HelpTooltip text="Six quêtes se renouvellent chaque matin à 6h. Fabriquer, vendre, voyager, approvisionner l'entrepôt de votre ville ou d'une ville étrangère. La récompense en or est versée dès la validation et apparaît dans votre journal de bord." side="bottom" />
             {allDone && <Badge className="bg-amber-500 text-white font-heading text-xs">✨ Tout accompli !</Badge>}
-          </CardTitle>
+          </div>
           <div className="flex items-center gap-3">
             {total > 0 && (
               <span className="text-xs font-body text-muted-foreground">
@@ -181,7 +180,8 @@ export default function DailyQuestsWidget({ profile, city }) {
             </button>
           </div>
         ) : (
-          quests.map((q, i) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          {quests.map((q, i) => {
             const meta = TYPE_META[q.type] || TYPE_META.produce;
             const pct = Math.min(100, Math.floor(((q.current_quantity || 0) / (q.target_quantity || 1)) * 100));
             const done = q.status === "completed";
@@ -191,25 +191,25 @@ export default function DailyQuestsWidget({ profile, city }) {
             return (
               <div
                 key={q.id || i}
-                className={`rounded-lg border p-3 space-y-2 transition-all ${
+                className={`rounded-lg border p-2 space-y-1.5 transition-all ${
                   done
                     ? "bg-green-50 border-green-300 opacity-80"
                     : `${meta.color}`
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
                     <span className="text-base shrink-0">{done ? "✅" : meta.icon}</span>
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`font-heading font-semibold text-sm ${done ? "line-through text-muted-foreground" : ""}`}>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className={`font-heading font-semibold text-sm leading-tight ${done ? "line-through text-muted-foreground" : ""}`}>
                           {q.title}
                         </span>
                         {isBigQuest && !done && (
-                          <Badge variant="outline" className="text-xs font-body border-amber-400 text-amber-700 bg-amber-50">⭐ Spéciale</Badge>
+                          <Badge variant="outline" className="text-[10px] font-body border-amber-400 text-amber-700 bg-amber-50 px-1 py-0">⭐</Badge>
                         )}
                       </div>
-                      <p className="text-xs font-body text-muted-foreground mt-0.5 leading-relaxed">{q.description}</p>
+                      <p className="text-[10px] font-body text-muted-foreground mt-0.5 leading-tight line-clamp-2">{q.description}</p>
                     </div>
                   </div>
                   <span className={`text-sm font-heading font-bold shrink-0 ${done ? "text-green-600" : "text-primary"}`}>
@@ -218,20 +218,21 @@ export default function DailyQuestsWidget({ profile, city }) {
                 </div>
 
                 {!done && (
-                  <div className="space-y-1">
-                    <Progress value={pct} className="h-1.5" />
-                    <div className="flex justify-between text-xs text-muted-foreground font-body">
+                  <div className="space-y-0.5">
+                    <Progress value={pct} className="h-1" />
+                    <div className="flex justify-between text-[10px] text-muted-foreground font-body">
                       <span className="capitalize">{meta.label}</span>
                       <span>{q.current_quantity || 0} / {q.target_quantity}</span>
                     </div>
                   </div>
                 )}
                 {done && (
-                  <p className="text-xs text-green-600 font-body font-semibold">✓ Quête accomplie !</p>
+                  <p className="text-[10px] text-green-600 font-body font-semibold">✓ Accomplie</p>
                 )}
               </div>
             );
-          })
+          })}
+          </div>
         )}
 
         {quests.length > 0 && !loading && (

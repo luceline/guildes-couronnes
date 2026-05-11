@@ -520,6 +520,8 @@ export default function TavernDicePanel({ profile, city, isResident, onRefresh }
             <div className="flex gap-2 items-center">
               <Input
                 type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                 min={MIN_MISE}
                 max={MAX_MISE}
                 value={miseInput}

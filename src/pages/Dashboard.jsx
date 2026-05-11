@@ -83,7 +83,8 @@ export default function Dashboard({ profile, city, homeCity, onShowTutorial, onP
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={liveProfile} homeCity={homeCity} city={city} onRefresh={onProfileUpdate} />
+      {/* PlayerStatusBar retiré (10/05/2026) — globale dans GameLayout */}
+      {/* <PlayerStatusBar profile={liveProfile} homeCity={homeCity} city={city} onRefresh={onProfileUpdate} /> */}
 
       {/* Welcome */}
       <div className="card-royal card-gold-border rounded-xl p-6 relative">

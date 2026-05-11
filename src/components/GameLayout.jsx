@@ -10,7 +10,14 @@ import { ADMIN_EMAILS } from "@/lib/gameData";
 import { BIOMES } from "@/lib/biomes";
 import Tutorial from "@/components/Tutorial";
 import BugReportModal from "@/components/BugReportModal";
+import PatchnoteModal from "@/components/PatchnoteModal";
+import MiniStatusBar from "@/components/MiniStatusBar";
+import LoginStreakPopup from "@/components/LoginStreakPopup";
 import { useTheme } from "@/lib/useTheme.jsx";
+import { usePlayerData } from "@/lib/usePlayerData";
+import { useIsMobile } from "@/lib/useIsMobile";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import SettingsPanel from "@/components/SettingsPanel";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Menu principal : 5 items au lieu de 11
@@ -66,14 +73,36 @@ export default function GameLayout() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // 11/05/2026 : drawer paramètres (mode village, thème, audio, notifs)
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [navItems, setNavItems] = useState(BASE_NAV);
-  const [showTutorial, setShowTutorial] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => {
+    // Si CharacterCreation vient juste d'être complété, on déclenche le tuto
+    // une fois (flag stocké en localStorage).
+    try {
+      if (localStorage.getItem("show-tutorial-once") === "1") {
+        localStorage.removeItem("show-tutorial-once");
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  });
   const [showBugReport, setShowBugReport] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
-  // Profil et ville actuelle pour le label dynamique du bouton "Cité"
-  const [profile, setProfile] = useState(null);
-  const [city, setCity] = useState(null);
+  // 11/05/2026 : usePlayerData fournit profile/city/homeCity + refresh.
+  // Source unique de vérité au niveau du layout. Les pages enfants ré-utilisent
+  // ce hook pour leur propre fetch (chacune avec son contexte).
+  const { profile, city, homeCity, refresh: refreshProfile } = usePlayerData();
+
+  // 11/05/2026 : détection mobile robuste (résout les bugs landscape sur
+  // grands smartphones type Pixel 8 Pro où la largeur > 768px en landscape
+  // déclenchait à tort le mode desktop. Combine pointer + hover + viewport).
+  const isMobile = useIsMobile();
+  // 11/05/2026 : détection orientation portrait + bloc "Tournez votre appareil"
+  // supprimé. Le jeu est jouable en portrait (mode menu) et en landscape (mode
+  // carte) avec auto-switch via useVillageViewMode. La rotation est désormais
+  // un changement d'UI silencieux.
   const { isDark, toggleTheme } = useTheme();
 
   // Vérifie si l'utilisateur est admin et ajoute l'item admin en fin de menu
@@ -102,26 +131,9 @@ export default function GameLayout() {
     return () => clearInterval(interval);
   }, []);
 
-  // Charge le profil + la ville courante pour résoudre le label dynamique de "Cité"
-  // Recharge à chaque changement d'URL (le joueur a pu voyager, changer de biome, etc.)
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const user = await base44.auth.me();
-        if (!user?.email) return;
-        const profiles = await base44.entities.PlayerProfile.filter({ user_email: user.email });
-        if (cancelled || profiles.length === 0) return;
-        const p = profiles[0];
-        setProfile(p);
-        if (p.city_id) {
-          const c = await base44.entities.City.get(p.city_id).catch(() => null);
-          if (!cancelled) setCity(c);
-        }
-      } catch(e) { /* silencieux */ }
-    })();
-    return () => { cancelled = true; };
-  }, [location.pathname]);
+  // 11/05/2026 : useEffect de fetch city retiré — usePlayerData fournit
+  // déjà city/homeCity au mount initial et au refresh manuel. Les enfants
+  // qui ont besoin de city fraîche appellent refreshProfile().
 
   // Polling des défis PvP en attente de défense
   useEffect(() => {
@@ -181,9 +193,27 @@ export default function GameLayout() {
   const isItemActive = (item) => isPathInGroup(location.pathname, item.group);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div
+      className="min-h-screen md:min-h-screen flex flex-col h-screen md:h-auto overflow-hidden md:overflow-visible"
+      style={{ overscrollBehavior: "none", touchAction: "manipulation" }}
+    >
       {showTutorial && <Tutorial onClose={() => setShowTutorial(false)} />}
       {showBugReport && <BugReportModal onClose={() => setShowBugReport(false)} />}
+      {/* PatchnoteModal global (10/05/2026) : se déclenche tout seul si une
+       * nouvelle version est dispo. Avant il était dans Home/, déplacé ici
+       * pour qu'il se déclenche peu importe la route active. */}
+      <PatchnoteModal />
+      {/* Login streak en popup d'ouverture (10/05/2026) : se déclenche 1x par jour
+       * au lancement de l'app. Même comportement sur mobile et desktop. */}
+      {profile && (
+        <LoginStreakPopup
+          profile={profile}
+          onProfileUpdate={() => {
+            // 11/05/2026 : refresh via le context (source unique de vérité)
+            refreshProfile();
+          }}
+        />
+      )}
 
       {/* ── Modale de confirmation déconnexion ── */}
       {showLogoutConfirm && (
@@ -219,7 +249,10 @@ export default function GameLayout() {
         </div>
       )}
 
-      {/* ── Top Bar ── */}
+      {/* ── Top Bar (cachée sur mobile : full-screen map, accès via drawers)
+           11/05/2026 : utilise useIsMobile au lieu de md:hidden pour fixer
+           les bugs landscape sur grands smartphones (Pixel 8 Pro, etc.) ── */}
+      {!isMobile && (
       <header className="border-b border-border bg-card/80 backdrop-blur-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
@@ -364,14 +397,68 @@ export default function GameLayout() {
           </nav>
         )}
       </header>
+      )}
 
-      {/* ── Main Content ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+      {/* ── Mini status bar (10/05/2026) ─────────────────────────────────
+       * - Desktop : visible en haut, sticky sous le header
+       * - Mobile : cachée par défaut, accessible via le bouton flottant
+       *   ❤️ en haut à droite (full-screen map oblige).
+       * ────────────────────────────────────────────────────────────── */}
+      {profile && !isMobile && (
+        <div className="sticky top-14 z-30">
+          <MiniStatusBar
+            profile={profile}
+            homeCity={homeCity}
+            city={city}
+            onRefresh={refreshProfile}
+          />
+        </div>
+      )}
+
+      {/* ── Mobile : bouton flottant pour accéder à la status bar (drawer) ──
+           11/05/2026 : utilise useIsMobile au lieu de md:hidden. */}
+      {profile && isMobile && (
+        <div className="fixed top-2 right-2 z-30 flex items-center gap-1.5">
+          {/* 11/05/2026 : bouton Paramètres (remplace l'ancien toggle thème).
+              Ouvre le drawer Settings qui regroupe : mode d'affichage village,
+              thème, audio, notifications push. */}
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="flex items-center justify-center w-9 h-9 bg-card/90 backdrop-blur-sm border border-border rounded-full shadow-lg hover:bg-card transition-colors"
+            aria-label="Paramètres"
+            title="Paramètres"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+          {/* Mini status bar (or + HP) → ouvre drawer du haut au tap */}
+          <MiniStatusBar
+            profile={profile}
+            homeCity={homeCity}
+            city={city}
+            onRefresh={refreshProfile}
+          />
+        </div>
+      )}
+
+      {/* ── Main Content ──
+       * - Desktop : max-w-7xl avec padding (centré, lisible)
+       * - Mobile sur /city : flex-col + overflow-hidden → la map fit l'espace dispo
+       *   via flex-1 (gère SystemMessageBanner et autres éléments qui prennent leur
+       *   place naturelle au-dessus)
+       * - Mobile sur autres pages : scroll interne possible
+       * ───────────────────────────────────────────────── */}
+      <main className={`flex-1 w-full flex flex-col min-h-0 ${location.pathname === "/city" ? "overflow-hidden" : "overflow-y-auto"} md:overflow-visible md:max-w-7xl md:mx-auto md:px-4 md:py-6 md:block`}>
         <Outlet />
       </main>
 
-      {/* ── Mobile Bottom Nav (5 items toujours visibles) ── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 safe-area-pb">
+      {/* ── Mobile Bottom Nav SUPPRIMÉE (10/05/2026) ────────────────────
+       * Décision : full-screen map sur mobile, navigation via les drawers
+       * attachés aux bâtiments. Cette nav fixed bottom n'est plus rendue
+       * sur mobile. Sur desktop, la nav est dans le header (déjà là).
+       * Le bloc ci-dessous est désactivé via `hidden` partout.
+       * ──────────────────────────────────────────────────────────────── */}
+      <nav className="hidden bg-card border-t border-border z-50 safe-area-pb">
         {/* Tiroir "Plus" pour les éléments secondaires (Discord, Aide, Admin si applicable) */}
         {moreOpen && (
           <div className="border-t border-border bg-card px-3 py-2 grid grid-cols-3 gap-1">
@@ -443,6 +530,18 @@ export default function GameLayout() {
           </button>
         </div>
       </nav>
+
+      {/* 11/05/2026 : Drawer Paramètres (ouvert par le bouton flottant ⚙️) */}
+      <Drawer open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader>
+            <DrawerTitle>Paramètres</DrawerTitle>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6 flex-1">
+            <SettingsPanel />
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }

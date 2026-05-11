@@ -173,6 +173,8 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 <span className="text-xs font-body text-amber-900">💸 Impôt journalier :</span>
                 <Input
                    type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                    min={0}
                    max={100}
                    step={5}
@@ -204,6 +206,8 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 </span>
                 <Input
                    type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                    min={0}
                    max={100}
                    step={5}
@@ -240,7 +244,9 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                   <span className="text-xs font-body text-green-800 ml-1">{salaryEnabledLocal ? "Activé" : "Désactivé"}</span>
                   {salaryEnabledLocal && (
                     <>
-                      <Input type="number" min={1} max={50} step={1}
+                      <Input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={1} max={50} step={1}
                         value={salaryInput ?? (city.resident_salary || 5)}
                         onChange={e => setSalaryInput(Math.max(1, Math.min(50, parseInt(e.target.value) || 0)))}
                         className="w-16 h-7 text-xs text-center text-foreground"
@@ -274,7 +280,9 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-body text-yellow-800 w-32">Lingot royal</span>
                   <span className="text-xs text-muted-foreground font-body">Référence : 800💰</span>
-                  <Input type="number" min={1} max={5000} step={1}
+                  <Input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={1} max={5000} step={1}
                     value={lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 800)}
                     onChange={e => setLingotPriceInput(parseInt(e.target.value) || 800)}
                     className="w-20 h-7 text-xs text-center text-foreground bg-white"
@@ -350,7 +358,9 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           <p className="text-xs font-heading font-semibold text-amber-900">🏵️ Événement Sceau royal (admin)</p>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-body text-amber-800">En vente : <strong>{city.sceaux_en_vente || 0}</strong></span>
-            <input type="number" min={0} max={100} defaultValue={city.sceaux_en_vente || 0}
+            <input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={100} defaultValue={city.sceaux_en_vente || 0}
               className="w-16 h-7 text-xs text-center border border-amber-300 rounded font-body text-foreground"
               onBlur={async (e) => {
                 const val = Math.max(0, parseInt(e.target.value) || 0);

@@ -427,6 +427,8 @@ export default function RoyalStatuePanel({ profile, city, onRefresh }) {
                       </div>
                       <Input
                         type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                         min={0}
                         max={slot.quantity}
                         value={inBasket}

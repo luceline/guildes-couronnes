@@ -537,6 +537,8 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
                         </div>
                         <Input
                           type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                           min={0}
                           max={stock}
                           value={inBasket}
@@ -651,6 +653,8 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
                             </div>
                             <Input
                               type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*"
                               min={0}
                               max={stock}
                               value={inBasket}

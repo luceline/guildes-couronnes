@@ -59,7 +59,9 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                   <span className="w-5 text-center">{item.icon}</span>
                   <span className="w-24 font-semibold text-amber-900">{item.name}</span>
                   <span className="text-amber-700">Prix:</span>
-                  <Input type="number" min={0} max={99} step={1}
+                  <Input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={99} step={1}
                     key={`t1-price-${item.key}-${city.id}`}
                     defaultValue={offer.price || 0}
                     className="w-14 h-6 text-xs text-center"
@@ -73,7 +75,9 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                     }}
                     onFocus={e => e.target.select()} />
                   <span className="text-amber-700">💰 · Qté:</span>
-                  <Input type="number" min={0} max={9999} step={10}
+                  <Input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={9999} step={10}
                     key={`t1-qty-${item.key}-${city.id}`}
                     defaultValue={offer.qty_max || 0}
                     className="w-16 h-6 text-xs text-center"
@@ -108,7 +112,9 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                 <span className="w-24 font-semibold text-indigo-900">{item.name}</span>
                 <span className="text-indigo-500 w-8">T{item.tier}</span>
                 <span className="text-indigo-700">Prix:</span>
-                <Input type="number" min={0} max={999} step={1}
+                <Input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={999} step={1}
                   key={`t23-price-${item.key}-${city.id}`}
                   defaultValue={offer.price || 0}
                   className="w-16 h-6 text-xs text-center"
@@ -122,7 +128,9 @@ export default function MaireOffresPanel({ city, onRefresh }) {
                   }}
                   onFocus={e => e.target.select()} />
                 <span className="text-indigo-700">💰 · Qté:</span>
-                <Input type="number" min={0} max={999} step={1}
+                <Input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={999} step={1}
                   key={`t23-qty-${item.key}-${city.id}`}
                   defaultValue={offer.qty_max || 0}
                   className="w-16 h-6 text-xs text-center"

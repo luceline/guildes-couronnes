@@ -21,7 +21,7 @@ export default function ChaudronPage() {
   if (!profile) return null;
 
   return (
-    <div className="space-y-6 pb-20 md:pb-0 max-w-3xl mx-auto">
+    <div className="space-y-4 pb-20 md:pb-0 max-w-4xl mx-auto">
       <h2 className="font-heading text-2xl font-semibold heading-medieval">
         🔮 Chaudron magique
       </h2>

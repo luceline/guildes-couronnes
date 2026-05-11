@@ -44,7 +44,8 @@ export default function RankingPage({ profile }) {
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      {profile && <PlayerStatusBar profile={profile} homeCity={homeCity} />}
+      {/* PlayerStatusBar retiré (10/05/2026) — globale dans GameLayout */}
+      {/* {profile && <PlayerStatusBar profile={profile} homeCity={homeCity} />} */}
 
       <div>
         <h2 className="font-heading text-2xl font-bold heading-medieval">🏆 Classements</h2>

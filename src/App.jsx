@@ -9,6 +9,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import SystemMessageBanner from './components/SystemMessageBanner';
 import { ThemeProvider } from './lib/useTheme.jsx';
 import { MusicProvider } from './lib/MusicContext';
+import { VillageViewModeProvider } from './lib/useVillageViewMode';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import GameLayout from './components/GameLayout';
@@ -54,7 +55,11 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      if (showLoginForm) return <LoginPage />;
+      // 11/05/2026 : sur mobile, on skip la landing et on va direct au login
+      // (gain immédiat d'1 tap, expérience plus proche d'une vraie app).
+      // La landing reste pour desktop comme page marketing/présentation.
+      const isMobile = typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+      if (showLoginForm || isMobile) return <LoginPage />;
       return <LandingPage />;
     }
   }
@@ -96,6 +101,7 @@ function App() {
 
   return (
     <ThemeProvider>
+      <VillageViewModeProvider>
       <MusicProvider>
       <AuthProvider>
         <QueryClientProvider client={queryClientInstance}>
@@ -108,6 +114,7 @@ function App() {
       </QueryClientProvider>
     </AuthProvider>
     </MusicProvider>
+    </VillageViewModeProvider>
     </ThemeProvider>
   )
 }

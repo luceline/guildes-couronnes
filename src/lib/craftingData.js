@@ -89,10 +89,10 @@ export const PROFESSION_PRODUCTION = {
   ],
   Marchand: [
     {
-      id: "harvest_autorisation",
-      name: "Autorisation de marché",
-      icon: "📜",
-      outputKey: "autorisation_marche",
+      id: "craft_billet_fortune",
+      name: "Billet de fortune",
+      icon: "🎫",
+      outputKey: "billet_fortune",
       quantity: 1,
       cooldown: 80,
       tier: 1,
@@ -311,8 +311,8 @@ export const ITEMS = {
   },
   pain: {
     name: "Pain", icon: "🍞", category: "nourriture", tier: 3,
-    trigger: "consumed", effect: "hunger_restore", value: 20,
-    use: "+20🍞 instant.",
+    trigger: "consumed", effect: "hunger_restore", value: 25,
+    use: "+25🍞 instant.",
   },
   contrat_artisan: {
     name: "Contrat artisan", icon: "📋", category: "parchemins", tier: 3,
@@ -467,11 +467,14 @@ export const ITEMS = {
     trigger: "sellable", effect: "sellable", value: 800,
     use: "Vendable mairie : 800💰ref (prix décidé par le maire entre 1 et 5000). Compte pour le prestige.",
   },
-  autorisation_marche: {
-    name: "Autorisation de marché", icon: "📜", category: "parchemins", tier: 1,
-    trigger: "consumed", effect: "market_permit", value: 1,
+  // REFONTE MARCHAND v2 (10/05/2026) : autorisation_marche supprimée, remplacée
+  // par billet_fortune (système de tombola, prix fixe 3 or, ne va pas en inventaire
+  // de l'acheteur - consommé à l'achat pour participer au tirage).
+  billet_fortune: {
+    name: "Billet de fortune", icon: "🎫", category: "parchemins", tier: 1,
+    trigger: "consumed", effect: "tombola_ticket", value: 1,
     biome_profession: "Marchand", biome_key: "guilde",
-    use: "Requis pour poster une annonce au marché. Consommé à chaque mise en vente.",
+    use: "Billet de fortune. Participe au prochain tirage de la Tombola. Cagnotte cumulée sur 3 jours.",
   },
   sceau_royal: {
     name: "Sceau royal", icon: "🏵️", category: "parchemins", tier: 0,
@@ -526,13 +529,13 @@ export const ITEMS = {
   },
   miel_fees: {
     name: "Miel des fées", icon: "🍯", category: "chaudron", tier: 2,
-    trigger: "consumed", effect: "hunger_and_fatigue", value: 10,
-    use: "+10 faim et +10 énergie. Obtenu via le chaudron magique (rang 2+).",
+    trigger: "consumed", effect: "hunger_restore", value: 12,
+    use: "+12 faim instant. Obtenu via le chaudron magique (rang 2+).",
   },
   pierre_energetique: {
     name: "Pierre énergétique", icon: "⚡", category: "chaudron", tier: 2,
-    trigger: "consumed", effect: "fatigue_max_restore",
-    use: "Restaure entièrement votre énergie courante. Obtenu via le chaudron magique (rang 2+).",
+    trigger: "consumed", effect: "fatigue_restore", value: 12,
+    use: "+12 énergie instant. Obtenu via le chaudron magique (rang 2+).",
   },
 
   // ── Pool Rang 3 (6 items T3) ──

@@ -170,7 +170,8 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
 
   return (
     <div className="space-y-6 pb-20 md:pb-0">
-      <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} />
+      {/* PlayerStatusBar retiré (10/05/2026) — globale dans GameLayout */}
+      {/* <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} /> */}
 
       {/* Niveau du joueur */}
       <PlayerLevelBadge profile={liveProfile} variant="full" />

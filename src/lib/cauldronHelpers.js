@@ -27,7 +27,8 @@ export const CAULDRON_CREATION_COST = {
     { key: "herbes",            qty: 1 },
     { key: "quartz_brut",       qty: 1 },
     { key: "pierre",            qty: 1 },
-    { key: "autorisation_marche", qty: 1 },
+    // REFONTE MARCHAND (10/05/2026) : autorisation_marche retirée
+    // (devenue un T1 sans valeur d'usage, ne fait plus sens comme coût).
   ],
 };
 

@@ -3,15 +3,21 @@ import { useAuth } from "../lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import pb from "@/api/base44Client";
 import { useMusicPlayer } from "../lib/MusicContext";
+import landscapeImg from "@/assets/landscape.jpg";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 
+/**
+ * LoginPage — splash screen plein écran (11/05/2026).
+ * Refonte mobile-first : image de fond fullscreen, card semi-transparente avec
+ * backdrop-blur, pas de scroll en mode portrait. Bandeau migration retiré.
+ */
 export default function LoginPage() {
   const { signIn, signUp } = useAuth();
   const { togglePlay, isPlaying, enabled } = useMusicPlayer();
-  const [mode, setMode] = useState("login"); // "login" | "register" | "reset" | "reset_sent"
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -38,14 +44,13 @@ export default function LoginPage() {
   };
 
   const handleReset = async () => {
-    console.log('reset clicked', email);
     if (!email) { toast.error("Entrez votre adresse email."); return; }
     setLoading(true);
     try {
       await pb.collection("users").requestPasswordReset(email.toLowerCase());
       setMode("reset_sent");
     } catch (e) {
-      console.error('reset error:', e);
+      console.error("reset error:", e);
       toast.error("Erreur lors de l'envoi. Vérifiez votre email.");
     } finally {
       setLoading(false);
@@ -53,130 +58,193 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-md space-y-4">
+    <>
+      {/* Image de fond pleine page + overlay sombre */}
+      <div
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat -z-10"
+        style={{ backgroundImage: `url(${landscapeImg})` }}
+      />
+      <div className="fixed inset-0 bg-gradient-to-b from-black/40 via-black/55 to-black/75 -z-10" />
 
-        {mode === "login" && (
-          <div style={{
-            background: "linear-gradient(135deg, #1a0a00 0%, #3d2a0a 100%)",
-            border: "2px solid #c9a44a",
-            borderRadius: "0.75rem",
-            padding: "1rem 1.25rem",
-          }}>
-            <p style={{ color: "#ffd700", fontFamily: "Georgia, serif", fontSize: "0.95rem", fontWeight: "bold", marginBottom: "0.4rem" }}>
-              ⚠️ Suite à la migration serveur
-            </p>
-            <p style={{ color: "#f5e6c0", fontFamily: "sans-serif", fontSize: "0.85rem", lineHeight: 1.5, margin: 0 }}>
-              Si vous aviez déjà un compte, votre personnage est conservé.<br />
-              Définissez simplement votre nouveau mot de passe ci-dessous.
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
-              <span style={{ color: "#c9a44a", fontSize: "1.3rem" }}>↓</span>
-              <span style={{ color: "#c9a44a", fontFamily: "sans-serif", fontSize: "0.8rem", fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase" }}>
-                Cliquez sur "Première connexion ou mot de passe oublié ?"
-              </span>
-            </div>
-          </div>
-        )}
+      {/* 11/05/2026 : Bannière PWA install (déplacée depuis LandingPage qui a
+          été supprimée). Sticky en haut, cachée si déjà installée. */}
+      <PWAInstallBanner />
 
-        <Card className="w-full">
-          <CardHeader className="text-center pb-2">
-            <div className="text-4xl mb-2">⚔️</div>
-            <CardTitle className="font-heading text-2xl">Guildes & Couronnes</CardTitle>
-            <p className="text-sm text-muted-foreground font-body mt-1">
-              {mode === "login" && "Connectez-vous pour rejoindre le royaume"}
-              {mode === "register" && "Créez votre compte pour entrer dans les chroniques"}
-              {mode === "reset" && "Réinitialisez votre mot de passe"}
-              {mode === "reset_sent" && "Email envoyé !"}
-            </p>
-          </CardHeader>
-          <CardContent className="space-y-4">
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4 py-3 overflow-y-auto">
+        {/* Titre + sous-titre compact */}
+        <div className="text-center mb-3">
+          <div className="text-3xl sm:text-5xl mb-0.5 drop-shadow-lg leading-none">⚔️</div>
+          <h1
+            className="font-heading text-xl sm:text-3xl font-bold tracking-wide drop-shadow-[0_3px_3px_rgba(0,0,0,0.9)] leading-tight"
+            style={{ color: "#f5e6c0" }}
+          >
+            Guildes &amp; Couronnes
+          </h1>
+          <p
+            className="font-body text-[11px] sm:text-sm mt-0.5 drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]"
+            style={{ color: "#e8d8b0" }}
+          >
+            {mode === "login" && "Rejoignez le royaume"}
+            {mode === "register" && "Créez votre légende"}
+            {mode === "reset" && "Réinitialisation"}
+            {mode === "reset_sent" && "Email envoyé !"}
+          </p>
+        </div>
 
-            {mode === "reset_sent" ? (
-              <div className="space-y-4">
-                <div style={{ background: "#1a0a00", border: "2px solid #c9a44a", borderRadius: "0.75rem", padding: "1.25rem" }}>
-                  <p style={{ color: "#ffd700", fontWeight: "bold", marginBottom: "0.75rem", fontFamily: "Georgia, serif", fontSize: "0.95rem" }}>
-                    📧 Vérifiez votre boîte mail
-                  </p>
-                  <ul style={{ color: "#f5e6c0", fontFamily: "sans-serif", fontSize: "0.85rem", lineHeight: 2, paddingLeft: "1.2rem", margin: 0 }}>
-                    <li>Consultez vos <strong style={{ color: "#ffd700" }}>spams / courriers indésirables</strong></li>
-                    <li>L'email peut mettre 1 à 2 minutes à arriver</li>
-                    <li>L'expéditeur est <strong style={{ color: "#ffd700" }}>lucas.brunet51@gmail.com</strong></li>
-                  </ul>
-                </div>
-                <div style={{ background: "#0a0804", border: "1px solid #3d2a0a", borderRadius: "0.5rem", padding: "1rem" }}>
-                  <p style={{ color: "#a89070", fontFamily: "sans-serif", fontSize: "0.8rem", lineHeight: 1.7, margin: 0 }}>
-                    🛠️ <strong style={{ color: "#c9a44a" }}>Bug en jeu ?</strong> Appuyez sur <strong style={{ color: "#c9a44a" }}>Ctrl + Shift + R</strong> pour vider le cache et forcer le rechargement.
-                  </p>
-                </div>
-                <p className="text-center text-xs text-muted-foreground font-body">
-                  En cas de problème : <a href="mailto:lucas.brunet51@gmail.com" className="text-primary underline">lucas.brunet51@gmail.com</a>
+        {/* Card semi-transparente */}
+        <div
+          className="w-full max-w-md rounded-xl p-3 sm:p-5 space-y-2.5 shadow-2xl border"
+          style={{
+            background: "rgba(20, 16, 12, 0.78)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            borderColor: "rgba(201, 164, 74, 0.4)",
+          }}
+        >
+          {mode === "reset_sent" ? (
+            <>
+              <div
+                style={{
+                  background: "rgba(26, 10, 0, 0.6)",
+                  border: "2px solid #c9a44a",
+                  borderRadius: "0.75rem",
+                  padding: "1rem",
+                }}
+              >
+                <p style={{ color: "#ffd700", fontWeight: "bold", marginBottom: "0.6rem", fontFamily: "Georgia, serif", fontSize: "0.95rem" }}>
+                  📧 Vérifiez votre boîte mail
                 </p>
-                <Button className="w-full font-heading" onClick={() => setMode("login")}>
-                  Retour à la connexion
-                </Button>
+                <ul style={{ color: "#f5e6c0", fontFamily: "sans-serif", fontSize: "0.82rem", lineHeight: 1.8, paddingLeft: "1.2rem", margin: 0 }}>
+                  <li>Consultez vos <strong style={{ color: "#ffd700" }}>spams</strong></li>
+                  <li>1 à 2 minutes pour recevoir l'email</li>
+                  <li>Expéditeur : <strong style={{ color: "#ffd700" }}>lucas.brunet51@gmail.com</strong></li>
+                </ul>
               </div>
-
-            ) : mode === "reset" ? (
-              <>
+              <Button className="w-full font-heading" onClick={() => setMode("login")}>
+                Retour à la connexion
+              </Button>
+            </>
+          ) : mode === "reset" ? (
+            <>
+              <div className="space-y-1">
+                <Label className="font-body" style={{ color: "#f5e6c0" }}>Email</Label>
+                <Input
+                  type="email"
+                  placeholder="votre@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="font-body bg-background/95"
+                  onKeyDown={(e) => e.key === "Enter" && handleReset()}
+                />
+              </div>
+              <Button className="w-full font-heading" onClick={handleReset} disabled={loading}>
+                {loading ? "Envoi..." : "📧 Envoyer le lien"}
+              </Button>
+              <p className="text-center text-xs font-body">
+                <button
+                  onClick={() => setMode("login")}
+                  style={{ color: "#c9a44a", textDecoration: "underline" }}
+                >
+                  Retour à la connexion
+                </button>
+              </p>
+            </>
+          ) : (
+            <>
+              {mode === "register" && (
                 <div className="space-y-1">
-                  <Label className="font-body">Email</Label>
-                  <Input type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} className="font-body"
-                    onKeyDown={e => e.key === "Enter" && handleReset()} />
+                  <Label className="font-body" style={{ color: "#f5e6c0" }}>Votre nom</Label>
+                  <Input
+                    placeholder="Nom d'affichage"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="font-body bg-background/95"
+                  />
                 </div>
-                <Button className="w-full font-heading" onClick={handleReset} disabled={loading}>
-                  {loading ? "Envoi..." : "📧 Envoyer le lien de réinitialisation"}
-                </Button>
-                <p className="text-center text-sm text-muted-foreground font-body">
-                  <button onClick={() => setMode("login")} className="text-primary underline">Retour à la connexion</button>
+              )}
+              <div className="space-y-1">
+                <Label className="font-body" style={{ color: "#f5e6c0" }}>Email</Label>
+                <Input
+                  type="email"
+                  placeholder="votre@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="font-body bg-background/95"
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="font-body" style={{ color: "#f5e6c0" }}>Mot de passe</Label>
+                <Input
+                  type="password"
+                  placeholder="••••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="font-body bg-background/95"
+                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                />
+              </div>
+              <Button
+                className="w-full font-heading text-sm sm:text-base h-10 sm:h-11 shadow-lg"
+                onClick={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? "..." : mode === "login" ? "Se connecter ⚔️" : "Créer mon compte ⚔️"}
+              </Button>
+              {mode === "login" && (
+                <p className="text-center text-xs font-body">
+                  <button
+                    onClick={() => setMode("reset")}
+                    style={{ color: "#c9a44a", textDecoration: "underline", fontWeight: "bold" }}
+                  >
+                    Mot de passe oublié ?
+                  </button>
                 </p>
-              </>
-
-            ) : (
-              <>
-                {mode === "register" && (
-                  <div className="space-y-1">
-                    <Label className="font-body">Votre nom</Label>
-                    <Input placeholder="Nom d'affichage" value={name} onChange={e => setName(e.target.value)} className="font-body" />
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <Label className="font-body">Email</Label>
-                  <Input type="email" placeholder="votre@email.com" value={email} onChange={e => setEmail(e.target.value)} className="font-body"
-                    onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="font-body">Mot de passe</Label>
-                  <Input type="password" placeholder="••••••••••" value={password} onChange={e => setPassword(e.target.value)} className="font-body"
-                    onKeyDown={e => e.key === "Enter" && handleSubmit()} />
-                </div>
-                <Button className="w-full font-heading" onClick={handleSubmit} disabled={loading}>
-                  {loading ? "..." : mode === "login" ? "Se connecter ⚔️" : "Créer mon compte ⚔️"}
-                </Button>
-                {mode === "login" && (
-                  <p className="text-center text-xs font-body">
-                    <button onClick={() => setMode("reset")} style={{ color: "#c9a44a", textDecoration: "underline", fontWeight: "bold" }}>
-                      ← Première connexion ou mot de passe oublié ?
+              )}
+              <p
+                className="text-center text-xs font-body pt-2 border-t"
+                style={{ borderColor: "rgba(201, 164, 74, 0.25)", color: "#d8c890" }}
+              >
+                {mode === "login" ? (
+                  <>
+                    Pas encore de compte ?{" "}
+                    <button
+                      onClick={() => setMode("register")}
+                      style={{ color: "#c9a44a", textDecoration: "underline" }}
+                    >
+                      S'inscrire
                     </button>
-                  </p>
+                  </>
+                ) : (
+                  <>
+                    Déjà un compte ?{" "}
+                    <button
+                      onClick={() => setMode("login")}
+                      style={{ color: "#c9a44a", textDecoration: "underline" }}
+                    >
+                      Se connecter
+                    </button>
+                  </>
                 )}
-                <p className="text-center text-sm text-muted-foreground font-body">
-                  {mode === "login" ? (
-                    <>Pas encore de compte ?{" "}<button onClick={() => setMode("register")} className="text-primary underline">S'inscrire</button></>
-                  ) : (
-                    <>Déjà un compte ?{" "}<button onClick={() => setMode("login")} className="text-primary underline">Se connecter</button></>
-                  )}
-                </p>
-                <p className="text-center text-xs text-muted-foreground font-body pt-2 border-t border-border">
-                  En cas de problème lors de la migration :<br />
-                  <a href="mailto:lucas.brunet51@gmail.com" className="text-primary underline">lucas.brunet51@gmail.com</a>
-                </p>
-              </>
-            )}
+              </p>
+            </>
+          )}
+        </div>
 
-          </CardContent>
-        </Card>
+        {/* Footer support discret */}
+        <p
+          className="font-body text-[9px] sm:text-[10px] mt-2 sm:mt-4 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)]"
+          style={{ color: "rgba(232, 216, 176, 0.7)" }}
+        >
+          Support :{" "}
+          <a
+            href="mailto:lucas.brunet51@gmail.com"
+            style={{ color: "#c9a44a", textDecoration: "underline" }}
+          >
+            lucas.brunet51@gmail.com
+          </a>
+        </p>
       </div>
-    </div>
+    </>
   );
 }

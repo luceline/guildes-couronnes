@@ -49,6 +49,9 @@ const COLLECTION_MAP = {
   ProtectionDome:       'protection_dome',
   CityEvent:            'city_events',
   BugReport:            'bug_reports',
+  TombolaState:         'tombola_state',
+  TombolaParticipations:'tombola_participations',
+  TombolaHistory:       'tombola_history',
 };
 
 // Collections qui stockent tout dans un champ JSON data

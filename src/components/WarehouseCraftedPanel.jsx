@@ -159,7 +159,9 @@ export default function WarehouseCraftedPanel({
                 )}
               </div>
               <span className="text-xs text-muted-foreground font-body w-16">Inv: {playerQty}</span>
-              <input type="number" min={1} max={playerQty} value={Math.min(amount, playerQty)}
+              <input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={1} max={playerQty} value={Math.min(amount, playerQty)}
                 onChange={e => setDepositAmounts(prev => ({ ...prev, [item.key]: Math.max(1, Math.min(playerQty, Number(e.target.value))) }))}
                 className="w-16 h-7 text-xs text-center border border-indigo-200 rounded font-body"
                 onFocus={e => e.target.select()} />

@@ -63,7 +63,9 @@ export default function BankPanel({
             <div className="space-y-1">
               <label className="text-xs font-body text-muted-foreground">Taux prêt (%) : 0 = désactivé</label>
               <div className="flex items-center gap-1">
-                <input type="number" min={0} max={50} value={loanRate}
+                <input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={50} value={loanRate}
                   onChange={e => setLoanRate(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
                   className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
                   onFocus={e => e.target.select()} />
@@ -74,7 +76,9 @@ export default function BankPanel({
             <div className="space-y-1">
               <label className="text-xs font-body text-muted-foreground">Taux dépôt (%) : 0 = désactivé</label>
               <div className="flex items-center gap-1">
-                <input type="number" min={0} max={30} value={depositRate}
+                <input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={0} max={30} value={depositRate}
                   onChange={e => setDepositRate(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
                   className="w-16 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
                   onFocus={e => e.target.select()} />
@@ -135,7 +139,9 @@ export default function BankPanel({
           ) : (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1">
-                <input type="number" min={50} max={Math.min(500, city.gold_treasury || 0)} step={50} value={loanAmount}
+                <input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={50} max={Math.min(500, city.gold_treasury || 0)} step={50} value={loanAmount}
                   onChange={e => setLoanAmount(Math.max(50, parseInt(e.target.value) || 50))}
                   className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
                   onFocus={e => e.target.select()} />
@@ -175,7 +181,9 @@ export default function BankPanel({
           })}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
-              <input type="number" min={50} max={profile.gold || 0} step={50} value={depositAmount}
+              <input type="number"
+                       inputMode="numeric"
+                       pattern="[0-9]*" min={50} max={profile.gold || 0} step={50} value={depositAmount}
                 onChange={e => setDepositAmount(Math.max(50, parseInt(e.target.value) || 50))}
                 className="w-20 h-7 text-xs text-center border border-input rounded-md bg-background px-2"
                 onFocus={e => e.target.select()} />
