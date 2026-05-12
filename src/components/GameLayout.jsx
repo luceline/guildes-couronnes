@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Home, Building2, Hammer, Sword, BookOpen, Menu, X, Settings, HelpCircle, Moon, Sun, MoreHorizontal, MessageCircle, Bug, LogOut } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DISCORD_INVITE_URL } from "@/lib/links";
@@ -15,7 +15,6 @@ import MiniStatusBar from "@/components/MiniStatusBar";
 import LoginStreakPopup from "@/components/LoginStreakPopup";
 import { useTheme } from "@/lib/useTheme.jsx";
 import { usePlayerData } from "@/lib/usePlayerData";
-import { useProfile } from "@/lib/ProfileContext";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -96,18 +95,13 @@ export default function GameLayout() {
   const [showBugReport, setShowBugReport] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
-  // 11/05/2026 (v2) : profile vient du ProfileContext (source unique, refresh
-  // global instantané quand n'importe quelle page modifie le profile).
-  // city/homeCity continuent à venir de usePlayerData (logique métier locale,
-  // pas dans le context). refreshProfile = celui du context pour propager
-  // les updates ; refreshLocal = celui de usePlayerData pour les villes.
-  const { profile, refreshProfile } = useProfile();
-  const { city, homeCity, refresh: refreshLocal } = usePlayerData();
-  // Wrapper qui refresh à la fois le context (profile) et le local (city)
-  const refresh = useCallback(async () => {
-    await refreshLocal();
-    await refreshProfile?.();
-  }, [refreshLocal, refreshProfile]);
+  // 12/05/2026 : profile, city, homeCity viennent désormais du même
+  // PlayerDataContext (source unique de vérité, refresh global instantané).
+  // Avant : 2 instances (useProfile pour profile, usePlayerData pour city),
+  // ce qui causait un bug de désynchro après voyage où city de GameLayout
+  // restait stale alors que TravelPage avait la nouvelle. Voir
+  // PlayerDataContext.jsx pour le détail.
+  const { profile, city, homeCity, refresh } = usePlayerData();
 
   // 11/05/2026 : détection mobile robuste (résout les bugs landscape sur
   // grands smartphones type Pixel 8 Pro où la largeur > 768px en landscape
