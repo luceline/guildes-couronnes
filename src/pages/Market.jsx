@@ -16,7 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Drawer, DrawerNested, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Search } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ITEM_CATEGORIES } from "../lib/gameData";
@@ -966,27 +967,17 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           )}
         </div>
 
-        {/* 12/05/2026 : Drawer "Mettre en vente" (remplace l'ancien Dialog).
-            Bug v1 fixé : le Dialog Radix parent ouvrait un Drawer vaul enfant
-            pour le picker d'item, ce qui causait un comportement étrange sur
-            mobile (conflit body-lock Radix + vaul).
-            Solution v1 : remplacer Dialog parent par Drawer.
-            Bug v2 fixé (vraie cause) : empiler deux Drawer vaul standard (Root
-            sur Root) casse vaul — le contenu du parent disparaît visuellement
-            (page entièrement vide sauf image de fond CSS) dès l'ouverture du
-            second drawer.
-            Solution v2 : utiliser DrawerNested (= vaul.NestedRoot) pour le
-            drawer enfant. C'est l'API officielle vaul pour gérer les drawers
-            imbriqués correctement. Voir vaul.emilkowal.ski section Nested. */}
-        <Button className="font-heading" onClick={() => setSellOpen(true)}>
-          Vendre 🏷️
-        </Button>
-        <Drawer open={sellOpen} onOpenChange={setSellOpen}>
-          <DrawerContent className="max-h-[90vh]">
-            <DrawerHeader>
-              <DrawerTitle className="font-heading">Mettre en vente</DrawerTitle>
-            </DrawerHeader>
-            <div className="px-4 pb-6 overflow-y-auto space-y-4">
+        <Dialog open={sellOpen} onOpenChange={setSellOpen}>
+           <DialogTrigger asChild>
+             <Button className="font-heading">
+               Vendre 🏷️
+             </Button>
+           </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-heading">Mettre en vente</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
               <p className="text-xs text-muted-foreground font-body bg-muted/40 rounded px-3 py-2">
                 📍 Annonce postée sur le marché de <strong>{city.name}</strong>.
                 {` L'acheteur paiera +${taxRate}% de taxes reversées à ${city.name}.`}
@@ -1071,15 +1062,15 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 Mettre en vente
               </Button>
             </div>
-          </DrawerContent>
-        </Drawer>
+          </DialogContent>
+        </Dialog>
 
         {/* Drawer picker d'item à vendre (10/05/2026)
          * Remplace l'ancien SelectContent shadcn qui scrollait mal sur mobile.
          * Inclut une barre de recherche pour filtrer rapidement parmi un grand
          * inventaire. Filtre tier <= 3 (T4/T5 masqués) — aligné avec les autres
          * lieux qui filtrent l'inventaire vendable. */}
-        <DrawerNested open={pickerOpen} onOpenChange={setPickerOpen}>
+        <Drawer open={pickerOpen} onOpenChange={setPickerOpen}>
           <DrawerContent className="max-h-[85vh]">
             <DrawerHeader>
               <DrawerTitle className="font-heading">Choisir un objet à vendre</DrawerTitle>
@@ -1165,7 +1156,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               })()}
             </div>
           </DrawerContent>
-        </DrawerNested>
+        </Drawer>
       </div>
 
       <MarketInsights />
