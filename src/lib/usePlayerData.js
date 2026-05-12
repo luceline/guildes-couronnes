@@ -56,7 +56,33 @@ export function usePlayerData() {
       p = await applyHungerRegen(p, homeCityForRegen);
       p = await handleTravelArrival(p);
 
+      // 12/05/2026 : fix race condition setProfile/setCity.
+      // Avant : setProfile était appelé AVANT l'await City.get(), créant une
+      // fenêtre de ~100ms où profile.city_id pointait vers la nouvelle ville
+      // mais city contenait encore l'ancienne. Bug visible à la fin d'un
+      // voyage : "Vous êtes à [ancienne ville]" affiché après l'arrivée.
+      // Fix : on charge city + homeCity AVANT tous les setState, puis on
+      // déclenche tous les setState côte à côte. React 18 les batche
+      // automatiquement → un seul re-render avec profile + city + homeCity
+      // cohérents entre eux.
+      // ⚠️ TECHDEBT : voir patch 2 — completeTravel (Travel.jsx) et
+      // handleTravelArrival (lib/) ont une logique d'arrivée dupliquée.
+      // Travel.jsx ne met pas `current_biome` alors que handleTravelArrival
+      // le fait. À unifier dans une session dédiée avec tests péage/bandit/
+      // plume de vent/statue royale palier 4.
+      let freshCity = null;
+      let freshHomeCity = null;
+      if (p.city_id) {
+        const fetched = await base44.entities.City.get(p.city_id).catch(() => null);
+        freshCity = fetched || allCities.find(c => c.id === p.city_id) || null;
+        const homeCityId = p.home_city_id || p.city_id;
+        freshHomeCity = allCities.find(c => c.id === homeCityId) || null;
+      }
+
+      // Tous les setState ensemble — batchés en un seul render par React 18
       setCities(allCities);
+      setCity(freshCity);
+      setHomeCity(freshHomeCity);
       setProfile(p);
 
       // 11/05/2026 : notifie le ProfileContext global après chaque refresh
@@ -64,14 +90,6 @@ export function usePlayerData() {
       // context se met à jour automatiquement après n'importe quelle action.
       // Pas d'await : on lance en feu-et-oublie pour ne pas bloquer le rendu.
       refreshProfile?.();
-
-      if (p.city_id) {
-        // Utiliser City.get() pour avoir les données fraîches de la ville courante
-        const freshCity = await base44.entities.City.get(p.city_id).catch(() => null);
-        setCity(freshCity || allCities.find(c => c.id === p.city_id) || null);
-        const homeCityId = p.home_city_id || p.city_id;
-        setHomeCity(allCities.find(c => c.id === homeCityId) || null);
-      }
     } catch (e) {
       console.warn("usePlayerData:", e);
     } finally {
