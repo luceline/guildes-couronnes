@@ -302,15 +302,28 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
         <CardContent className="space-y-3">
           {isOnVacation(profile) ? (
             <>
-              <div className="text-sm font-body text-blue-800">
+              <div className="text-sm font-body text-blue-800 space-y-2">
                 <p className="font-semibold">✅ Mode vacances actif</p>
-                <p className="text-xs mt-1 text-blue-700">
-                  Votre compte est protégé jusqu'au <strong>{new Date(profile.vacation_until).toLocaleDateString("fr-FR")}</strong>.
-                  Les impôts et la suppression pour inactivité sont suspendus.
+                <p className="text-xs text-blue-700">
+                  Compte protégé jusqu'au <strong>{new Date(profile.vacation_until).toLocaleDateString("fr-FR")}</strong>.
                 </p>
                 {isVacationExpiringSoon(profile) && (
-                  <p className="text-xs mt-1 text-orange-600 font-semibold">⚠️ Votre mode vacances expire dans moins de 2 jours !</p>
+                  <p className="text-xs text-orange-600 font-semibold">⚠️ Votre mode vacances expire dans moins de 2 jours !</p>
                 )}
+                <div className="text-xs text-blue-700 border-t border-blue-200 pt-2 mt-2 space-y-0.5">
+                  <p className="font-semibold">Ce qui est suspendu :</p>
+                  <p>• Impôts journaliers et entretien du logement</p>
+                  <p>• Suppression pour inactivité</p>
+                  <p>• Attaques PvP : vous êtes intouchable</p>
+                  <p>• Échéances des prêts (prolongées d'autant de jours)</p>
+                </div>
+                <div className="text-xs text-blue-700 space-y-0.5">
+                  <p className="font-semibold">Ce qui continue :</p>
+                  <p>• Intérêts bancaires (prêts et dépôts)</p>
+                  <p>• Salaires du Palais et de la mairie</p>
+                  <p>• Consommation de l'entrepôt de votre ville</p>
+                  <p>• Expiration des potions, buffs et annonces marché</p>
+                </div>
               </div>
               <Button variant="outline" className="w-full font-body text-blue-700 border-blue-300" onClick={handleVacation}>
                 Annuler le mode vacances
@@ -319,8 +332,7 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
           ) : (
             <>
               <p className="text-sm text-muted-foreground font-body">
-                Partez l'esprit tranquille : votre personnage est mis en pause pendant <strong>15 jours maximum</strong>.
-                Les impôts journaliers et la suppression pour inactivité sont suspendus.
+                Partez l'esprit tranquille : <strong>15 jours maximum</strong>. Impôts, entretien, suppression pour inactivité et attaques PvP sont suspendus. Les intérêts bancaires et la consommation de votre ville continuent.
               </p>
               <Button variant="outline" className="w-full font-body" onClick={handleVacation}>
                 🏖️ Activer le mode vacances (15 jours)

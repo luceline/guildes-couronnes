@@ -110,6 +110,7 @@ import {
   getPlayerHP,
   isPlayerKO,
 } from "./gameData";
+import { isOnVacation } from "./inactivityCheck";
 
 // ──────────────────────────────────────────────────────────────────────────
 // Helpers internes
@@ -160,6 +161,10 @@ export function canChallenge(attacker, target, todayChallenges = [], context = {
   if (attacker.id === target.id) return { ok: false, reason: "Vous ne pouvez pas vous défier vous-même." };
   if (isPlayerKO(attacker)) return { ok: false, reason: "Vous êtes blessé, vous ne pouvez pas attaquer." };
   if (isPlayerKO(target)) return { ok: false, reason: "Cette cible est blessée et intouchable." };
+  // 12/05/2026 : un joueur en mode vacances est intouchable (comme un KO).
+  // Cohérence avec la promesse UI "compte protégé pendant les vacances".
+  // L'attaquant peut quand même initier l'action mais reçoit ce refus clair.
+  if (isOnVacation(target)) return { ok: false, reason: "Cette cible est en congé du royaume — il faudra attendre son retour." };
 
   const today = new Date().toISOString().split("T")[0];
   const alreadyAttacked = todayChallenges.some(c =>
