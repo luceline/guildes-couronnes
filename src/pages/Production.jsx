@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
-import { useProfile } from "@/lib/ProfileContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +25,7 @@ import { logGold } from '@/lib/goldLog';
 import { getPriceMultiplier } from "../lib/pricingData";
 import {
   PROFESSION_PRODUCTION, CRAFTING_RECIPES, ITEMS, ITEM_EFFECTS,
-  FOOD_ITEMS_WITH_FATIGUE, TEMP_EFFECT_ITEMS, ACTION_FATIGUE_COST,
+  FOOD_ITEMS_WITH_FATIGUE, TEMP_EFFECT_ITEMS, ACTION_FATIGUE_COST, TOOL_CHARGES_PER_SET,
   computeFatigueWithDailyReset, getTodayStr,
 } from "../lib/craftingData";
 import { getTodayPvpRecipes } from "../lib/pvpRecipes";
@@ -77,9 +76,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   const [coupDeMaitre, setCoupDeMaitre] = useState(null);
   const [travelingError, setTravelingError] = useState(false);
   const [crafting, setCrafting] = useState(null);
-  // 11/05/2026 : filtre par tier dans l'onglet Fabriquer (compaction écran).
-  // Valeurs : "1.5" (PvP), "2", "3". T4/T5 cachés pour l'instant (cf. masquage v3).
-  const [craftTierFilter, setCraftTierFilter] = useState("1.5");
   const [now, setNow] = useState(Date.now());
   const [confirmConsume, setConfirmConsume] = useState(null); // { type: "food"|"temp"|"meuble"|"contrat", key, def }
   const [consumingFood, setConsumingFood] = useState(null);
@@ -137,22 +133,8 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   const cityFatigueBonus = getCityFatigueBonus(cityBuildings);
   const effectiveMaxHunger = getMaxHunger(profile || {}, cityHungerBonus);
 
-  const [localFatigue, setLocalFatigueRaw] = useState(null);
-  const [localHunger, setLocalHungerRaw] = useState(null);
-
-  // 11/05/2026 : wrappers qui mettent à jour le state local ET le ProfileContext
-  // global, pour que MiniStatusBar et autres composants voient les changements
-  // de faim/énergie en temps réel (les valeurs sont stockées localement ici
-  // pour réactivité instantanée → on les propage manuellement au context).
-  const { refreshOptimistic } = useProfile();
-  const setLocalFatigue = (v) => {
-    setLocalFatigueRaw(v);
-    if (v != null && typeof v !== "function") refreshOptimistic({ fatigue: v });
-  };
-  const setLocalHunger = (v) => {
-    setLocalHungerRaw(v);
-    if (v != null && typeof v !== "function") refreshOptimistic({ hunger: v });
-  };
+  const [localFatigue, setLocalFatigue] = useState(null);
+  const [localHunger, setLocalHunger] = useState(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -295,56 +277,10 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     onRefresh?.();
   };
 
-  // ── Prix de rachat mairie : uniquement le lingot royal (T5 Orfèvre) ──
-  // Référence 800 or si aucun prix configuré par le maire (modifiable de 1 à 5000)
-  const LINGOT_ROYAL_PRICE = (city?.lingot_buy_prices?.lingot_royal) || 800;
-
-  const handleSellLingotToMairie = async (itemKey, itemName) => {
-    if (itemKey !== "lingot_royal") return; // seul le T5 est accepté
-    if (profile.home_city_id !== city?.id) {
-      toast.error("🏛️ Vous ne pouvez vendre vos lingots qu'à la mairie de votre ville d'origine.");
-      return;
-    }
-    const price = LINGOT_ROYAL_PRICE;
-    const treasury = city.gold_treasury || 0;
-    const FONDS_MIN = 200;
-    if (treasury - price < FONDS_MIN) {
-      toast.error(`🏦 La trésorerie est insuffisante (fonds minimum : ${FONDS_MIN}💰 réservés).`);
-      return;
-    }
-    const lingotInv = (profile.inventory || []).find(i => i.item_key === itemKey || i.item_name === itemName);
-    if (!lingotInv || lingotInv.quantity <= 0) {
-      toast.error("Vous n'avez pas ce lingot."); return;
-    }
-    const newInv = (profile.inventory || [])
-      .map(i => (i.item_key === itemKey || i.item_name === lingotInv.item_name)
-        ? { ...i, quantity: i.quantity - 1 } : i)
-      .filter(i => i.quantity > 0);
-
-    await base44.entities.PlayerProfile.update(profile.id, {
-      gold: (profile.gold || 0) + price,
-      inventory: newInv,
-    });
-
-    // Stocker dans l'entrepôt + incrémenter lingots_cumul (prestige)
-    const currentWarehouse = city.warehouse || {};
-    const currentRoyalStock = currentWarehouse.lingot_royal || 0;
-    const currentCumul = city.lingots_cumul || 0;
-    await base44.entities.City.update(city.id, {
-      gold_treasury:  Math.max(0, treasury - price),
-      warehouse:      { ...currentWarehouse, lingot_royal: currentRoyalStock + 1 },
-      lingots_stock:  currentRoyalStock + 1, // garde la compatibilité avec steal_treasury
-      lingots_cumul:  currentCumul + 1,
-    });
-
-    await logGold({
-      profile, city,
-      amount: price, type: "vente_lingot",
-      description: `Vente lingot royal à la mairie (trésorerie −${price}💰)`,
-    });
-    toast.success(`👑 Le maire reçoit votre lingot royal avec faste ! +${price}💰. La cité compte désormais ${currentRoyalStock + 1} lingot(s) royal/aux.`);
-    onRefresh?.();
-  };
+  // 11/05/2026 : handler handleSellLingotToMairie retiré.
+  // L'item lingot_royal (T5) a été supprimé du jeu. La trésorerie de ville
+  // sera mise à jour par le futur système "brûler trésorerie" pour monter
+  // les tiers.
 
 
   const handleConsumeFood = async (foodKey) => {
@@ -676,12 +612,9 @@ export default function Production({ profile, city, homeCity, onRefresh, default
       onRefresh?.();
       return;
 
-    } else if (itemDef.effect === "army_food" || itemDef.effect === "army_energy") {
-      // REFONTE v5 : Ragoût T4 / Potion d'endurance T4 : ressources militaires.
-      // Ne sont PAS consommables individuellement par le joueur. Doivent passer
-      // par le maire via le panneau Gouvernance > Approvisionnement armée.
-      toast(`🏰 ${itemDef.name} : ressource militaire, à déposer en entrepôt par le maire.`);
-      return;
+    // 11/05/2026 : handler army_food / army_energy retiré (système militaire
+    // supprimé). Ragoût T4 et Potion d'endurance T4 ont été reconvertis en
+    // consommables joueur classiques (effect: "hunger_restore" / "fatigue_restore").
 
     } else if (itemDef.effect === "hunger_restore") {
       // Blé / Farine / Pain : +X faim instant
@@ -861,10 +794,11 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     ];
     const recipe = allRecipes.find(r => r.id === recipeId);
     if (!recipe) return 0;
-    // 11/05/2026 : mécanique "Outils T4" supprimée. Plus de pénalité cooldown ×2.
-    // reduction = 0 (l'item Outils n'apporte plus de réduction). penalty = 1.
-    const reduction = 0;
-    const penalty = 1;
+    const hasToolCharges = (profile?.tool_charges || 0) > 0;
+    const reduction = hasToolCharges ? (ITEM_EFFECTS.outils?.value || 0) : 0;
+    // 11/05/2026 : COOLDOWN_PENALTY_NO_TOOLS retiré. Plus de malus quand
+    // l'outil d'artisan est épuisé. L'outil reste utile pour son bonus
+    // actif (reduction) mais ne pénalise plus quand il est à 0.
     const tractsActive = city?.production_malus?.tracts_greve_active_until && new Date(city.production_malus.tracts_greve_active_until) > new Date();
     const tractsMalus = tractsActive ? 1.2 : 1;
     const cityLingotBonus = getCityBonuses(city?.lingots_cumul || 0).cooldownReduction / 100;
@@ -881,7 +815,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     // le bonus quantité quartz scalé par niveau (cf. plus bas).
     const levelBonuses = getPlayerLevelBonuses(profile?.player_level || 1);
     const levelCooldownBonus = levelBonuses.cooldownBonus / 100; // −1% par niveau
-    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - workFestivalBonus) * (1 - statuePalier1Bonus) * (1 - levelCooldownBonus) * penalty * tractsMalus;
+    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - workFestivalBonus) * (1 - statuePalier1Bonus) * (1 - levelCooldownBonus) * tractsMalus;
     const elapsed = (Date.now() - new Date(lastProduced).getTime()) / 1000;
     return Math.max(0, effectiveCooldown - elapsed);
   };
@@ -1028,9 +962,19 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     setLocalFatigue(newFatigue);
     setLocalHunger(newHunger);
 
-    // 11/05/2026 : mécanique "Outils T4" supprimée. Plus de consommation
-    // de tool_charges ni d'item Outils. updatedInventory = newInventory inchangé.
-    const updatedInventory = newInventory;
+    let newToolCharges = profile.tool_charges || 0;
+    if (newToolCharges > 0) newToolCharges = newToolCharges - 1;
+
+    let updatedInventory = newInventory;
+    if (newToolCharges === 0) {
+      const toolIdx = newInventory.findIndex(i => i.item_key === "outils" || i.item_name === "Outils");
+      if (toolIdx >= 0 && newInventory[toolIdx].quantity > 0) {
+        updatedInventory = newInventory.map((it, idx) =>
+          idx === toolIdx ? { ...it, quantity: it.quantity - 1 } : it
+        ).filter(i => i.quantity > 0);
+        newToolCharges = TOOL_CHARGES_PER_SET;
+      }
+    }
 
     // ── Gain XP : +1 XP par récolte T1 sur biome ──
     const xpGain = grantXP(profile, XP_REWARDS.HARVEST_T1);
@@ -1040,6 +984,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
       production_cooldowns: newCooldowns,
         // biome_harvest_bonus_expires_at expire tout seul : pas besoin de décrémenter
       fatigue: newFatigue,
+      tool_charges: newToolCharges,
       hunger: newHunger,
       ...(newHunger < (profile.hunger ?? 10) ? { hunger_regen_at: new Date().toISOString() } : {}),
       ...(newFatigue < (profile.fatigue ?? 80) ? { fatigue_regen_at: new Date().toISOString() } : {}),
@@ -1305,9 +1250,18 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     setLocalFatigue(newFatigue);
     setLocalHunger(newHunger);
 
-    // 11/05/2026 : mécanique "Outils T4" supprimée. Plus de logique de
-    // chargement automatique des Outils ni de tool_charges. finalInv inchangé.
-    const finalInv = cleanInvFinal;
+    let newToolCharges = profile.tool_charges || 0;
+    let finalInv = cleanInvFinal;
+    if (recipe.output.key === "outils" && newToolCharges === 0) {
+      const outIdx = finalInv.findIndex(i => i.item_key === "outils" || i.item_name === "Outils");
+      if (outIdx >= 0 && finalInv[outIdx].quantity > 0) {
+        finalInv = finalInv.map((it, idx) =>
+          idx === outIdx ? { ...it, quantity: it.quantity - 1 } : it
+        ).filter(i => i.quantity > 0);
+        newToolCharges = TOOL_CHARGES_PER_SET;
+        toast(`🔧 Outils chargés ! ${TOOL_CHARGES_PER_SET} charges disponibles.`);
+      }
+    }
 
     // REFONTE ITEMS v5 : initialise bourse_uses_left = 5 si on craft la 1ère bourse
     // (si le joueur en a déjà une avec un compteur en cours, on ne touche pas : la nouvelle stack)
@@ -1332,6 +1286,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     await base44.entities.PlayerProfile.update(profile.id, {
       inventory: finalInv,
       fatigue: newFatigue,
+      tool_charges: newToolCharges,
       hunger: newHunger,
       ...(newHunger < (profile.hunger ?? 10) ? { hunger_regen_at: new Date().toISOString() } : {}),
       ...(newFatigue < (profile.fatigue ?? 80) ? { fatigue_regen_at: new Date().toISOString() } : {}),
@@ -1432,8 +1387,10 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     <div className="space-y-6 pb-20 md:pb-0">
       {/* PlayerStatusBar retiré (10/05/2026) — globale dans GameLayout */}
       {/* <PlayerStatusBar profile={profile} homeCity={homeCity} city={city} onRefresh={onRefresh} /> */}
-      {/* 11/05/2026 : titre h2 retiré ici, déplacé dans la TabsList sur la même
-          ligne que les onglets pour gagner en hauteur sur mobile landscape. */}
+      <div>
+        <h2 className="font-heading text-2xl font-bold mb-1 heading-medieval">{prof?.icon} Production : {profile.profession}</h2>
+        <p className="text-muted-foreground font-body text-sm">Récoltez des ressources brutes, puis transformez-les en objets de valeur.</p>
+      </div>
 
       {/* Section Actions rapides : pas de duplication des jauges ni des boutons Manger (déjà dans PlayerStatusBar)
           On garde ici uniquement les actions contextuelles à la production :
@@ -1442,6 +1399,8 @@ export default function Production({ profile, city, homeCity, onRefresh, default
       {(() => {
         const showSceau = (profile.sceau_balance || 0) > 0;
         const showT1Warning = hungryBlocked;
+        // 11/05/2026 : showToolsWarning retiré. Plus de pénalité de cooldown
+        // quand l'outil est à 0, donc plus d'avertissement à afficher.
 
         if (!showSceau && !showT1Warning) {
           return null;
@@ -1457,7 +1416,9 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               </div>
             )}
 
-            {/* 11/05/2026 : bloc "🔧 Outils épuisés" retiré (mécanique supprimée) */}
+            {/* 11/05/2026 : bloc "🔧 Outils épuisés" retiré (mécanique de
+                pénalité supprimée). L'outil d'artisan continue d'exister mais
+                sans malus quand il est à 0. */}
 
             {/* Sceau royal actif */}
             {showSceau && (
@@ -1537,25 +1498,21 @@ export default function Production({ profile, city, homeCity, onRefresh, default
         );
       })()}
       <Tabs defaultValue={defaultTab}>
-        {/* 11/05/2026 : titre + onglets sur la même ligne (gain de hauteur mobile) */}
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h2 className="font-heading text-base md:text-2xl font-bold heading-medieval whitespace-nowrap">
-            {prof?.icon} <span className="hidden sm:inline">Production : </span>{profile.profession}
-          </h2>
-          <TabsList className="font-heading h-8 md:h-10">
-            <TabsTrigger value="farm" className="text-xs md:text-sm px-2 md:px-3">🌾 Récolter</TabsTrigger>
-            <TabsTrigger value="craft" className="text-xs md:text-sm px-2 md:px-3">⚒️ Fabriquer</TabsTrigger>
-            <TabsTrigger value="atelier" className="text-xs md:text-sm px-2 md:px-3">🏪 Mon atelier</TabsTrigger>
-          </TabsList>
-        </div>
+        <TabsList className="font-heading">
+          <TabsTrigger value="farm">🌾 Récolter</TabsTrigger>
+          <TabsTrigger value="craft">⚒️ Fabriquer</TabsTrigger>
+          <TabsTrigger value="atelier">🏪 Mon atelier</TabsTrigger>
+        </TabsList>
 
-        <TabsContent value="farm" className="mt-2 space-y-2">
-          {/* 11/05/2026 : phrase d'intro retirée (compaction mobile) */}
+        <TabsContent value="farm" className="mt-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs text-muted-foreground font-body">Récoltez des ressources T1 propres à votre métier.</p>
+            <HelpTooltip text="Récoltez vos ressources T1 : blé ×2, herbes ×2, tous les autres ×1 par action. Chaque T1 a un effet consommable ou passif en inventaire. Vos bonus de rang et buff biome s'appliquent ici." />
+          </div>
           {farmRecipes.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-muted-foreground font-body">Votre métier ne permet pas de récolter directement. Achetez des matières premières sur le marché.</CardContent></Card>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {farmRecipes.map(recipe => {
+            farmRecipes.map(recipe => {
               const cooldown = getCooldownLeft(recipe.id);
               const ready = cooldown <= 0;
               const item = ITEMS[recipe.outputKey];
@@ -1567,40 +1524,40 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                 : false;
               return (
                 <Card key={recipe.id} className={ready && reqsMet && !blocked ? "border-primary/30" : "opacity-70"}>
-                  <CardContent className="p-2.5 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-2xl shrink-0">{recipe.icon}</span>
-                      <div className="flex-1 min-w-0">
+                  <CardContent className="p-5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-4 flex-1">
+                      <span className="text-3xl">{recipe.icon}</span>
+                      <div className="flex-1">
                         <ItemTooltip itemKey={recipe.outputKey} side="top">
-                          <div className="font-heading font-semibold text-sm leading-tight cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2 truncate">{recipe.name}</div>
+                          <div className="font-heading font-semibold cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{recipe.name}</div>
                         </ItemTooltip>
-                        <div className="text-[10px] text-muted-foreground font-body leading-tight">
-                          ×{recipe.quantity} · {getRecipeCost(recipe.tier || 1)}⚡/🍽️
+                        <div className="text-xs text-muted-foreground font-body">
+                          Produit ×{recipe.quantity} {item?.name} · coût {getRecipeCost(recipe.tier || 1)} ⚡/🍽️
                         </div>
                         {recipe.requiresItems && (
-                          <div className="flex flex-wrap gap-0.5 mt-0.5">
+                          <div className="flex flex-wrap gap-1 mt-1">
                             {recipe.requiresItems.map(req => {
                               const has = getInventoryQty(req.key);
                               const ok = has >= req.quantity;
                               return (
                                 <ItemTooltip key={req.key} itemKey={req.key} side="top">
-                                  <span className={`text-[10px] px-1 py-0 rounded border font-body cursor-help ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
-                                    {ITEMS[req.key]?.icon}×{req.quantity}({has})
+                                  <span className={`text-xs px-1.5 py-0.5 rounded border font-body cursor-help ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+                                    {ITEMS[req.key]?.icon} ×{req.quantity} ({has})
                                   </span>
                                 </ItemTooltip>
                               );
                             })}
                           </div>
                         )}
-                        {!ready && <Progress value={100 - (cooldown / recipe.cooldown) * 100} className="h-1 mt-1" />}
+                        {!ready && <Progress value={100 - (cooldown / recipe.cooldown) * 100} className="h-1.5 mt-1.5" />}
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
+                    <div className="flex flex-col items-end gap-1">
                       {ready && reqsMet && !blocked
-                        ? <Badge className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0">Prêt</Badge>
-                        : <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{blocked ? "💤" : !ready ? formatCooldown(cooldown) : "?"}</Badge>
+                        ? <Badge className="bg-green-100 text-green-800">Prêt</Badge>
+                        : <Badge variant="secondary">{blocked ? "💤 Pas d'énergie" : !ready ? formatCooldown(cooldown) : "Ingrédients"}</Badge>
                       }
-                      <Button size="sm" className="font-heading h-7 px-2 text-xs" onClick={() => handleFarm(recipe)}
+                      <Button size="sm" className="font-heading" onClick={() => handleFarm(recipe)}
                         disabled={!ready || !reqsMet || producing === recipe.id || blocked}>
                         {producing === recipe.id ? "..." : "Récolter"}
                       </Button>
@@ -1608,113 +1565,34 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                   </CardContent>
                 </Card>
               );
-            })}
-            </div>
+            })
           )}
         </TabsContent>
 
-        <TabsContent value="craft" className="mt-2 space-y-2">
-          {/* 11/05/2026 : phrase "Transformez vos ressources..." et bloc
-              "⚠️ Équipement requis pour crafter" retirés (compaction mobile).
-              Les exigences d'outil multifonction restent vérifiées au craft. */}
-
-          {/* 11/05/2026 : sélecteur de tier (gauche) + bandeau outil d'artisan
-              (droite) sur la même ligne pour compacter au max. T4/T5 cachés. */}
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-1 flex-wrap">
-              <button
-                onClick={() => setCraftTierFilter("1.5")}
-                className={`text-xs font-heading px-2.5 py-1 rounded border transition-colors ${
-                  craftTierFilter === "1.5"
-                    ? "bg-accent text-accent-foreground border-accent"
-                    : "bg-muted/40 border-border hover:bg-muted"
-                }`}
-              >
-                ⚔️ T1.5 PvP
-              </button>
-              <button
-                onClick={() => setCraftTierFilter("2")}
-                className={`text-xs font-heading px-2.5 py-1 rounded border transition-colors ${
-                  craftTierFilter === "2"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted/40 border-border hover:bg-muted"
-                }`}
-              >
-                T2
-              </button>
-              <button
-                onClick={() => setCraftTierFilter("3")}
-                className={`text-xs font-heading px-2.5 py-1 rounded border transition-colors ${
-                  craftTierFilter === "3"
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted/40 border-border hover:bg-muted"
-                }`}
-              >
-                T3
-              </button>
-            </div>
-
-            {/* Outil d'artisan : visible sur toute la TabsContent craft
-                (T1.5/T2/T3) car le craft PvP consomme aussi des charges. */}
-            {profile.artisan_tool_obtained ? (() => {
-              const inv = profile.inventory || [];
-              const pierreAiguiserQty = inv.find(i => i.item_key === "pierre_aiguiser")?.quantity || 0;
-              const affutageMaitreQty = inv.find(i => i.item_key === "affutage_maitre")?.quantity || 0;
-              const charges = profile.artisan_tool_charges || 0;
-              const atMax = charges >= ARTISAN_TOOL_MAX_CHARGES;
-              return (
-                <div className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 flex-wrap ${
-                  charges <= 0
-                    ? "bg-red-50 border border-red-200 text-red-800"
-                    : charges <= 5
-                      ? "bg-amber-50 border border-amber-200 text-amber-800"
-                      : "bg-emerald-50 border border-emerald-200 text-emerald-800"
-                }`}>
-                  🔨 <span className="font-bold tabular-nums">{charges}/{ARTISAN_TOOL_MAX_CHARGES}</span>
-                  <HelpTooltip text={`Outil d'artisan : utilisé à chaque craft (T1.5 PvP, T2, T3). Chaque craft consomme 1 charge. Rechargez-le avec une Pierre à aiguiser (+15) ou un Affûtage de maître (+50). Capacité max : ${ARTISAN_TOOL_MAX_CHARGES} charges.`} side="bottom" />
-                  {charges <= 0 && <span className="italic">Rechargez !</span>}
-                  {!atMax && pierreAiguiserQty > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-5 text-[10px] px-1 bg-white ml-1"
-                      disabled={crafting === "consume_pierre_aiguiser"}
-                      onClick={() => handleConsumeTempEffect({ ...ITEMS["pierre_aiguiser"], key: "pierre_aiguiser" })}
-                      title={`Pierre à aiguiser : +15 charges (cap ${ARTISAN_TOOL_MAX_CHARGES})`}
-                    >
-                      🪨×{pierreAiguiserQty}
-                    </Button>
-                  )}
-                  {!atMax && affutageMaitreQty > 0 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-5 text-[10px] px-1 bg-white"
-                      disabled={crafting === "consume_affutage_maitre"}
-                      onClick={() => handleConsumeTempEffect({ ...ITEMS["affutage_maitre"], key: "affutage_maitre" })}
-                      title={`Affûtage de maître : +50 charges (cap ${ARTISAN_TOOL_MAX_CHARGES})`}
-                    >
-                      ⚙️×{affutageMaitreQty}
-                    </Button>
-                  )}
-                </div>
-              );
-            })() : (
-              <Button
-                onClick={handleObtenirOutil}
-                size="sm"
-                className="bg-amber-700 hover:bg-amber-800 text-white font-heading h-7 text-xs px-2"
-              >
-                🔨 Obtenir l'outil d'artisan (gratuit)
-              </Button>
-            )}
+        <TabsContent value="craft" className="mt-4 space-y-3">
+          <div className="flex items-center gap-2 mb-2">
+            <p className="text-xs text-muted-foreground font-body">Transformez vos ressources en objets de valeur.</p>
+            <HelpTooltip text="Le craft transforme des matières premières en items de tier supérieur (T2-T5). ⚠️ Le T3 est libre. Pour crafter du T4 il vous faut un Outil multifonction (T3) en inventaire avec de la durabilité. Pour le T5, un Outil multifonction renforcé (T4) est requis. Ces outils s'usent à chaque craft." />
           </div>
+          {(() => {
+            const inv = profile?.inventory || [];
+            const hasEpeeCourte = inv.some(i => i.item_key === "epee_courte" && (i.durability ?? 0) > 0);
+            const hasEpeeLongue = inv.some(i => i.item_key === "epee_longue" && (i.durability ?? 0) > 0);
+            if (hasEpeeCourte && hasEpeeLongue) return null;
+            return (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs font-body text-orange-800 mb-2 space-y-1">
+                <p className="font-semibold">⚠️ Équipement requis pour crafter :</p>
+                {!hasEpeeCourte && <p>• 🛠️ <strong>Outil multifonction</strong> (avec durabilité) : nécessaire pour crafter les <strong>T4</strong></p>}
+                {!hasEpeeLongue && <p>• ⚒️ <strong>Outil multifonction renforcé</strong> (avec durabilité) : nécessaire pour crafter les <strong>T5</strong></p>}
+                <p className="text-orange-600 italic">Ces outils sont craftés par le Forgeron.</p>
+              </div>
+            );
+          })()}
 
           {/* Recettes PvP T1.5 quotidiennes */}
-          {craftTierFilter === "1.5" && (
-          <div className="mt-2">
+          <div className="mt-4">
             <h4 className="font-heading text-sm font-semibold mb-2 text-accent">⚔️ Items PvP (Inputs quotidiens aléatoires)</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {getTodayPvpRecipes().filter(recipe => recipe.profession === profile?.profession).map(recipe => {
                 const possible = canCraft(recipe);
                 const outItem = ITEMS[recipe.output.key];
@@ -1722,36 +1600,36 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                 const blocked = (currentHunger + currentFatigue) < pvpCraftCost;
                 return (
                   <Card key={recipe.id} className={possible && !blocked ? "border-accent/30 bg-accent/5" : "opacity-60"}>
-                    <CardContent className="p-2.5">
-                      <div className="flex items-start justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-xl shrink-0">{recipe.icon}</span>
-                          <div className="min-w-0">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{recipe.icon}</span>
+                          <div>
                             <ItemTooltip recipe={recipe} side="top">
-                              <div className="font-heading font-semibold text-sm leading-tight cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2 truncate">{recipe.name}</div>
+                              <div className="font-heading font-semibold text-sm cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{recipe.name}</div>
                             </ItemTooltip>
-                            <div className="text-[10px] text-muted-foreground font-body leading-tight">→ ×{recipe.output.quantity} · {getRecipeCost(1)}⚡/🍽️</div>
+                            <div className="text-xs text-muted-foreground font-body">→ ×{recipe.output.quantity} · {getRecipeCost(1)} ⚡/🍽️</div>
                           </div>
                         </div>
-                        <Badge className="bg-accent text-accent-foreground text-[10px] px-1.5 py-0 shrink-0">T1.5 PvP</Badge>
+                        <Badge className="bg-accent text-accent-foreground text-xs">T1.5 PvP</Badge>
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-1.5">
+                      <div className="flex flex-wrap gap-1.5 mb-3">
                         {recipe.inputs.map(inp => {
                           const inItem = ITEMS[inp.key];
                           const has = getInventoryQty(inp.key);
                           const ok = has >= inp.quantity;
                           return (
                             <ItemTooltip key={inp.key} itemKey={inp.key} side="top">
-                              <span className={`text-[10px] px-1.5 py-0 rounded-full border font-body cursor-help ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
-                                {inItem?.icon}×{inp.quantity}({has})
+                              <span className={`text-xs px-2 py-0.5 rounded-full border font-body cursor-help ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+                                {inItem?.icon} ×{inp.quantity} ({has} dispo)
                               </span>
                             </ItemTooltip>
                           );
                         })}
                       </div>
-                      <Button size="sm" className="w-full font-heading bg-accent hover:bg-accent/90 h-7 text-xs" onClick={() => handleCraft(recipe)}
+                      <Button size="sm" className="w-full font-heading bg-accent hover:bg-accent/90" onClick={() => handleCraft(recipe)}
                         disabled={!possible || crafting === recipe.id || blocked}>
-                        {crafting === recipe.id ? "..." : blocked ? "💤" : possible ? "Fabriquer" : "Manquantes"}
+                        {crafting === recipe.id ? "Fabrication..." : blocked ? "💤 Pas assez d'énergie" : possible ? "Fabriquer" : "Ressources manquantes"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1759,16 +1637,85 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               })}
             </div>
           </div>
-          )}
 
-          {/* Recettes standard T2-T5 — visibles si T2 ou T3 sélectionné */}
-          {craftTierFilter !== "1.5" && (
-          <div className="mt-2">
-            {/* 11/05/2026 : bandeau outil d'artisan déplacé plus haut dans la
-                TabsContent (visible aussi en T1.5, le craft PvP consomme aussi
-                des charges d'outil). */}
+          {/* Recettes standard T2-T5 */}
+          <div className="mt-4">
+            {/* NOUVEAU v3 (09/05/2026) - Outil d'artisan : badge si possede, carte d'invitation sinon */}
+            {profile.artisan_tool_obtained ? (() => {
+              // Detection des items de recharge en inventaire (pour boutons rapides)
+              const inv = profile.inventory || [];
+              const pierreAiguiserQty = inv.find(i => i.item_key === "pierre_aiguiser")?.quantity || 0;
+              const affutageMaitreQty = inv.find(i => i.item_key === "affutage_maitre")?.quantity || 0;
+              const charges = profile.artisan_tool_charges || 0;
+              const atMax = charges >= ARTISAN_TOOL_MAX_CHARGES;
+              return (
+                <div className={`mb-3 px-3 py-2 rounded text-sm flex items-center justify-between gap-2 flex-wrap ${
+                  charges <= 0
+                    ? "bg-red-50 border border-red-200 text-red-800"
+                    : charges <= 5
+                      ? "bg-amber-50 border border-amber-200 text-amber-800"
+                      : "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                }`}>
+                  <span className="flex items-center gap-1.5">
+                    🔨 <span className="font-semibold">Outil d'artisan :</span>
+                    <HelpTooltip text="Votre outil d'artisan personnel est consommé à chaque craft T2 ou supérieur (-1 charge par craft, quel que soit le tier). Si l'outil est vide (0 charge), les crafts T2+ sont BLOQUÉS — vous devez le recharger avant de pouvoir continuer. Les récoltes T1 et les crafts du chaudron magique restent disponibles. Rechargez avec une Pierre à aiguiser (+15 charges) ou un Affûtage de maître (+50 charges), dans la limite de 50 charges maximum." />
+                    <span className="font-bold">{charges} / {ARTISAN_TOOL_MAX_CHARGES} charges</span>
+                    {charges <= 0 && (
+                      <span className="text-xs italic ml-2">Crafts T2+ bloqués — rechargez avec une Pierre à aiguiser ou un Affûtage de maître</span>
+                    )}
+                  </span>
+                  {/* Boutons rapides de recharge (si item dispo et pas au max) */}
+                  {!atMax && (pierreAiguiserQty > 0 || affutageMaitreQty > 0) && (
+                    <span className="flex items-center gap-1.5 flex-wrap">
+                      {pierreAiguiserQty > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2 bg-white"
+                          disabled={crafting === "consume_pierre_aiguiser"}
+                          onClick={() => handleConsumeTempEffect({ ...ITEMS["pierre_aiguiser"], key: "pierre_aiguiser" })}
+                          title={`Consommer 1 Pierre à aiguiser (+15 charges, cap ${ARTISAN_TOOL_MAX_CHARGES})`}
+                        >
+                          🪨 Pierre à aiguiser ×{pierreAiguiserQty} (+15)
+                        </Button>
+                      )}
+                      {affutageMaitreQty > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs px-2 bg-white"
+                          disabled={crafting === "consume_affutage_maitre"}
+                          onClick={() => handleConsumeTempEffect({ ...ITEMS["affutage_maitre"], key: "affutage_maitre" })}
+                          title={`Consommer 1 Affûtage de maître (+50 charges, cap ${ARTISAN_TOOL_MAX_CHARGES})`}
+                        >
+                          ⚙️ Affûtage de maître ×{affutageMaitreQty} (+50)
+                        </Button>
+                      )}
+                    </span>
+                  )}
+                </div>
+              );
+            })() : (
+              <Card className="mb-3 border-2 border-dashed border-amber-400 bg-amber-50">
+                <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-3xl">🔨</span>
+                    <div className="min-w-0">
+                      <div className="font-heading font-semibold text-amber-900">Obtenez votre Outil d'artisan</div>
+                      <div className="text-xs text-amber-800 font-body">Outil personnel gratuit. Indispensable pour fabriquer du T2 et T3. 50 charges au départ, rechargeable.</div>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleObtenirOutil}
+                    className="bg-amber-700 hover:bg-amber-800 text-white font-heading shrink-0"
+                  >
+                    🔨 Obtenir gratuitement
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <h4 className="font-heading text-sm font-semibold mb-2">⚒️ Recettes standard (T2-T3)</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* TEMP MASQUAGE T4/T5 (09/05/2026) - Restaurer en retirant le filtre tier <= 3 quand le joueur Lucas le demandera. Les recettes T4/T5 existent toujours dans CRAFTING_RECIPES, juste cachees a l affichage. */}
               {/* NOUVEAU v3 (09/05/2026) - Filtre outil d'artisan : si pas obtenu ou charges <= 0, on cache toutes les recettes T2+ */}
               {CRAFTING_RECIPES.filter(recipe => {
@@ -1779,8 +1726,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                   return false;
                 }
                 if (recipeTier > 3) return false; // TEMP MASQUAGE T4/T5
-                // 11/05/2026 : filtre par tier sélectionné dans la UI
-                if (recipeTier !== parseInt(craftTierFilter, 10)) return false;
                 if (recipeTier >= 2) {
                   // Outil d'artisan requis pour T2+
                   if (!profile.artisan_tool_obtained) return false;
@@ -1799,42 +1744,42 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                 const ready = cooldown <= 0;
                 return (
                   <Card key={recipe.id} className={possible && !blocked && !buildingRequired && ready ? "border-primary/20" : "opacity-60"}>
-                    <CardContent className="p-2.5">
-                      <div className="flex items-start justify-between mb-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-xl shrink-0">{recipe.icon}</span>
-                          <div className="min-w-0">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{recipe.icon}</span>
+                          <div>
                             <ItemTooltip itemKey={recipe.output.key} side="top">
-                              <div className="font-heading font-semibold text-sm leading-tight cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2 truncate">{recipe.name}</div>
+                              <div className="font-heading font-semibold text-sm cursor-help underline decoration-dotted decoration-muted-foreground underline-offset-2">{recipe.name}</div>
                             </ItemTooltip>
-                            <div className="text-[10px] text-muted-foreground font-body leading-tight">→ ×{recipe.output.quantity} · {getRecipeCost(outItem?.tier || 1)}⚡/🍽️</div>
+                            <div className="text-xs text-muted-foreground font-body">→ ×{recipe.output.quantity} {outItem?.name} · {getRecipeCost(outItem?.tier || 1)} ⚡/🍽️</div>
                           </div>
                         </div>
-                        <Badge variant={outItem?.tier === 3 ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 shrink-0">T{outItem?.tier}</Badge>
+                        <Badge variant={outItem?.tier === 3 ? "default" : "secondary"} className="text-xs">Tier {outItem?.tier}</Badge>
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-1.5">
+                      <div className="flex flex-wrap gap-1.5 mb-3">
                         {recipe.inputs.map(inp => {
                           const inItem = ITEMS[inp.key];
                           const has = getInventoryQty(inp.key);
                           const ok = has >= inp.quantity;
                           return (
                             <ItemTooltip key={inp.key} itemKey={inp.key} side="top">
-                              <span className={`text-[10px] px-1.5 py-0 rounded-full border font-body cursor-help ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
-                                {inItem?.icon}×{inp.quantity}({has})
+                              <span className={`text-xs px-2 py-0.5 rounded-full border font-body cursor-help ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+                                {inItem?.icon} ×{inp.quantity} ({has} dispo)
                               </span>
                             </ItemTooltip>
                           );
                         })}
                       </div>
                       {outItem?.tier === 3 && ITEM_EFFECTS[recipe.output.key] && (
-                        <div className="text-[10px] text-muted-foreground font-body mb-1.5 bg-muted/40 rounded px-1.5 py-0.5">
+                        <div className="text-xs text-muted-foreground font-body mb-2 bg-muted/40 rounded px-2 py-1">
                           ✨ {ITEM_EFFECTS[recipe.output.key].description}
                         </div>
                       )}
-                      {!ready && <Progress value={100 - (cooldown / recipe.cooldown) * 100} className="h-1 mb-1.5" />}
-                      <Button size="sm" className="w-full font-heading h-7 text-xs" onClick={() => handleCraft(recipe)}
+                      {!ready && <Progress value={100 - (cooldown / recipe.cooldown) * 100} className="h-1.5 mb-2" />}
+                      <Button size="sm" className="w-full font-heading" onClick={() => handleCraft(recipe)}
                         disabled={!possible || crafting === recipe.id || blocked || !ready}>
-                        {crafting === recipe.id ? "..." : !ready ? formatCooldown(cooldown) : blocked ? "💤" : possible ? "Fabriquer" : "Manquantes"}
+                        {crafting === recipe.id ? "Fabrication..." : !ready ? formatCooldown(cooldown) : blocked ? "💤 Pas assez d'énergie" : possible ? "Fabriquer" : "Ressources manquantes"}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1842,7 +1787,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               })}
             </div>
           </div>
-          )}
         </TabsContent>
 
         <TabsContent value="atelier" className="mt-4">

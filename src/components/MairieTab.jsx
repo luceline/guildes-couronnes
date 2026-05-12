@@ -15,9 +15,10 @@ import MaireOffresPanel from "./MaireOffresPanel";
 import MaireDashboard from "./MaireDashboard";
 import ProfessionChangePanel from "./ProfessionChangePanel";
 import DecreePanel from "./DecreePanel";
-import CityArmyPanel from "./CityArmyPanel";
-import ArmySupplyPanel from "./ArmySupplyPanel";
-import MilitaryCampaignPanel from "./MilitaryCampaignPanel";
+// 12/05/2026 : imports militaires (CityArmyPanel, ArmySupplyPanel,
+// MilitaryCampaignPanel) retirés définitivement après archivage de
+// MilitaryCampaignPanel et militaryData dans _attic/. Le système militaire
+// inter-villes est remplacé par la mécanique "brûler trésorerie pour tier".
 
 export default function MairieTab({ city, profile, homeCity, isMayor, mayorActive, isAdmin, onRefresh, routes = [], cities = [], cityPlayers = [] }) {
   // ── Rôles nommés par le maire ──
@@ -27,7 +28,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
   const isAcheteur    = !isMayor && cityRoles.acheteur_id === profile?.id;
   const [taxInput, setTaxInput] = useState(null);
   const [taxRateInput, setTaxRateInput] = useState(null);
-  const [lingotPriceInput, setLingotPriceInput] = useState(null);
+  // 11/05/2026 : state lingotPriceInput retiré (section "Prix du lingot royal" supprimée).
   const [salaryInput, setSalaryInput] = useState(null);
   const [salaryEnabledLocal, setSalaryEnabledLocal] = useState(!!city.resident_salary_enabled);
   // Synchroniser avec city quand onRefresh recharge les données
@@ -114,8 +115,7 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
       <Tabs defaultValue="mairie">
         <TabsList className="font-heading flex-wrap h-auto gap-1">
           <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
-          {(isMayor || isChefGuerre) && <TabsTrigger value="armee">⚔️ Armée</TabsTrigger>}
-          {(isMayor || isChefGuerre) && <TabsTrigger value="guerre">🗺️ Guerre</TabsTrigger>}
+          {/* 11/05/2026 : onglets "⚔️ Armée" et "🗺️ Guerre" retirés (système militaire supprimé). */}
           {(isMayor || isAcheteur) && <TabsTrigger value="offres">🛒 Offres d'achat</TabsTrigger>}
           {(isMayor || isPercepteur || isChefGuerre) && <TabsTrigger value="dashboard">📊 Tableau de bord</TabsTrigger>}
         </TabsList>
@@ -267,41 +267,12 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-2">
-                <span className="text-xs font-body text-yellow-900 font-semibold">👑 Lingots royaux :</span>
-                <span className="text-xs font-body text-yellow-800">
-                  Entrepôt : <strong>{(city.warehouse || {}).lingot_royal || 0}</strong>
-                  {" · "}Cumulatif prestige : <strong>{city.lingots_cumul || 0}</strong>
-                </span>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 space-y-2">
-                <span className="text-xs font-body text-yellow-900 font-semibold">🏛️ Prix de rachat du lingot royal :</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-body text-yellow-800 w-32">Lingot royal</span>
-                  <span className="text-xs text-muted-foreground font-body">Référence : 800💰</span>
-                  <Input type="number"
-                       inputMode="numeric"
-                       pattern="[0-9]*" min={1} max={5000} step={1}
-                    value={lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 800)}
-                    onChange={e => setLingotPriceInput(parseInt(e.target.value) || 800)}
-                    className="w-20 h-7 text-xs text-center text-foreground bg-white"
-                    onFocus={e => e.target.select()}
-                  />
-                  <span className="text-xs text-muted-foreground font-body">💰</span>
-                  <Button size="sm" className="h-7 text-xs font-heading"
-                    onClick={async () => {
-                      const val = lingotPriceInput ?? ((city.lingot_buy_prices || {}).lingot_royal || 800);
-                      const newPrices = { ...(city.lingot_buy_prices || {}), lingot_royal: val };
-                      await base44.entities.City.update(city.id, { lingot_buy_prices: newPrices });
-                      toast.success(`Prix du lingot royal mis à jour : ${val}💰`);
-                      setLingotPriceInput(null);
-                      onRefresh?.();
-                      }}>
-                      Valider
-                      </Button>
-                </div>
-              </div>
+              {/* 11/05/2026 : sections "👑 Lingots royaux" et "🏛️ Prix de rachat
+                  du lingot royal" retirées. L'item lingot_royal (T5) a été
+                  supprimé du jeu. Le système de tier de ville sera remplacé par
+                  une mécanique "brûler trésorerie" dans un patch futur (1 or = 1
+                  point de prestige). En attendant, les tiers restent figés au
+                  niveau atteint. */}
 
               {/* REFACTO 09/05/2026 - MaireOffresPanel retire ici (doublon avec onglet "offres" plus bas) */}
             </div>
@@ -378,33 +349,11 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
 
         </TabsContent>
 
-        {/* ── ARMÉE ── */}
-        <TabsContent value="armee" className="mt-4">
-          <CityArmyPanel
-            city={city}
-            profile={profile}
-            isMayor={isMayor || isChefGuerre}
-            onRefresh={onRefresh}
-          />
-          {(isMayor || isChefGuerre) && (
-            <div className="mt-4 border-t border-border pt-4">
-              <p className="text-sm font-heading font-semibold mb-3">🏰 Ravitaillement de l'armée</p>
-              <ArmySupplyPanel city={city} isMayor={isMayor || isChefGuerre} onRefresh={onRefresh} />
-            </div>
-          )}
-        </TabsContent>
-
-        {/* ── GUERRE ── */}
-        <TabsContent value="guerre" className="mt-4">
-          <MilitaryCampaignPanel
-            city={city}
-            profile={profile}
-            isMayor={isMayor || isChefGuerre}
-            cities={cities}
-            routes={routes}
-            onRefresh={onRefresh}
-          />
-        </TabsContent>
+        {/* ── ARMÉE et GUERRE (11/05/2026) ──
+            Onglets retirés, système militaire supprimé. Les combats inter-villes
+            via lingots/armée sont remplacés par une mécanique économique ("brûler
+            de la trésorerie pour monter les tiers") prévue dans un patch futur.
+            Les défis PvP joueur-vs-joueur (combat_challenges) restent actifs. */}
 
         {(isMayor || isAcheteur) && (
           <TabsContent value="offres" className="mt-4">

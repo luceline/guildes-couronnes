@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="fr" style="background:#0d0805">
   <head>
     <meta charset="UTF-8" />
 
@@ -29,12 +29,88 @@
     <!-- Empêche la coloration auto des liens type tel/email par iOS -->
     <meta name="format-detection" content="telephone=no" />
 
-    <!-- Theme color : aligné avec le manifest (brun médiéval #8b5e3c) -->
-    <meta name="theme-color" content="#8b5e3c" />
+    <!-- 12/05/2026 : theme-color aligné avec le fond du splash (#0d0805)
+         pour que la barre de statut Android matche dès le premier paint.
+         Le brun médiéval #8b5e3c du manifest reste pour l'UI standalone. -->
+    <meta name="theme-color" content="#0d0805" />
 
     <title>Guildes & Couronnes</title>
+
+    <!-- ═══════════════════════════════════════════════════════════════════
+         12/05/2026 : SPLASH SCREEN PWA inline
+         ═══════════════════════════════════════════════════════════════════
+         Affiché immédiatement au chargement HTML (avant exec JS), retiré
+         par main.jsx après mount React + délai min 500ms. Voir main.jsx
+         pour la logique de retrait, et splash.png pour l'image (public/).
+
+         Pourquoi inline ?
+           - Visible avant que React mount (~500-1500ms en cold start mobile)
+           - Pas de FOUC : pas de flash entre le HTML brut et le splash
+           - Cohérent iOS + Android (Android ajoute en plus son splash natif
+             via manifest, qui se superpose puis cède au notre dès paint)
+
+         Fade-out géré par .splash-hide ajouté par main.jsx.
+         ─────────────────────────────────────────────────────────────────── -->
+    <style>
+      /* Reset minimal du body pour que le splash couvre tout l'écran */
+      body { margin: 0; background: #0d0805; }
+
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background-color: #0d0805;
+        background-image: url('/splash.png');
+        background-size: cover;
+        background-position: center center;
+        background-repeat: no-repeat;
+        /* Fade-in initial : passe de 0 à 1 en 200ms */
+        opacity: 0;
+        animation: splash-fade-in 200ms ease-out forwards;
+        /* Centrer le spinner en bas */
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 32px);
+        /* Bloque les interactions tant que le splash est visible */
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      @keyframes splash-fade-in {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+
+      /* Spinner circulaire classique en bas du splash */
+      #app-splash .spinner {
+        width: 36px;
+        height: 36px;
+        border: 3px solid rgba(201, 164, 74, 0.25); /* or médiéval transparent */
+        border-top-color: #c9a44a;                  /* or médiéval plein */
+        border-radius: 50%;
+        animation: splash-spin 800ms linear infinite;
+      }
+
+      @keyframes splash-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Classe ajoutée par main.jsx pour déclencher le fade-out */
+      #app-splash.splash-hide {
+        opacity: 0;
+        transition: opacity 300ms ease-in;
+        pointer-events: none;
+      }
+    </style>
   </head>
   <body>
+    <!-- Splash visible immédiatement, retiré du DOM par main.jsx -->
+    <div id="app-splash" role="status" aria-label="Chargement de Guildes &amp; Couronnes">
+      <div class="spinner" aria-hidden="true"></div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

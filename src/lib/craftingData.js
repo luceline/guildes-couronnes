@@ -17,7 +17,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🪵",
       outputKey: "bois_brut",
       quantity: 1,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -28,7 +28,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🪨",
       outputKey: "minerai_fer",
       quantity: 1,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -39,7 +39,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🌾",
       outputKey: "ble",
       quantity: 2,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -50,7 +50,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🧶",
       outputKey: "laine_brute",
       quantity: 1,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -61,7 +61,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🧱",
       outputKey: "pierre",
       quantity: 1,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -72,7 +72,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🌿",
       outputKey: "herbes",
       quantity: 2,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -83,7 +83,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🔮",
       outputKey: "quartz_brut",
       quantity: 1,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -94,7 +94,7 @@ export const PROFESSION_PRODUCTION = {
       icon: "🎫",
       outputKey: "billet_fortune",
       quantity: 1,
-      cooldown: 80,
+      cooldown: 160,
       tier: 1,
     },
   ],
@@ -368,8 +368,10 @@ export const ITEMS = {
   },
   ragout: {
     name: "Ragoût", icon: "🍲", category: "nourriture", tier: 4,
-    trigger: "consumed", effect: "army_food", value: 80,
-    use: "Consommé par le maire : +80 nourriture armée à la ville.",
+    // 11/05/2026 : effet army_food retiré (système militaire supprimé).
+    // L'item devient consommable nourriture pour le joueur : +50 faim instant.
+    trigger: "consumed", effect: "hunger_restore", value: 50,
+    use: "+50 faim instant. (Anciennement consommé par le maire pour nourrir l'armée — système militaire retiré.)",
   },
   besace: {
     name: "Sac de voyage", icon: "🎒", category: "outils", tier: 4,
@@ -384,13 +386,31 @@ export const ITEMS = {
   },
   potion_endur: {
     name: "Potion d'endurance", icon: "💪", category: "potions", tier: 4,
-    trigger: "consumed", effect: "army_energy", value: 80,
-    use: "Consommée par le maire : +80 énergie armée à la ville.",
+    // 11/05/2026 : effet army_energy retiré (système militaire supprimé).
+    // L'item devient potion personnelle : +50 énergie instant.
+    trigger: "consumed", effect: "fatigue_restore", value: 50,
+    use: "+50 énergie instant. (Anciennement consommée par le maire pour ravitailler l'armée — système militaire retiré.)",
   },
   lingot_raffine: {
     name: "Lingot raffiné", icon: "🏅", category: "or", tier: 4,
     trigger: "passive", effect: "market_tax_discount", value: 0.04,
-    use: "Passif : −4% taxe marché. Requis pour lingot royal.",
+    // 11/05/2026 : référence au "lingot royal" retirée (item T5 supprimé).
+    use: "Passif : −4% taxe marché.",
+  },
+
+  // ════════════════════════════════════════════════════════════════════════
+  // ITEMS MAGIQUES (11/05/2026) — craftés au Chaudron magique
+  // Tier "magique" = en dehors de la hiérarchie T1-T5. Items uniques avec
+  // recettes spéciales (composants T3 de tous les métiers) et cooldown
+  // de cuisson dédié (6h, indépendant des cooldowns de tier).
+  // ════════════════════════════════════════════════════════════════════════
+  couronne_bronze: {
+    name: "Couronne en bronze", icon: "👑", category: "magique", tier: "magique",
+    trigger: "consumed", effect: "magic_gold_reward", value: 100,
+    // value = bonus or fixe ajouté en plus de la valeur de marché des T1 cumulés.
+    // À l'utilisation : calcule prix dynamique des T1 sous-jacents au chaudron,
+    // additionne, ajoute +100, crédite le joueur. Cf. handleApplyConsumed.
+    use: "Consommée : donne X + 100 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~270-300 or selon marché). Craftée au Chaudron magique.",
   },
 
   // ════════════════════════════════
@@ -417,56 +437,11 @@ export const ITEMS = {
   // T5 — Items JCJ offensifs/défensifs
   // ════════════════════════════════
 
-  huile_inflammable: {
-    name: "Huile inflammable", icon: "🔥", category: "parchemins", tier: 5,
-    trigger: "attack", effect: "destroy_building", value: 1,
-    use: "Attaque : détruit un bâtiment aléatoire de la ville adverse",
-  },
-  poudre_corrosive: {
-    name: "Poudre corrosive", icon: "💥", category: "parchemins", tier: 5,
-    trigger: "attack", effect: "destroy_warehouse_80pct", value: 0.80,
-    use: "Attaque : détruit 80% d'une ressource aléatoire de l'entrepôt ennemi",
-  },
-  festin_empoisonne: {
-    name: "Festin empoisonné", icon: "🍖", category: "nourriture", tier: 5,
-    trigger: "attack", effect: "hunger_regen_fatigue_drain", value: 5, duration_days: 2,
-    use: "Attaque ville : manger coûte 5⚡ de plus pendant 2j.",
-  },
-  faux_contrat: {
-    name: "Faux contrat", icon: "📄", category: "parchemins", tier: 5,
-    trigger: "attack", effect: "blind_travel", value: 2,
-    use: "Attaque : routes inconnues pour les voyageurs ennemis pendant 2j",
-  },
-  cle_forgee: {
-    name: "Clé forgée", icon: "🗝️", category: "parchemins", tier: 5,
-    trigger: "attack", effect: "steal_treasury_20pct", value: 0.20,
-    use: "Attaque : vole 20% des lingots royaux stockés dans l'entrepôt ennemi",
-  },
-  elixir_discorde: {
-    name: "Élixir de discorde", icon: "☠️", category: "potions", tier: 5,
-    trigger: "attack", effect: "redirect_taxes", value: 2,
-    use: "Attaque ville : taxes détournées vers votre ville (2j).",
-  },
-  lettre_desinformation: {
-    name: "Lettre de désinformation", icon: "✉️", category: "parchemins", tier: 5,
-    trigger: "attack", effect: "tax_increase_30pct", value: 0.30,
-    use: "Attaque : taxes de la ville cible augmentées de 30% pendant 2j",
-  },
-  contrat_noble: {
-    name: "Contrat noble", icon: "📜", category: "parchemins", tier: 5,
-    trigger: "consumed", effect: "city_defense", value: 1,
-    use: "Défense : annule la prochaine attaque T5 ennemie",
-  },
 
   // ════════════════════════════════
   // Divers
   // ════════════════════════════════
 
-  lingot_royal: {
-    name: "Lingot royal", icon: "👑", category: "or", tier: 5,
-    trigger: "sellable", effect: "sellable", value: 800,
-    use: "Vendable mairie : 800💰ref (prix décidé par le maire entre 1 et 5000). Compte pour le prestige.",
-  },
   // REFONTE MARCHAND v2 (10/05/2026) : autorisation_marche supprimée, remplacée
   // par billet_fortune (système de tombola, prix fixe 3 or, ne va pas en inventaire
   // de l'acheteur - consommé à l'achat pour participer au tirage).
@@ -660,7 +635,10 @@ export const EQUIPMENT_DURABILITY = Object.fromEntries(
 
 // ── TOOL_CHARGES_PER_SET ──
 export const TOOL_CHARGES_PER_SET = 3;
-export const COOLDOWN_PENALTY_NO_TOOLS = 1.5;
+// 11/05/2026 : COOLDOWN_PENALTY_NO_TOOLS retiré (était 1.5).
+// Plus de malus de cooldown quand l'outil d'artisan est épuisé.
+// L'outil reste utile pour les bonus actifs (charges qui se rechargent
+// via Pierre à aiguiser / Affûtage de maître) mais ne pénalise plus.
 
 // ── Fonction utilitaire ──
 export function getTodayStr() {
@@ -674,3 +652,33 @@ export function computeFatigueWithDailyReset(profile, maxFatigue) {
 }
 
 export const ACTION_FATIGUE_COST = 1;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RECETTES MAGIQUES (11/05/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+// Recettes craftées au Chaudron magique (UI : CauldronPanel, section dédiée
+// "Recettes spéciales"). Indépendantes du système recipePatterns standard.
+// Chaque recette a son propre cooldown (en secondes), des inputs précis et
+// un output magique. Pas de rang de chaudron requis (pas comme les pools).
+// ═══════════════════════════════════════════════════════════════════════════
+export const MAGIC_RECIPES = [
+  {
+    id: "craft_couronne_bronze",
+    name: "Couronne en bronze",
+    icon: "👑",
+    description: "Une couronne ouvragée par les mains conjuguées de tous les métiers du royaume. À usage unique : restitue sa valeur de marché + 100 or de bonus.",
+    inputs: [
+      { key: "meuble",      quantity: 1 }, // Bûcheron T3
+      { key: "lingots_fer", quantity: 1 }, // Mineur T3
+      { key: "pain",        quantity: 1 }, // Fermier T3
+      { key: "tissu",       quantity: 1 }, // Tisserand T3
+      { key: "epee_courte", quantity: 1 }, // Forgeron T3
+      { key: "lingots_or",  quantity: 1 }, // Orfèvre T3
+      { key: "parchemin",   quantity: 1 }, // Marchand T3
+      { key: "potion_soin", quantity: 1 }, // Alchimiste T3
+    ],
+    output: { key: "couronne_bronze", quantity: 1 },
+    cooldown: 21600, // 6h en secondes
+    costGold: 0,
+  },
+];

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Home, Building2, Hammer, Sword, BookOpen, Menu, X, Settings, HelpCircle, Moon, Sun, MoreHorizontal, MessageCircle, Bug, LogOut } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DISCORD_INVITE_URL } from "@/lib/links";
@@ -15,6 +15,7 @@ import MiniStatusBar from "@/components/MiniStatusBar";
 import LoginStreakPopup from "@/components/LoginStreakPopup";
 import { useTheme } from "@/lib/useTheme.jsx";
 import { usePlayerData } from "@/lib/usePlayerData";
+import { useProfile } from "@/lib/ProfileContext";
 import { useIsMobile } from "@/lib/useIsMobile";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import SettingsPanel from "@/components/SettingsPanel";
@@ -59,9 +60,14 @@ function resolveCityLabel(profile, city) {
 const PATHS_BY_GROUP = {
   home:     ["/"],
   city:     ["/city", "/taverne"],
-  labeur:   ["/labeur", "/production", "/market", "/inventaire"],
+  // 11/05/2026 : /profile déplacé de "savoir" vers "labeur". Le profil est
+  // désormais accessible via le drawer logement (InventairePage) qui groupe
+  // inventaire + profil. Le lien direct /profile reste valide pour les
+  // deep-links (TodayCheckup épuisé, etc.) et est groupé avec labeur car
+  // le logement est dans le groupe labeur (via /inventaire).
+  labeur:   ["/labeur", "/production", "/market", "/inventaire", "/profile"],
   aventure: ["/aventure", "/travel", "/combat", "/quetes"],
-  savoir:   ["/savoir", "/codex", "/ranking", "/profile"],
+  savoir:   ["/savoir", "/codex", "/ranking"],
 };
 
 function isPathInGroup(currentPath, group) {
@@ -90,10 +96,18 @@ export default function GameLayout() {
   const [showBugReport, setShowBugReport] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [pendingDefenses, setPendingDefenses] = useState(0); // défis PvP à défendre
-  // 11/05/2026 : usePlayerData fournit profile/city/homeCity + refresh.
-  // Source unique de vérité au niveau du layout. Les pages enfants ré-utilisent
-  // ce hook pour leur propre fetch (chacune avec son contexte).
-  const { profile, city, homeCity, refresh: refreshProfile } = usePlayerData();
+  // 11/05/2026 (v2) : profile vient du ProfileContext (source unique, refresh
+  // global instantané quand n'importe quelle page modifie le profile).
+  // city/homeCity continuent à venir de usePlayerData (logique métier locale,
+  // pas dans le context). refreshProfile = celui du context pour propager
+  // les updates ; refreshLocal = celui de usePlayerData pour les villes.
+  const { profile, refreshProfile } = useProfile();
+  const { city, homeCity, refresh: refreshLocal } = usePlayerData();
+  // Wrapper qui refresh à la fois le context (profile) et le local (city)
+  const refresh = useCallback(async () => {
+    await refreshLocal();
+    await refreshProfile?.();
+  }, [refreshLocal, refreshProfile]);
 
   // 11/05/2026 : détection mobile robuste (résout les bugs landscape sur
   // grands smartphones type Pixel 8 Pro où la largeur > 768px en landscape
@@ -410,7 +424,7 @@ export default function GameLayout() {
             profile={profile}
             homeCity={homeCity}
             city={city}
-            onRefresh={refreshProfile}
+            onRefresh={refresh}
           />
         </div>
       )}
@@ -436,7 +450,7 @@ export default function GameLayout() {
             profile={profile}
             homeCity={homeCity}
             city={city}
-            onRefresh={refreshProfile}
+            onRefresh={refresh}
           />
         </div>
       )}

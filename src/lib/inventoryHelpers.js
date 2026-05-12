@@ -46,7 +46,7 @@ export function findInventoryItem(inventory, itemKey) {
   return inventory.find(i =>
     i.item_key === itemKey ||
     (itemDef?.name && i.item_name === itemDef.name) ||
-    i.item_name?.toLowerCase().replace(/ /g, "_") === itemKey
+    (typeof i.item_name === "string" && i.item_name.toLowerCase().replace(/ /g, "_") === itemKey)
   ) || null;
 }
 
@@ -81,7 +81,7 @@ export function removeFromInventory(inventory, itemKey, qty = 1) {
       const matches =
         i.item_key === itemKey ||
         (ITEMS[itemKey]?.name && i.item_name === ITEMS[itemKey].name) ||
-        i.item_name?.toLowerCase().replace(/ /g, "_") === itemKey;
+        (typeof i.item_name === "string" && i.item_name.toLowerCase().replace(/ /g, "_") === itemKey);
       if (!matches) return i;
       return { ...i, quantity: i.quantity - qty };
     })
@@ -112,7 +112,7 @@ export function addToInventory(inventory, itemKey, qty = 1, extraProps = {}) {
   const existingIdx = inv.findIndex(i =>
     i.item_key === itemKey ||
     (ITEMS[itemKey]?.name && i.item_name === ITEMS[itemKey].name) ||
-    i.item_name?.toLowerCase().replace(/ /g, "_") === itemKey
+    (typeof i.item_name === "string" && i.item_name.toLowerCase().replace(/ /g, "_") === itemKey)
   );
 
   if (existingIdx >= 0) {

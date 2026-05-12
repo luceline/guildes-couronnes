@@ -30,8 +30,12 @@ export default defineConfig({
         name: 'Guildes & Couronnes',
         short_name: 'G&C',
         description: 'Le royaume médiéval multijoueur',
-        theme_color: '#8b5e3c',         // brun médiéval
-        background_color: '#1a1410',    // fond sombre
+        theme_color: '#8b5e3c',         // brun médiéval (UI standalone)
+        // 12/05/2026 : background_color aligné avec le fond du splash inline
+        // (index.html). #0d0805 = brun très sombre proche noir, matche les
+        // bords du splash.png. Évite tout flash entre splash Android natif
+        // et notre splash inline.
+        background_color: '#0d0805',
         display: 'standalone',
         // 11/05/2026 : orientation 'any' (au lieu de 'landscape') pour que
         // l'app suive l'orientation physique du téléphone. La vue village
@@ -63,6 +67,8 @@ export default defineConfig({
       },
       workbox: {
         // Précache : tout le build initial (HTML, JS, CSS, sprites principaux)
+        // 12/05/2026 : globPatterns capture déjà splash.png via **/*.png
+        // donc rien à ajouter de spécifique pour le splash.
         globPatterns: ['**/*.{js,css,html,png,svg,webp,jpg,jpeg,woff2}'],
         // Strategy par type
         runtimeCaching: [

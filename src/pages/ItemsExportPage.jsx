@@ -20,11 +20,17 @@ function getCraftedBy(itemKey) {
 function getCooldown(itemKey) {
   const recipe = CRAFTING_RECIPES.find(r => r.output?.key === itemKey);
   if (!recipe) return "";
-  const h = Math.floor(recipe.cooldown / 60);
-  const m = recipe.cooldown % 60;
-  if (h === 0) return `${m}min`;
-  if (m === 0) return `${h}h`;
-  return `${h}h${m}`;
+  // 11/05/2026 : recipe.cooldown est en SECONDES (pas en minutes).
+  // Avant : Math.floor(recipe.cooldown / 60) traitait la valeur comme des
+  // minutes et la convertissait en heures → affichage 60× trop grand.
+  const sec = recipe.cooldown;
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  if (h > 0) return mm === 0 ? `${h}h` : `${h}h${String(mm).padStart(2, "0")}`;
+  return s === 0 ? `${m}min` : `${m}min${String(s).padStart(2, "0")}`;
 }
 
 function getCostGold(itemKey) {

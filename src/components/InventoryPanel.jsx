@@ -19,8 +19,10 @@ import {
   COMBAT_MAX_HP, getPlayerHP, isPlayerKO,
 } from "../lib/gameData";
 import {
-  ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY,
+  ITEMS, ITEM_EFFECTS, TEMP_EFFECT_ITEMS, EQUIPMENT_DURABILITY, MAGIC_RECIPES,
 } from "../lib/craftingData";
+import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
+import { flattenToT1, calculateT1MarketValue, SUGGESTED_PRICES_T1 } from "../lib/pricingData";
 import { getLevelFromXP, grantXP } from "../lib/playerLevelSystem";
 import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "../lib/rareResources";
 
@@ -38,11 +40,7 @@ const CONTRAT_DEFS = {
   contrat_artisan:   { label: "⚒️ Activer contrat",  type: "quest_activate",   parchemin_type: "contrat_artisan" },
 };
 
-// Prix de revente lingot royal (fallback si pas de city)
-// Référence économique : un T5 contient 180 ressources T1 (5×36 T1 par cumul du schéma T5).
-// Avec une fourchette T1 de 1 à 6 or, la matière brute vaut 180-1080 or. Le prix de départ
-// à 800 or assure un bénéfice net au crafteur dans la majorité des cas.
-const LINGOT_ROYAL_PRICE_DEFAULT = 800;
+// 11/05/2026 : LINGOT_ROYAL_PRICE_DEFAULT retiré (item lingot_royal supprimé).
 
 export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
   const cityHungerBonus = getCityHungerBonus(homeCity?.buildings || []);
@@ -165,7 +163,8 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
 
   const inventory     = (profile.inventory || []).filter(i => i.quantity > 0);
   const currentHunger = profile.hunger ?? MAX_HUNGER;
-  const LINGOT_ROYAL_PRICE = city?.lingot_buy_prices?.lingot_royal || LINGOT_ROYAL_PRICE_DEFAULT;
+  // 11/05/2026 : LINGOT_ROYAL_PRICE retiré (item supprimé).
+  // const LINGOT_ROYAL_PRICE = city?.lingot_buy_prices?.lingot_royal || LINGOT_ROYAL_PRICE_DEFAULT;
 
   // ── Activation ressource rare → +100 XP ──
   const handleActivateRare = async (resourceKey) => {
@@ -519,13 +518,9 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         const xpGain = grantXP(profile, xpAmount);
         Object.assign(updates, xpGain.updates);  // ajoute player_xp_total + player_level si level-up
         showXPToast(xpAmount, xpGain, { icon: itemDef.icon || "📜" });
-      } else if (itemDef.effect === "army_food" || itemDef.effect === "army_energy") {
-        // REFONTE v5 : Ragoût T4 / Potion d'endurance T4 — ressources militaires.
-        // Le joueur ne peut pas les consommer individuellement — elles passent par le maire
-        // qui les dépose en entrepôt depuis le panel Gouvernance > Approvisionnement armée.
-        toast(`🏰 ${itemDef.name || itemDef.label} — ressource militaire, à déposer en entrepôt par le maire.`);
-        setActivating(null);
-        return;
+      // 11/05/2026 : handler army_food / army_energy retiré (système militaire
+      // supprimé). Ragoût et Potion d'endurance sont désormais consommables
+      // joueur classiques (hunger_restore +50 / fatigue_restore +50).
       } else if (itemDef.effect === "hunger_restore") {
         // Blé / Farine / Pain : +X faim instant (REFONTE v5 : valeurs simplifiées)
         const maxH = getMaxHunger(profile, cityHungerBonus);
@@ -541,6 +536,51 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         const maxFatigue = (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0);
         updates.fatigue = Math.min(maxFatigue, (profile.fatigue ?? 20) + (itemDef.value || 5));
         if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+      } else if (itemDef.effect === "magic_gold_reward") {
+        // 11/05/2026 : Couronne en bronze — restitue valeur dynamique des T1
+        // cumulés dans la chaîne + bonus fixe (itemDef.value).
+        // On charge les listings actifs pour calculer le prix moyen réel.
+        try {
+          // Trouve la recette magique pour récupérer ses inputs T3
+          // (fix : on n'a pas de variable itemKey ici, c'est itemDef.key)
+          const magicRecipe = MAGIC_RECIPES.find(r => r.output?.key === itemDef.key);
+          if (!magicRecipe) {
+            toast.error("Recette magique introuvable pour cet item.");
+            setActivating(null);
+            return;
+          }
+          // Charge les listings actifs
+          const listings = await base44.entities.MarketListing.filter({ status: "active" });
+          // Flatten les inputs en T1
+          const t1Keys = new Set(Object.keys(SUGGESTED_PRICES_T1));
+          const totalT1Map = {};
+          for (const input of magicRecipe.inputs) {
+            const flat = flattenToT1(input.key, CRAFTING_RECIPES_REFACTORED, t1Keys);
+            for (const [k, v] of Object.entries(flat)) {
+              totalT1Map[k] = (totalT1Map[k] || 0) + v * input.quantity;
+            }
+          }
+          // Calcul valeur
+          const marketValue = calculateT1MarketValue(totalT1Map, listings || []);
+          const bonus = itemDef.value || 0;
+          const totalGold = marketValue + bonus;
+          updates.gold = (profile.gold || 0) + totalGold;
+          toast.success(`👑 ${itemDef.name} consommée : +${marketValue} or (valeur de marché) + ${bonus} or (bonus) = +${totalGold} or !`);
+          // Trace dans le journal
+          try {
+            await logGold(
+              profile.user_email, profile.character_name,
+              city?.id || null, city?.name || null,
+              totalGold, "consommation_magique",
+              `${itemDef.name} consommée (valeur T1=${marketValue} + bonus=${bonus})`
+            );
+          } catch {}
+        } catch (e) {
+          console.warn("magic_gold_reward error", e);
+          toast.error("Erreur lors du calcul de la valeur magique.");
+          setActivating(null);
+          return;
+        }
       } else if (itemDef.effect === "hp_restore") {
         // Cataplasme : +X PV instant (utilisable hors combat ou avant combat de biome)
         // Ne fonctionne pas si le joueur est KO (il doit attendre la fin du KO).
@@ -585,42 +625,10 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     await handleConsumeTempEffect({ ...def, key: itemKey });
   };
 
-  // ── Vente lingot royal à la mairie ──
-  const handleSellLingotToMairie = async () => {
-    if (!city) { toast.error("Vous devez être dans votre ville."); return; }
-    const isResident = profile.home_city_id === city.id;
-    if (!isResident) { toast.error("Uniquement dans votre ville d'origine."); return; }
-    const treasury = city.gold_treasury || 0;
-    if (treasury - LINGOT_ROYAL_PRICE < 200) { toast.error("Trésorerie insuffisante (min 200💰 après achat)."); return; }
-    setActivating("lingot_royal");
-    try {
-      const newInv = inventory
-        .map(i => i.item_key === "lingot_royal" ? { ...i, quantity: i.quantity - 1 } : i)
-        .filter(i => i.quantity > 0);
-      await base44.entities.PlayerProfile.update(profile.id, {
-        inventory: newInv, gold: (profile.gold || 0) + LINGOT_ROYAL_PRICE,
-      });
-      const newLingotsCumul = (city.lingots_cumul || 0) + 1;
-      const newWarehouse    = { ...(city.warehouse || {}), lingot_royal: (city.warehouse?.lingot_royal || 0) + 1 };
-      await base44.entities.City.update(city.id, {
-        gold_treasury:  treasury - LINGOT_ROYAL_PRICE,
-        lingots_stock:  (city.lingots_stock || 0) + 1,
-        lingots_cumul:  newLingotsCumul,
-        warehouse:      newWarehouse,
-      });
-
-      // V6.1.7 — Trace dans le journal d'or (vente à la mairie : sortie trésorerie)
-      await logGold(
-        profile.user_email, profile.character_name,
-        city.id, city.name,
-        LINGOT_ROYAL_PRICE, "vente_lingot",
-        `Vente lingot royal à la mairie de ${city.name}`
-      );
-      toast.success(`👑 Lingot royal vendu à la mairie ! +${LINGOT_ROYAL_PRICE}💰`);
-      onRefresh?.();
-    } catch { toast.error("Erreur lors de la vente."); }
-    finally  { setActivating(null); }
-  };
+  // ── Vente lingot royal à la mairie (11/05/2026 : retiré, item supprimé) ──
+  // const handleSellLingotToMairie = async () => { ... }
+  // Le lingot royal n'existe plus. La trésorerie de ville sera mise à jour par
+  // le futur système "brûler trésorerie" pour monter les tiers.
 
   const rareItems   = inventory.filter(i => RARE_RESOURCES[i.item_key]);
   const normalItems = inventory.filter(i => !RARE_RESOURCES[i.item_key]);
@@ -690,10 +698,9 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
                 const canEat = hungerDef && currentHunger < maxHungerVal;
                 const isMeuble = item.item_key === "meuble" || item.item_name === "Meuble";
                 const meubleActive = isMeuble && profile.meuble_expires_at >= new Date().toISOString().split("T")[0];
-                const isLingotRoyal = item.item_key === "lingot_royal";
+                // 11/05/2026 : isLingotRoyal retiré (item supprimé).
                 const isContrat = Object.keys(CONTRAT_DEFS).includes(item.item_key);
-                const isContratNoble = item.item_key === "contrat_noble";
-                const nobleActive = !!city?.contrat_noble_active;
+                // 11/05/2026 : isContratNoble retiré (item contrat_noble supprimé).
                 const isResident  = profile.home_city_id === city?.id;
 
                 return (
@@ -754,45 +761,12 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
                         </button>
                       )}
 
-                      {/* Contrat noble */}
-                      {isContratNoble && (() => {
-                        if (!isResident) return <span className="text-xs text-muted-foreground italic">Activable dans votre ville</span>;
-                        if (nobleActive) return <span className="text-xs text-emerald-600">🛡️ Déjà actif</span>;
-                        return (
-                          <button
-                            disabled={activating === "contrat_noble"}
-                            onClick={async () => {
-                              setActivating("contrat_noble");
-                              try {
-                                const newInv = inventory
-                                  .map(i => i.item_key === "contrat_noble" ? { ...i, quantity: i.quantity - 1 } : i)
-                                  .filter(i => i.quantity > 0);
-                                await base44.entities.PlayerProfile.update(profile.id, { inventory: newInv });
-                                await base44.entities.City.update(city.id, { contrat_noble_active: true });
-                                toast.success("📜 Contrat Noble activé ! La ville est protégée contre la prochaine attaque T5.");
-                                onRefresh?.();
-                              } catch { toast.error("Erreur"); }
-                              finally { setActivating(null); }
-                            }}
-                            className="text-xs bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 text-emerald-900 px-2 py-0.5 rounded font-body transition-colors">
-                            📜 Activer bouclier
-                          </button>
-                        );
-                      })()}
+                      {/* 11/05/2026 : bouton "Contrat noble" retiré.
+                          L'item contrat_noble (T5) a été supprimé du jeu (système
+                          d'attaques T5 inter-villes désactivé). */}
 
-                      {/* Lingot royal */}
-                      {isLingotRoyal && (() => {
-                        const canSell = isResident && (city?.gold_treasury || 0) - LINGOT_ROYAL_PRICE >= 200;
-                        return (
-                          <button
-                            onClick={handleSellLingotToMairie}
-                            disabled={!canSell || activating === "lingot_royal"}
-                            title={!canSell ? (isResident ? "Trésorerie insuffisante (min 200💰)" : "Uniquement dans votre ville d'origine") : ""}
-                            className={`text-xs px-2 py-0.5 rounded font-body transition-colors border ${canSell ? "bg-yellow-400 hover:bg-yellow-500 border-yellow-500 text-yellow-900" : "bg-muted border-border text-muted-foreground opacity-50 cursor-not-allowed"}`}>
-                            {activating === "lingot_royal" ? "..." : `👑 Vendre (+${LINGOT_ROYAL_PRICE}💰)`}
-                          </button>
-                        );
-                      })()}
+                      {/* 11/05/2026 : bouton "Vendre lingot royal" retiré.
+                          L'item lingot_royal (T5) a été supprimé du jeu. */}
                     </div>
                   </div>
                 );

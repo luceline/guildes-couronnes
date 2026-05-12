@@ -20,9 +20,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ITEMS } from "@/lib/craftingData";
+import { ITEMS, MAGIC_RECIPES } from "@/lib/craftingData";
 import { CRAFTING_RECIPES_REFACTORED } from "@/lib/recipePatterns";
-import { calculateDynamicPrices } from "@/lib/pricingData";
+import { calculateDynamicPrices, flattenToT1, calculateT1MarketValue, SUGGESTED_PRICES_T1 } from "@/lib/pricingData";
 import { getInventoryQty, removeFromInventory, addToInventory } from "@/lib/inventoryHelpers";
 import {
   loadMyCauldron,
@@ -478,6 +478,115 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
     }
   };
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // ── Recettes spéciales magiques (11/05/2026) ──
+  // Recettes déterministes (pas de tirage aléatoire) avec cooldown dédié
+  // par recette stocké dans profile.magic_recipe_cooldowns: { [id]: iso }.
+  // Premier exemple : couronne_bronze (8 T3 → 1 couronne, cooldown 6h).
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /**
+   * Renvoie le ms restant sur le cooldown de la recette magique, ou 0 si prêt.
+   */
+  const getMagicRecipeCooldownLeft = (recipeId) => {
+    const cooldowns = profile?.magic_recipe_cooldowns || {};
+    const lastUsedIso = cooldowns[recipeId];
+    if (!lastUsedIso) return 0;
+    const recipe = MAGIC_RECIPES.find(r => r.id === recipeId);
+    if (!recipe) return 0;
+    const lastUsed = new Date(lastUsedIso).getTime();
+    const elapsed = Date.now() - lastUsed;
+    const cooldownMs = (recipe.cooldown || 0) * 1000;
+    return Math.max(0, cooldownMs - elapsed);
+  };
+
+  const formatCooldownLeft = (ms) => {
+    if (ms <= 0) return "";
+    const sec = Math.ceil(ms / 1000);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    if (h > 0) return `${h}h${String(m).padStart(2, "0")}`;
+    if (m > 0) return `${m}min${String(sec % 60).padStart(2, "0")}`;
+    return `${sec}s`;
+  };
+
+  const handleCraftMagicRecipe = async (recipe) => {
+    if (submitting) return;
+    // Cooldown
+    const cdLeft = getMagicRecipeCooldownLeft(recipe.id);
+    if (cdLeft > 0) {
+      toast.error(`⏳ Encore ${formatCooldownLeft(cdLeft)} avant de pouvoir recommencer.`);
+      return;
+    }
+    // Vérif ingrédients
+    const missing = (recipe.inputs || [])
+      .map(req => ({
+        ...req,
+        has: getInventoryQty(profile.inventory || [], req.key),
+      }))
+      .filter(x => x.has < x.quantity);
+    if (missing.length > 0) {
+      const list = missing.map(m => `${m.quantity - m.has}× ${ITEMS[m.key]?.name || m.key}`).join(", ");
+      toast.error(`Il vous manque : ${list}`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Retirer les inputs
+      let newInv = profile.inventory || [];
+      for (const input of recipe.inputs) {
+        newInv = removeFromInventory(newInv, input.key, input.quantity);
+      }
+      // Ajouter l'output
+      // 11/05/2026 (fix) : signature addToInventory(inventory, itemKey, qty)
+      // — itemKey doit être un STRING, pas un objet. Les propriétés (name,
+      // category, etc.) sont dérivées automatiquement de ITEMS[itemKey] par
+      // la fonction. Le bug "s.toLowerCase is not a function" venait du fait
+      // qu'on passait un objet en 2e argument, qui était ensuite comparé à
+      // une string via toLowerCase().
+      const outDef = ITEMS[recipe.output.key];
+      newInv = addToInventory(newInv, recipe.output.key, recipe.output.quantity || 1);
+      // Mise à jour cooldowns
+      const newCooldowns = { ...(profile.magic_recipe_cooldowns || {}) };
+      newCooldowns[recipe.id] = new Date().toISOString();
+
+      await base44.entities.PlayerProfile.update(profile.id, {
+        inventory: newInv,
+        magic_recipe_cooldowns: newCooldowns,
+      });
+      toast.success(`✨ ${outDef?.name || recipe.output.key} ajoutée à votre inventaire ! Cooldown : ${Math.round((recipe.cooldown || 0) / 3600)}h.`);
+      onRefresh?.();
+    } catch (e) {
+      console.warn("handleCraftMagicRecipe", e);
+      toast.error("Erreur lors de la fabrication magique.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * Estime la valeur dynamique de la Couronne (somme T1 cumulés × prix marché)
+   * pour l'afficher en preview sur la card.
+   */
+  const estimateCouronneValue = useMemo(() => {
+    const recipe = MAGIC_RECIPES.find(r => r.output?.key === "couronne_bronze");
+    if (!recipe) return 0;
+    // T1 keys connus
+    const t1Keys = new Set(Object.keys(SUGGESTED_PRICES_T1));
+    // Cumul des T1 pour TOUS les inputs (la Couronne = 8 T3, on flatten chacun)
+    const totalT1Map = {};
+    for (const input of recipe.inputs) {
+      const flat = flattenToT1(input.key, CRAFTING_RECIPES_REFACTORED, t1Keys);
+      for (const [k, v] of Object.entries(flat)) {
+        totalT1Map[k] = (totalT1Map[k] || 0) + v * input.quantity;
+      }
+    }
+    // Prix dynamiques calculés au mount via listings (réutilise calculateDynamicPrices)
+    // Ici : on utilise les prix moyens des fourchettes faute de listings live ici
+    return calculateT1MarketValue(totalT1Map, []);
+  }, []);
+
   // ─── Rendu ───
   if (loading) {
     return (
@@ -555,52 +664,21 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
   return (
     <>
       <Card className={`border-2 ${cauldron.rank === 3 ? "border-purple-500" : "border-purple-300"} bg-gradient-to-br from-purple-50/40 to-pink-50/40`}>
-        <CardContent className="pt-3 space-y-2">
-          {/* 11/05/2026 : hero compacté sur 1 ligne (titre redondant retiré,
-              déjà présent dans le drawer header et la page parente). */}
+        <CardContent className="pt-4 space-y-3">
+          {/* Hero */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-2">
-              <div className="text-2xl">🪄</div>
-              <Badge className={`text-[11px] ${getRankColor(cauldron.rank)}`}>
-                {getRankLabel(cauldron.rank)}
-              </Badge>
-              <span className="text-[11px] text-muted-foreground font-body italic">
-                {cauldron.total_uses || 0} util.
-              </span>
-            </div>
-
-            {/* Évolution : barre de progression compacte + bouton (rang < 3) */}
-            {cauldron.rank < 3 && (
-              <div className="flex items-center gap-2 flex-1 min-w-0 max-w-md">
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-baseline mb-0.5">
-                    <span className="text-[10px] font-body font-semibold whitespace-nowrap">→ R{cauldron.rank + 1}</span>
-                    <span className="text-[10px] font-body text-muted-foreground tabular-nums">
-                      {feedProgress}/{nextThreshold}💰
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-purple-500 transition-all"
-                      style={{ width: `${progressPct}%` }}
-                    />
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="font-heading h-7 text-xs px-2 shrink-0"
-                  onClick={() => setFeedModalOpen(true)}
-                >
-                  📥 Nourrir
-                </Button>
+              <div className="text-3xl">🪄</div>
+              <div>
+                <div className="font-heading text-base">Chaudron magique</div>
+                <Badge className={`text-[10px] ${getRankColor(cauldron.rank)}`}>
+                  {getRankLabel(cauldron.rank)}
+                </Badge>
               </div>
-            )}
-            {cauldron.rank === 3 && (
-              <span className="text-[11px] italic font-body text-purple-800">
-                ✨ Rang max atteint
-              </span>
-            )}
+            </div>
+            <div className="text-xs text-muted-foreground font-body italic">
+              {cauldron.total_uses || 0} utilisation{(cauldron.total_uses || 0) > 1 ? "s" : ""}
+            </div>
           </div>
 
           {/* Section utilisation quotidienne : A en desktop, B en mobile (tabs) */}
@@ -673,9 +751,115 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
             </>
           )}
 
-          {/* 11/05/2026 : section évolution déplacée dans le hero ci-dessus
-              (gain de hauteur). Rendu conditionnel rank < 3 / rank === 3
-              déjà géré là-haut. */}
+          {/* ═══ Recettes spéciales magiques (11/05/2026) ═══════════════
+              Recettes déterministes hors système rang/quotidien.
+              Première : Couronne en bronze. */}
+          {MAGIC_RECIPES.length > 0 && (
+            <div className="border border-amber-300 bg-amber-50/60 rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-heading font-semibold text-amber-900">
+                  ✨ Recettes spéciales
+                </span>
+                <span className="text-[10px] text-amber-700 italic font-body">
+                  Crafts magiques à cooldown dédié
+                </span>
+              </div>
+              {MAGIC_RECIPES.map(recipe => {
+                const cdLeft = getMagicRecipeCooldownLeft(recipe.id);
+                const cdReady = cdLeft <= 0;
+                const outDef = ITEMS[recipe.output?.key];
+                const missing = (recipe.inputs || [])
+                  .map(req => ({
+                    ...req,
+                    has: getInventoryQty(profile.inventory || [], req.key),
+                  }))
+                  .filter(x => x.has < x.quantity);
+                const hasAll = missing.length === 0;
+                return (
+                  <div key={recipe.id} className="bg-white/70 rounded p-2 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{outDef?.icon || recipe.icon || "✨"}</span>
+                      <div className="flex-1">
+                        <div className="font-heading font-semibold text-sm">
+                          {outDef?.name || recipe.name}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground italic">
+                          {recipe.description || outDef?.use || ""}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Inputs requis */}
+                    <div className="flex flex-wrap gap-1">
+                      {recipe.inputs.map(req => {
+                        const has = getInventoryQty(profile.inventory || [], req.key);
+                        const ok = has >= req.quantity;
+                        const itemDef = ITEMS[req.key];
+                        return (
+                          <span
+                            key={req.key}
+                            className={`text-[10px] px-1.5 py-0.5 rounded border font-body ${ok ? "bg-green-50 border-green-200 text-green-800" : "bg-red-50 border-red-200 text-red-800"}`}
+                          >
+                            {itemDef?.icon} {itemDef?.name || req.key} ({has}/{req.quantity})
+                          </span>
+                        );
+                      })}
+                    </div>
+                    {/* Valeur estimée + cooldown info */}
+                    <div className="text-[10px] text-amber-800 italic">
+                      💡 Valeur estimée à l'usage : ~{estimateCouronneValue + (outDef?.value || 0)} or
+                      (matières premières + bonus {outDef?.value || 0} or fixe).
+                      Cooldown craft : {Math.round((recipe.cooldown || 0) / 3600)}h.
+                    </div>
+                    {/* Bouton */}
+                    <Button
+                      size="sm"
+                      className="w-full font-heading"
+                      disabled={!cdReady || !hasAll || submitting}
+                      onClick={() => handleCraftMagicRecipe(recipe)}
+                    >
+                      {!cdReady
+                        ? `⏳ ${formatCooldownLeft(cdLeft)}`
+                        : !hasAll
+                          ? "❌ Ingrédients manquants"
+                          : `🪄 Cuisiner (${recipe.inputs.length} T3 requis)`}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Section évolution */}
+          {cauldron.rank < 3 && (
+            <div className="bg-card border border-border rounded-lg p-3 space-y-2">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs font-body font-semibold">Évolution rang {cauldron.rank + 1}</span>
+                <span className="text-xs font-body text-muted-foreground">
+                  {feedProgress}/{nextThreshold} 💰 virtuels
+                </span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 transition-all"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full font-heading"
+                onClick={() => setFeedModalOpen(true)}
+              >
+                📥 Nourrir le chaudron
+              </Button>
+            </div>
+          )}
+
+          {cauldron.rank === 3 && (
+            <div className="bg-purple-100 border border-purple-300 rounded-lg p-2 text-center text-[11px] italic font-body text-purple-800">
+              ✨ Votre chaudron a atteint le rang maximum. La pleine puissance des arts magiques s'offre à vous.
+            </div>
+          )}
         </CardContent>
       </Card>
 

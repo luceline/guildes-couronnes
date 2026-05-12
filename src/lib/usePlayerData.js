@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { applyHungerRegen } from "./hungerRegen";
 import { handleTravelArrival } from "./handleTravelArrival";
+import { useProfile } from "./ProfileContext";
 
 export function usePlayerData() {
   const [profile, setProfile]   = useState(null);
@@ -25,6 +26,17 @@ export function usePlayerData() {
   const [homeCity, setHomeCity] = useState(null);
   const [cities, setCities]     = useState([]);
   const [loading, setLoading]   = useState(true);
+
+  // 11/05/2026 : on consomme refreshProfile du ProfileContext pour notifier
+  // les consommateurs globaux (MiniStatusBar, etc.) après chaque refresh
+  // local. On NE LIT PAS profile du context (pas de dépendance circulaire),
+  // on lui pousse juste un signal "relis le profile". Le context a son
+  // propre fetch indépendant.
+  // Sécurisation : si le ProfileProvider n'est pas wrappé (cas dégradé) ou
+  // si useProfile retourne undefined, refreshProfile vaut undefined et le
+  // optional chaining ?.() évite tout crash.
+  const profileCtx = useProfile();
+  const refreshProfile = profileCtx?.refreshProfile;
 
   const refresh = useCallback(async () => {
     try {
@@ -47,6 +59,12 @@ export function usePlayerData() {
       setCities(allCities);
       setProfile(p);
 
+      // 11/05/2026 : notifie le ProfileContext global après chaque refresh
+      // local. Comme ça MiniStatusBar (dans GameLayout) qui lit depuis le
+      // context se met à jour automatiquement après n'importe quelle action.
+      // Pas d'await : on lance en feu-et-oublie pour ne pas bloquer le rendu.
+      refreshProfile?.();
+
       if (p.city_id) {
         // Utiliser City.get() pour avoir les données fraîches de la ville courante
         const freshCity = await base44.entities.City.get(p.city_id).catch(() => null);
@@ -59,7 +77,7 @@ export function usePlayerData() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshProfile]);
 
   useEffect(() => { refresh(); }, [refresh]);
 

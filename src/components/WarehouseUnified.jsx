@@ -88,7 +88,7 @@ const T3_ITEMS = [
   { key: "tissu",         name: "Tissu",          icon: "🧵", tier: 3 },
   { key: "pain",          name: "Pain",           icon: "🍞", tier: 3 },
   { key: "potion_soin",   name: "Potion soin",    icon: "🧪", tier: 3 },
-  { key: "lingot_royal",  name: "Lingot royal",   icon: "👑", tier: 3 },
+  // 11/05/2026 : lingot_royal retiré (item supprimé).
   { key: "lingots_or",    name: "Lingots or",     icon: "💛", tier: 3 },
   { key: "parchemin",     name: "Parchemin",      icon: "📜", tier: 3 },
   { key: "contrat_artisan", name: "Contrat artisan", icon: "📋", tier: 3 },
@@ -558,9 +558,10 @@ export default function WarehouseUnified({
 
   return (
     <Card>
-      <CardContent className="pt-3 space-y-3">
-        {/* 11/05/2026 : CardTitle "📦 Entrepôt - Dépôts" retiré (info déjà
-            donnée par le drawer header + sous-onglet "Approvisionnement"). */}
+      <CardHeader>
+        <CardTitle className="font-heading text-lg flex items-center gap-2">📦 Entrepôt - Dépôts</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
         {/* Filtre tier */}
         <div className="flex gap-2">
           {[
@@ -584,7 +585,7 @@ export default function WarehouseUnified({
 
         {/* Grille d'items */}
         {selectedTier === "t1" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="space-y-2">
             {[...items].map(item => {
               const isGold = item.key === "or";
               const playerStock = isGold
@@ -601,7 +602,7 @@ export default function WarehouseUnified({
 
               if (playerStock === 0 && !isGold) {
                 return (
-                  <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
+                  <div key={item.key} className="space-y-1">
                     <div className="flex items-center gap-2 text-xs font-body rounded-lg px-3 py-2 bg-muted/30 text-muted-foreground">
                       <span>{item.icon}</span>
                       <span className="flex-1 font-semibold">{item.name}</span>
@@ -617,7 +618,7 @@ export default function WarehouseUnified({
               }
 
               return (
-                <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
+                <div key={item.key} className="space-y-1">
                   <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
                     <span className="text-lg w-8 text-center">{item.icon}</span>
                     <div className="flex-1 min-w-0">
@@ -628,7 +629,7 @@ export default function WarehouseUnified({
                         {dailyUse > 0 && <span> · consommation : {dailyUse}/j</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-1.5">
                       <Input
                          type="number"
                        inputMode="numeric"
@@ -735,7 +736,7 @@ export default function WarehouseUnified({
             })}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="space-y-2">
             {items.map(item => {
               const playerQty = (profile.inventory || []).find(i => i.item_key === item.key)?.quantity || 0;
               const warehouseStock = isHomeCity ? (warehouse[item.key] || 0) : null;
@@ -748,7 +749,7 @@ export default function WarehouseUnified({
 
               if (playerQty === 0) {
                 return (
-                  <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
+                  <div key={item.key} className="space-y-1">
                     <div className="flex items-center gap-2 text-xs font-body rounded-lg px-3 py-2 bg-muted/30 text-muted-foreground">
                       <span>{item.icon}</span>
                       <span className="flex-1 font-semibold">{item.name}</span>
@@ -764,7 +765,7 @@ export default function WarehouseUnified({
               }
 
               return (
-                <div key={item.key} className="flex flex-col gap-1 min-h-[110px]">
+                <div key={item.key} className="space-y-1">
                   <div className="flex items-center gap-2 bg-muted/30 rounded-lg px-3 py-2">
                     <span className="text-lg w-8 text-center">{item.icon}</span>
                     <div className="flex-1 min-w-0">
@@ -774,7 +775,7 @@ export default function WarehouseUnified({
                         Votre stock : {playerQty}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-1.5">
                       <Input
                          type="number"
                        inputMode="numeric"

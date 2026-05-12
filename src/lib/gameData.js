@@ -226,7 +226,8 @@ export const COMBAT_UPGRADE_COSTS = {
 
 // Cooldowns d'amélioration (en secondes) par grade visé. PAR ITEM (pas global).
 // Si j'upgrade ma cuirasse, mon brassard reste disponible à upgrade en parallèle.
-export const COMBAT_UPGRADE_COOLDOWN_SEC = [60, 120, 240, 480, 960];
+// 11/05/2026 : valeurs doublées (×2) pour ralentir la progression PvP.
+export const COMBAT_UPGRADE_COOLDOWN_SEC = [120, 240, 480, 960, 1920];
 
 // Plage de tarif autorisée pour le service d'amélioration proposé par un artisan
 // (Bûcheron pour épée / Mineur pour armures, depuis l'atelier d'amélioration).
@@ -375,8 +376,8 @@ export function getFatigueRegenInterval(housingLevel) {
 // la mise à jour se propage partout automatiquement.
 //
 // Cas spécial ajouté manuellement après la dérivation :
-// - potion_endur : T4 dont l'effet principal est army_energy mais qui restaure
-//   aussi 2 points de faim au consommateur (legacy, à clarifier en session future).
+// - potion_endur : maintenant fatigue_restore +50 directement (cf. craftingData.js).
+//   La ligne legacy "+2 faim" reste pour compat avec d'anciens inventaires.
 export const HUNGER_FOOD_ITEMS = {
   ...Object.fromEntries(
     Object.entries(ITEMS_DEF)
@@ -390,7 +391,8 @@ export const HUNGER_FOOD_ITEMS = {
         icon: v.icon,
       }])
   ),
-  // Legacy : potion_endur restaure 2 faim malgré son effect "army_energy"
+  // 11/05/2026 : potion_endur a désormais effect "fatigue_restore" (cf craftingData)
+  // mais on garde un fallback hunger=2 ici au cas où le code y accède via HUNGER_FOOD_ITEMS.
   potion_endur: { hunger_restore: 2, label: "Potion d'endurance", icon: "💪" },
 };
 
@@ -401,77 +403,13 @@ export const HUNGER_FOOD_ITEMS = {
 // Plafond : 1 item offensif par joueur par ville cible par jour.
 // ─────────────────────────────────────────────
 export const COMPETITIVE_ITEMS = {
-  // ── T5 JCJ — 1 par profession ──
-  huile_inflammable: {
-    name: "Huile inflammable", icon: "🔥", category: "parchemins",
-    craftedBy: ["Bûcheron"], hungerCost: 5, mayorOnly: false,
-    effect: "disable_building",
-    effectValue: { duration: 1 },
-    counterBuilding: "caserne",
-    description: "Détruit un bâtiment aléatoire de la ville adverse. Contre-mesure : Guilde des voyageurs.",
-    delay: true,
-    tavernMessage: "🔥 Un bâtiment a subi d'étranges dégâts cette nuit...",
-  },
-  poudre_corrosive: {
-    name: "Poudre corrosive", icon: "💥", category: "parchemins",
-    craftedBy: ["Mineur"], hungerCost: 5, mayorOnly: false,
-    effect: "destroy_warehouse_stock",
-    effectValue: { min: 10, max: 20 },
-    counterBuilding: "entrepot_fortifie",
-    description: "Détruit 80% des unités d'une ressource aléatoire de l'entrepôt ennemi. Contre-mesure : Entrepôt fortifié.",
-    delay: true,
-    tavernMessage: "💥 Des stocks ont été retrouvés endommagés...",
-  },
-  festin_empoisonne: {
-    name: "Festin empoisonné", icon: "🍖", category: "nourriture",
-    craftedBy: ["Fermier"], hungerCost: 5, mayorOnly: false,
-    effect: "hunger_max_malus",
-    effectValue: { reduction: 3, duration: 2 },
-    counterBuilding: "hospice",
-    description: "Récupération de faim = −5⚡ supplémentaires pendant 2j pour les résidents. Contre-mesure : Hospice.",
-    delay: true,
-    tavernMessage: "🤢 Plusieurs habitants se sentent faibles depuis hier...",
-  },
-  faux_contrat: {
-    name: "Faux contrat", icon: "📄", category: "parchemins",
-    craftedBy: ["Tisserand"], hungerCost: 5, mayorOnly: false,
-    effect: "blind_travel",
-    effectValue: { duration: 2 },
-    counterBuilding: "guilde_marchands",
-    description: "Pendant 2j les résidents de la ville cible voyagent à l'aveugle (destinations des routes inconnues). Contre-mesure : Guilde des marchands.",
-    delay: true,
-    tavernMessage: "📄 Des rumeurs de faux contrats sèment la confusion parmi les voyageurs...",
-  },
-  cle_forgee: {
-    name: "Clé forgée", icon: "🗝️", category: "parchemins",
-    craftedBy: ["Forgeron"], hungerCost: 5, mayorOnly: false,
-    effect: "steal_treasury",
-    effectValue: { pct: 0.20 },
-    counterBuilding: "coffre_fort",
-    description: "🗝️ Vole 20% des lingots stockés à la mairie ennemie (classement inter-villes). Contre-mesure : Coffre-fort.",
-    delay: true,
-    tavernMessage: "🗝️ Le coffre de la ville a été partiellement vidé...",
-  },
-  elixir_discorde: {
-    name: "Élixir de discorde", icon: "☠️", category: "potions",
-    craftedBy: ["Alchimiste"], hungerCost: 5, mayorOnly: false,
-    effect: "redirect_taxes",
-    effectValue: { duration: 2 },
-    counterBuilding: "scriptorium",
-    description: "Les taxes de la ville cible sont détournées vers votre ville pendant 2j. Contre-mesure : Scriptorium.",
-    delay: true,
-    tavernMessage: "📜 Des rumeurs ont semé le doute parmi les marchands...",
-  },
-  lettre_desinformation: {
-    name: "Lettre de désinformation", icon: "✉️", category: "parchemins",
-    craftedBy: ["Marchand"], hungerCost: 5, mayorOnly: false,
-    effect: "tax_loss",
-    effectValue: 0.30,
-    counterBuilding: "tour_guet",
-    description: "+30% de taxes sur la ville cible pendant 2j. Contre-mesure : Tour de guet.",
-    delay: true,
-    tavernMessage: "📰 Des nouvelles troublantes circulent en ville...",
-  },
+  // ── T5 JCJ — RETIRÉS (11/05/2026) ──
+  // Les 7 items d'attaque inter-villes T5 (huile_inflammable, poudre_corrosive,
+  // festin_empoisonne, faux_contrat, cle_forgee, elixir_discorde,
+  // lettre_desinformation) ont été supprimés avec le système militaire.
+  // Ne restent que les outils Marchand (rapport_commerce, traite_commercial,
+  // rumors) qui ne sont pas militaires.
+
   rapport_commerce: {
     name: "Rapport de commerce", icon: "🔍", category: "parchemins",
     craftedBy: ["Marchand"], hungerCost: 2, mayorOnly: false,
@@ -1008,9 +946,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
+    effect: "⏳ Bâtiment de défense désactivé. Le système d'attaques inter-villes a été retiré. Ce bâtiment pourra retrouver une utilité dans un futur patch.",
     functionType: "alert",
-    counters: "lettre_desinformation",
   },
   remparts: {
     name: "Mur d'enceinte", icon: "🏰",
@@ -1030,9 +967,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
+    effect: "⏳ Bâtiment de défense désactivé. Le système d'attaques inter-villes a été retiré. Ce bâtiment pourra retrouver une utilité dans un futur patch.",
     functionType: "guild_travel_defense",
-    counters: "huile_inflammable",
   },
   coffre_fort: {
     name: "Coffre-fort", icon: "🔒",
@@ -1041,9 +977,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
+    effect: "⏳ Bâtiment de défense désactivé. Le système d'attaques inter-villes a été retiré. Ce bâtiment pourra retrouver une utilité dans un futur patch.",
     functionType: "treasury_defense",
-    counters: "cle_forgee",
   },
   scriptorium: {
     name: "Scriptorium", icon: "✍️",
@@ -1052,9 +987,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
+    effect: "⏳ Bâtiment de défense désactivé. Le système d'attaques inter-villes a été retiré. Ce bâtiment pourra retrouver une utilité dans un futur patch.",
     functionType: "anti_propaganda_defense",
-    counters: "elixir_discorde",
   },
   entrepot_fortifie: {
     name: "Entrepôt fortifié", icon: "🏗️",
@@ -1063,9 +997,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
+    effect: "⏳ Bâtiment de défense désactivé. Le système d'attaques inter-villes a été retiré. Ce bâtiment pourra retrouver une utilité dans un futur patch.",
     functionType: "warehouse_defense",
-    counters: "poudre_corrosive",
   },
   guilde_marchands: {
     name: "Guilde des marchands", icon: "🏛️",
@@ -1074,9 +1007,8 @@ export const BUILDING_TYPES = {
     stackable: false, unique: true,
     costBase: { bois_brut: 50, pierre: 50, minerai_fer: 50, ble: 50, laine_brute: 50, herbes: 50, quartz_brut: 50 },
     maintenance: {},
-    effect: "⏳ Bâtiment en refonte. Effet temporairement désactivé le temps de revoir le système d'attaques T5.",
+    effect: "⏳ Bâtiment de défense désactivé. Le système d'attaques inter-villes a été retiré. Ce bâtiment pourra retrouver une utilité dans un futur patch.",
     functionType: "guild_defense",
-    counters: "faux_contrat",
   },
 
   // ── Prestige ──

@@ -325,7 +325,19 @@ function ItemsTab() {
                       <div className="text-xs">
                         <span className="font-semibold">Métier :</span> {selectedRecipe.profession || "Tous"}
                         {selectedRecipe.cooldown && (
-                          <span className="ml-2">· <span className="font-semibold">Cooldown :</span> {selectedRecipe.cooldown}min</span>
+                          <span className="ml-2">· <span className="font-semibold">Cooldown :</span> {(() => {
+                            // 11/05/2026 : recipe.cooldown est en SECONDES, pas en minutes.
+                            // Avant : <span>{recipe.cooldown}min</span> qui affichait 240 comme "240min"
+                            // alors que la vraie valeur était 4 minutes. Formatage propre :
+                            const sec = selectedRecipe.cooldown;
+                            if (sec < 60) return `${sec}s`;
+                            const m = Math.floor(sec / 60);
+                            const s = sec % 60;
+                            const h = Math.floor(m / 60);
+                            const mm = m % 60;
+                            if (h > 0) return mm === 0 ? `${h}h` : `${h}h${String(mm).padStart(2, "0")}`;
+                            return s === 0 ? `${m}min` : `${m}min${String(s).padStart(2, "0")}`;
+                          })()}</span>
                         )}
                         {selectedRecipe.costGold > 0 && (
                           <span className="ml-2">· <span className="font-semibold">Coût :</span> {selectedRecipe.costGold}💰</span>

@@ -1,5 +1,5 @@
 /**
- * SavoirHubPage : page-passerelle pour Codex, Tutoriel, Profil.
+ * SavoirHubPage : page-passerelle pour Codex et Tutoriel.
  * Accessible via /savoir et via le drawer Bibliothèque (sprite biblio map).
  *
  * (10/05/2026) :
@@ -7,6 +7,10 @@
  *   le Dashboard n'est plus accessible directement sur mobile).
  * - Classement remplacé par Tutoriel (le classement reste accessible via
  *   le sprite "trophée" sur la map).
+ *
+ * (11/05/2026) :
+ * - Card "Profil" retirée et déplacée vers le Logement (InventairePage)
+ *   où c'est plus logique : logement = espace personnel du joueur.
  */
 import { useState } from "react";
 import HubPage from "../components/HubPage";
@@ -30,12 +34,6 @@ export default function SavoirHubPage() {
       title: "Tutoriel",
       description: "Re-découvrez les fondamentaux du jeu. Aldebert vous reprend par la main pour vous expliquer les rouages du royaume.",
     },
-    {
-      path: "/profile",
-      icon: "👤",
-      title: "Profil",
-      description: "Vos statistiques, vos titres, vos accomplissements. Le portrait du joueur que vous êtes devenu.",
-    },
   ];
 
   return (
@@ -44,7 +42,7 @@ export default function SavoirHubPage() {
        * épopée, récolte, production, marché, entrepôt, streak). */}
       <TodayCheckup />
 
-      {/* Hub classique : Codex / Tutoriel / Profil */}
+      {/* Hub classique : Codex / Tutoriel */}
       <HubPage
         title="📚 Le savoir"
         subtitle="Aldebert ouvre un grimoire. « Pour ceux qui prennent le temps de comprendre. »"

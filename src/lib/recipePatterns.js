@@ -22,7 +22,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "planches", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Bois ×1 + Minerai ×1 (Mineur) + Laine ×1 (Tisserand) → 3 planches",
   },
   {
@@ -38,7 +38,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "meuble", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Planches + Quartz poli (Orfèvre, vernis cristallin) + Pierre taillée (Mineur, socle) → 1 meuble",
   },
   {
@@ -55,28 +55,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "armure", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Meuble (cadre boisé) + Lingots fer (plaques) + Potion (huile protectrice) + Parchemin (brevet) → 1 Tunique de travail",
   },
-  {
-    id: "craft_huile_inflammable",
-    name: "Huile inflammable",
-    icon: "🔥",
-    profession: "Bûcheron",
-    tier: 5,
-    inputs: [
-      { key: "ragout",         quantity: 1 }, // Fermier T4
-      { key: "epee_longue",    quantity: 1 }, // Forgeron T4
-      { key: "besace",         quantity: 1 }, // Tisserand T4
-      { key: "potion_endur",   quantity: 1 }, // Alchimiste T4
-      { key: "lingot_raffine", quantity: 1 }, // Orfèvre T4
-    ],
-    output: { key: "huile_inflammable", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Ragout + Outil multifonction renforcé + Sac de voyage + Potion endurance + Lingot raffiné → Huile inflammable",
-  },
-
+  
   {
     id: "craft_etai_recolte",
     name: "Étai de récolte",
@@ -90,7 +72,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "etai_recolte", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Planches ×1 + Charbon ×1 + Farine ×1 → 1 Étai de récolte",
   },
 
@@ -108,7 +90,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "pierre_brute", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Minerai + Bois (Bûcheron, étais) + Blé (Fermier, liant) → 2 pierres taillées",
   },
   {
@@ -124,7 +106,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "lingots_fer", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Charbon (Forgeron, combustible) + Pierre taillée (moule) + Farine (Fermier, liant creuset) → 2 lingots de fer",
   },
   {
@@ -141,28 +123,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "outils", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Lingots fer (lames) + Tissu (poignées rembourrées) + Outil multifonction (acier trempé) + Pain (nourriture de chantier) → 2 outils",
   },
-  {
-    id: "craft_poudre_corrosive",
-    name: "Poudre corrosive",
-    icon: "💥",
-    profession: "Mineur",
-    tier: 5,
-    inputs: [
-      { key: "armure",          quantity: 1 }, // Bûcheron T4
-      { key: "ragout",          quantity: 1 }, // Fermier T4
-      { key: "besace",          quantity: 1 }, // Tisserand T4
-      { key: "epee_longue",     quantity: 1 }, // Forgeron T4
-      { key: "contrat_artisan", quantity: 1 }, // Marchand T4
-    ],
-    output: { key: "poudre_corrosive", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Tunique de travail + Ragout + Sac de voyage + Outil multifonction renforcé + Contrat artisan → Poudre corrosive",
-  },
-
+  
   {
     id: "craft_pierre_aiguiser",
     name: "Pierre à aiguiser",
@@ -176,7 +140,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "pierre_aiguiser", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Pierre ×1 + Minerai ×1 + Bois brut ×1 → 1 Pierre à aiguiser",
   },
   {
@@ -192,7 +156,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "marteau_armurier", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Charbon ×1 + Pierre taillée ×1 + Fil ×1 → 1 Marteau d'armurier",
   },
 
@@ -210,7 +174,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "farine", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Blé + Herbes (Alchimiste, levain) + Laine (Tisserand, filtre) → 3 farines",
   },
   {
@@ -226,7 +190,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "cataplasme", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Herbes (Alchimiste, principe actif) + Blé (mucilage) + Bois (support) → 1 cataplasme (+1❤️)",
   },
   {
@@ -242,7 +206,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "pain", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Farine + Extrait (Alchimiste, levain actif) + Encre (Marchand, cachet boulangers) → 3 pains",
   },
   {
@@ -259,28 +223,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "ragout", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Pain (base) + Lingots fer (marmite) + Tissu (étamine) + Potion soin (bouillon fortifiant) → 2 ragoûts",
   },
-  {
-    id: "craft_festin_empoisonne",
-    name: "Festin empoisonné",
-    icon: "🍖",
-    profession: "Fermier",
-    tier: 5,
-    inputs: [
-      { key: "armure",          quantity: 1 }, // Bûcheron T4
-      { key: "outils",          quantity: 1 }, // Mineur T4
-      { key: "besace",          quantity: 1 }, // Tisserand T4
-      { key: "potion_endur",    quantity: 1 }, // Alchimiste T4
-      { key: "contrat_artisan", quantity: 1 }, // Marchand T4
-    ],
-    output: { key: "festin_empoisonne", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Tunique de travail + Outils + Sac de voyage + Potion endurance + Contrat artisan → Festin empoisonné",
-  },
-
+  
   // ════ TISSERAND ════
   {
     id: "craft_fil",
@@ -295,7 +241,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "fil", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Laine + Herbes (Alchimiste, teinture) + Quartz (Orfèvre, abrasif de filage) → 3 fils",
   },
   {
@@ -311,7 +257,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "tissu", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Fil + Extrait (Alchimiste, apprêt) + Planches (Bûcheron, cadre de tissage) → 2 tissus",
   },
   {
@@ -328,28 +274,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "besace", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Tissu + Lingots fer (armatures) + Lingots or (fermoirs dorés) + Parchemin (étiquette) → 1 Sac de voyage",
   },
-  {
-    id: "craft_faux_contrat",
-    name: "Faux contrat",
-    icon: "📄",
-    profession: "Tisserand",
-    tier: 5,
-    inputs: [
-      { key: "armure",         quantity: 1 }, // Bûcheron T4
-      { key: "outils",         quantity: 1 }, // Mineur T4
-      { key: "epee_longue",    quantity: 1 }, // Forgeron T4
-      { key: "potion_endur",   quantity: 1 }, // Alchimiste T4
-      { key: "lingot_raffine", quantity: 1 }, // Orfèvre T4
-    ],
-    output: { key: "faux_contrat", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Tunique de travail + Outils + Outil multifonction renforcé + Potion endurance + Lingot raffiné → Faux contrat",
-  },
-
+  
   {
     id: "craft_bandeau_erudit",
     name: "Bandeau d'érudit",
@@ -363,7 +291,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "bandeau_erudit", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Fil ×1 + Farine ×1 + Extrait ×1 → 1 Bandeau d'érudit",
   },
 
@@ -381,7 +309,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "charbon", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Pierre + Bois (Bûcheron, combustion) + Laine (Tisserand, soufflet) → 2 charbons",
   },
   {
@@ -397,7 +325,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "epee_courte", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Charbon (forge) + Pierre taillée + Quartz poli → 1 Outil multifonction (durabilité 10, débloque craft T3).",
   },
   {
@@ -414,28 +342,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "epee_longue", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Outil multifonction + Tissu + Lingots fer + Meuble → 1 Outil multifonction renforcé (durabilité 10, débloque craft T5).",
   },
-  {
-    id: "craft_cle_forgee",
-    name: "Clé forgée",
-    icon: "🗝️",
-    profession: "Forgeron",
-    tier: 5,
-    inputs: [
-      { key: "ragout",       quantity: 1 }, // Fermier T4
-      { key: "epee_longue",  quantity: 1 }, // Forgeron T4
-      { key: "outils",       quantity: 1 }, // Mineur T4
-      { key: "besace",       quantity: 1 }, // Tisserand T4
-      { key: "potion_endur", quantity: 1 }, // Alchimiste T4
-    ],
-    output: { key: "cle_forgee", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Ragout + Outil multifonction renforcé + Outils + Sac de voyage + Potion endurance → Clé forgée",
-  },
-
+  
   {
     id: "craft_affutage_maitre",
     name: "Affûtage de maître",
@@ -449,7 +359,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "affutage_maitre", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Charbon ×1 + Pierre taillée ×1 + Quartz poli ×1 → 1 Affûtage de maître",
   },
 
@@ -467,7 +377,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "extrait", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Herbes + Laine (Tisserand, filtre) + Minerai (Mineur, alambic) → 2 extraits",
   },
   {
@@ -483,7 +393,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "cataplasme", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Herbes (principe actif) + Blé (mucilage) + Bois (support) → 1 cataplasme (+1❤️)",
   },
   {
@@ -499,7 +409,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "potion_soin", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Extrait + Fil (Tisserand, filtre médicinal) + Encre (Marchand, étiquette dosage) → 2 potions de soin",
   },
   {
@@ -516,28 +426,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "potion_endur", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Potion soin + Pain (nutriments) + Lingots or (or colloïdal) + Parchemin (formule) → 1 potion d'endurance",
   },
-  {
-    id: "craft_elixir_discorde",
-    name: "Élixir de discorde",
-    icon: "☠️",
-    profession: "Alchimiste",
-    tier: 5,
-    inputs: [
-      { key: "armure",          quantity: 1 }, // Bûcheron T4
-      { key: "outils",          quantity: 1 }, // Mineur T4
-      { key: "ragout",          quantity: 1 }, // Fermier T4
-      { key: "epee_longue",     quantity: 1 }, // Forgeron T4
-      { key: "contrat_artisan", quantity: 1 }, // Marchand T4
-    ],
-    output: { key: "elixir_discorde", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Tunique de travail + Outils + Ragout + Outil multifonction renforcé + Contrat artisan → Élixir de discorde",
-  },
-
+  
   // ════ ORFÈVRE ════
   {
     id: "craft_quartz_poli",
@@ -552,7 +444,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "quartz_poli", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Quartz brut + Blé (Fermier, pâte abrasive) + Minerai (Mineur, abrasif) → 2 quartz polis",
   },
   {
@@ -568,7 +460,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "lingots_or", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Quartz poli + Charbon (Forgeron, fusion) + Fil (Tisserand, creuset tressé) → 1 lingot d'or",
   },
   {
@@ -586,29 +478,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "lingot_raffine", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Lingot or + Tissu (polissage) + Outil multifonction (moule acier) + Parchemin (certificat) → 1 lingot raffiné [Fonderie]",
   },
-  {
-    id: "craft_lingot_royal",
-    name: "Lingot royal",
-    icon: "👑",
-    profession: "Orfèvre",
-    tier: 5,
-    requiresBuilding: "fonderie",
-    inputs: [
-      { key: "armure",         quantity: 1 }, // Bûcheron T4
-      { key: "outils",         quantity: 1 }, // Mineur T4
-      { key: "besace",         quantity: 1 }, // Tisserand T4
-      { key: "epee_longue",    quantity: 1 }, // Forgeron T4
-      { key: "lingot_raffine", quantity: 1 }, // Orfèvre T4
-    ],
-    output: { key: "lingot_royal", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Lingot raffiné + Tunique de travail + Outils + Sac de voyage + Outil multifonction renforcé → Lingot royal [Fonderie]",
-  },
-
+  
   {
     id: "craft_bon_tresor_orfevre",
     name: "Bon du Trésor",
@@ -622,7 +495,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "bon_tresor", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Quartz poli ×1 + Encre ×1 + Fil ×1 → 1 Bon du Trésor",
   },
 
@@ -640,7 +513,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "encre", quantity: 1 },
     costGold: 0,
-    cooldown: 120,
+    cooldown: 240,
     description: "Herbes (pigments) + Quartz (Orfèvre, fixateur) + Laine (Tisserand, fibre) → 3 encres",
   },
   {
@@ -656,7 +529,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "parchemin", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Encre + Planches (Bûcheron, presse) + Farine (Fermier, pâte à papier) → 2 parchemins",
   },
   {
@@ -673,46 +546,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "contrat_artisan", quantity: 1 },
     costGold: 0,
-    cooldown: 480,
+    cooldown: 960,
     description: "Parchemin + Outil multifonction (sceau de forge) + Meuble (bureau) + Potion soin (cachet alchimique) → 1 contrat artisan",
   },
-  {
-    id: "craft_contrat_noble",
-    name: "Contrat noble",
-    icon: "📜",
-    profession: "Marchand",
-    tier: 5,
-    inputs: [
-      { key: "contrat_artisan", quantity: 1 }, // Marchand T4
-      { key: "armure",          quantity: 1 }, // Bûcheron T4
-      { key: "epee_longue",     quantity: 1 }, // Forgeron T4
-      { key: "potion_endur",    quantity: 1 }, // Alchimiste T4
-      { key: "lingot_raffine",  quantity: 1 }, // Orfèvre T4
-    ],
-    output: { key: "contrat_noble", quantity: 1 },
-    costGold: 200,
-    cooldown: 960,
-    description: "Contrat artisan + Tunique de travail + Outil multifonction renforcé + Potion endurance + Lingot raffiné → Contrat noble",
-  },
-  {
-    id: "craft_lettre_desinformation",
-    name: "Lettre de désinformation",
-    icon: "✉️",
-    profession: "Marchand",
-    tier: 5,
-    inputs: [
-      { key: "armure",         quantity: 1 }, // Bûcheron T4
-      { key: "outils",         quantity: 1 }, // Mineur T4
-      { key: "besace",         quantity: 1 }, // Tisserand T4
-      { key: "epee_longue",    quantity: 1 }, // Forgeron T4
-      { key: "lingot_raffine", quantity: 1 }, // Orfèvre T4
-    ],
-    output: { key: "lettre_desinformation", quantity: 1 },
-    costGold: 0,
-    cooldown: 960,
-    description: "Tunique de travail + Outils + Sac de voyage + Outil multifonction renforcé + Lingot raffiné → Lettre de désinformation",
-  },
-
+    
   {
     id: "craft_bon_tresor_marchand",
     name: "Bon du Trésor",
@@ -726,7 +563,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "bon_tresor", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Encre ×1 + Quartz poli ×1 + Planches ×1 → 1 Bon du Trésor",
   },
   {
@@ -742,7 +579,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     ],
     output: { key: "carnet_commande", quantity: 1 },
     costGold: 0,
-    cooldown: 240,
+    cooldown: 480,
     description: "Encre ×1 + Farine ×1 + Planches ×1 → 1 Carnet de commande",
   },
 

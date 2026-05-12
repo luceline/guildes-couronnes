@@ -34,6 +34,7 @@ import {
 } from "@/lib/gameData";
 import { ITEMS } from "@/lib/craftingData";
 import { notifyTavern } from "@/lib/tavernNotifier";
+import { useWakeLock } from "@/lib/useWakeLock"; // 12/05/2026 : empêche l'écran de s'éteindre pendant les combats
 import { Sword, Shield, Trophy, Skull, Clock } from "lucide-react";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -377,6 +378,12 @@ function ChallengeCard({ challenge, currentEmail, onDefend, onRiposte }) {
 // ──────────────────────────────────────────────────────────────────────────
 
 export default function Combat({ profile, onRefresh }) {
+  // 12/05/2026 : Wake Lock actif sur toute la page Combat (form + replay).
+  // Empêche l'écran de s'éteindre pendant les combats qui peuvent durer
+  // plusieurs minutes (replay + lecture). Fallback gracieux sur navigateurs
+  // non supportés. Voir lib/useWakeLock.js pour le détail.
+  useWakeLock(true);
+
   const [tab, setTab] = useState("mine");
   const [challenges, setChallenges] = useState([]);
   const [publicResolved, setPublicResolved] = useState([]);

@@ -242,3 +242,74 @@ export function getSuggestedPrice(itemKey, tier) {
   }
   return null;
 }
+// ═══════════════════════════════════════════════════════════════════════════
+// FLATTENING RÉCURSIF DES RECETTES (11/05/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+// Pour la Couronne en bronze : calcule combien de chaque T1 est cumulé dans
+// la chaîne complète de fabrication, pour évaluer sa valeur de marché.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Pour un itemKey donné, retourne la map { t1_key: quantity_cumulée } des T1
+ * nécessaires pour fabriquer 1 unité de l'item. Parcourt récursivement les
+ * inputs jusqu'à atteindre les T1 (récoltes basiques).
+ *
+ * @param {string} itemKey - Clé de l'item à flatten
+ * @param {Array} recipePatterns - Tableau des recettes (CRAFTING_RECIPES_REFACTORED)
+ * @param {Set<string>} t1Keys - Set des keys T1 (terminaux)
+ * @param {number} depth - Profondeur de récursion (protection cycle)
+ * @returns {Object} { t1_key: quantity, ... }
+ */
+export function flattenToT1(itemKey, recipePatterns, t1Keys, depth = 0) {
+  if (depth > 10) return {}; // Protection cycle
+  if (t1Keys.has(itemKey)) {
+    return { [itemKey]: 1 };
+  }
+  // Trouve la recette qui produit cet item
+  const recipe = recipePatterns.find(r => r.output?.key === itemKey);
+  if (!recipe || !recipe.inputs) {
+    return { [itemKey]: 1 }; // Item non craftable, on le compte tel quel
+  }
+  const outQty = recipe.output.quantity || 1;
+  const cumul = {};
+  for (const input of recipe.inputs) {
+    const sub = flattenToT1(input.key, recipePatterns, t1Keys, depth + 1);
+    for (const [k, v] of Object.entries(sub)) {
+      cumul[k] = (cumul[k] || 0) + (v * input.quantity) / outQty;
+    }
+  }
+  return cumul;
+}
+
+/**
+ * Calcule la valeur de marché totale d'une map { t1_key: quantity }.
+ * Pour chaque T1, multiplie sa quantité par son prix moyen de marché
+ * (clampé dans [SUGGESTED_PRICES_T1.min, SUGGESTED_PRICES_T1.max]).
+ *
+ * @param {Object} t1Map - { t1_key: quantity_cumulée }
+ * @param {Array} listings - Listings marché actifs (pour calcul prix moyen)
+ * @returns {number} Valeur totale en or (arrondie)
+ */
+export function calculateT1MarketValue(t1Map, listings = []) {
+  let total = 0;
+  for (const [t1Key, qty] of Object.entries(t1Map)) {
+    const range = SUGGESTED_PRICES_T1[t1Key];
+    if (!range) {
+      // T1 inconnu ou item non-T1 (parchemins, etc.) : on ignore
+      continue;
+    }
+    // Prix moyen réel du marché pour ce T1
+    const matching = listings.filter(l => l.item_key === t1Key && l.price_per_unit > 0);
+    let price;
+    if (matching.length > 0) {
+      const sum = matching.reduce((s, l) => s + l.price_per_unit, 0);
+      const avg = sum / matching.length;
+      price = Math.max(range.min, Math.min(range.max, Math.round(avg)));
+    } else {
+      // Aucun listing actif : on prend le centre de la fourchette
+      price = (range.min + range.max) / 2;
+    }
+    total += qty * price;
+  }
+  return Math.round(total);
+}

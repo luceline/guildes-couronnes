@@ -67,7 +67,7 @@ export function getTodayPvpRecipes() {
         })(),
         output: { key: item.output, quantity: 1 },
         costGold: 0,
-        cooldown: 600,
+        cooldown: 1200,
         description,
       });
     });
