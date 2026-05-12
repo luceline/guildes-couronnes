@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerNested, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Search } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { ITEM_CATEGORIES } from "../lib/gameData";
@@ -967,21 +967,21 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
         </div>
 
         {/* 12/05/2026 : Drawer "Mettre en vente" (remplace l'ancien Dialog).
-            Bug fixé : sur mobile, le contenu de la page disparaît (image de fond
-            visible uniquement) quand on ouvre le drawer enfant "Choisir un objet"
-            depuis ce drawer parent.
-            Cause racine : vaul applique un transform CSS scale sur le body via
-            shouldScaleBackground (effet iOS), et empiler deux drawers cumule
-            les transforms — le contenu HTML est scaled à ~0, donc invisible.
-            Fix : shouldScaleBackground={false} sur les deux drawers du Market.
-            Note : on garde le pattern Drawer parent + Drawer enfant (et non
-            Dialog parent comme avant) car vaul gère mieux l'empilement de ses
-            propres drawers que Dialog Radix + Drawer vaul, et car le mobile
-            est notre cible principale. */}
+            Bug v1 fixé : le Dialog Radix parent ouvrait un Drawer vaul enfant
+            pour le picker d'item, ce qui causait un comportement étrange sur
+            mobile (conflit body-lock Radix + vaul).
+            Solution v1 : remplacer Dialog parent par Drawer.
+            Bug v2 fixé (vraie cause) : empiler deux Drawer vaul standard (Root
+            sur Root) casse vaul — le contenu du parent disparaît visuellement
+            (page entièrement vide sauf image de fond CSS) dès l'ouverture du
+            second drawer.
+            Solution v2 : utiliser DrawerNested (= vaul.NestedRoot) pour le
+            drawer enfant. C'est l'API officielle vaul pour gérer les drawers
+            imbriqués correctement. Voir vaul.emilkowal.ski section Nested. */}
         <Button className="font-heading" onClick={() => setSellOpen(true)}>
           Vendre 🏷️
         </Button>
-        <Drawer open={sellOpen} onOpenChange={setSellOpen} shouldScaleBackground={false}>
+        <Drawer open={sellOpen} onOpenChange={setSellOpen}>
           <DrawerContent className="max-h-[90vh]">
             <DrawerHeader>
               <DrawerTitle className="font-heading">Mettre en vente</DrawerTitle>
@@ -1079,7 +1079,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
          * Inclut une barre de recherche pour filtrer rapidement parmi un grand
          * inventaire. Filtre tier <= 3 (T4/T5 masqués) — aligné avec les autres
          * lieux qui filtrent l'inventaire vendable. */}
-        <Drawer open={pickerOpen} onOpenChange={setPickerOpen} shouldScaleBackground={false}>
+        <DrawerNested open={pickerOpen} onOpenChange={setPickerOpen}>
           <DrawerContent className="max-h-[85vh]">
             <DrawerHeader>
               <DrawerTitle className="font-heading">Choisir un objet à vendre</DrawerTitle>
@@ -1165,7 +1165,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               })()}
             </div>
           </DrawerContent>
-        </Drawer>
+        </DrawerNested>
       </div>
 
       <MarketInsights />

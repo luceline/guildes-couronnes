@@ -13,6 +13,16 @@ const Drawer = ({
 )
 Drawer.displayName = "Drawer"
 
+// 12/05/2026 : DrawerNested pour les drawers imbriqués (drawer ouvert depuis
+// un autre drawer). Sans cela, vaul casse l'empilement et le contenu du
+// drawer parent disparaît (problème observé sur Market.jsx mobile :
+// "Vendre" → "Choisir un objet" affichait juste l'image de fond).
+// Doc vaul : https://vaul.emilkowal.ski/ section Nested Drawers.
+const DrawerNested = (props) => (
+  <DrawerPrimitive.NestedRoot {...props} />
+)
+DrawerNested.displayName = "DrawerNested"
+
 const DrawerTrigger = DrawerPrimitive.Trigger
 
 const DrawerPortal = DrawerPrimitive.Portal
@@ -80,6 +90,7 @@ DrawerDescription.displayName = DrawerPrimitive.Description.displayName
 
 export {
   Drawer,
+  DrawerNested,
   DrawerPortal,
   DrawerOverlay,
   DrawerTrigger,
