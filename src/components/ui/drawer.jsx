@@ -5,19 +5,25 @@ import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
 
+// 12/05/2026 : shouldScaleBackground passé à false par défaut.
+// L'effet de scale background nécessite un élément ancêtre marqué
+// [data-vaul-drawer-wrapper], non configuré dans cette app. Sans ce
+// wrapper, vaul a un comportement non défini (page blanche, scroll
+// erratique, surtout en cas d'empilement de drawers). Bug observé sur
+// Market.jsx mobile : "Vendre" → "Choisir un objet" affichait juste
+// l'image de fond. Voir vaul issues #246 et #505.
+// L'effet visuel scale-background n'était de toute façon pas actif
+// avant ce changement (faute de wrapper), donc aucune régression visuelle.
 const Drawer = ({
-  shouldScaleBackground = true,
+  shouldScaleBackground = false,
   ...props
 }) => (
   <DrawerPrimitive.Root shouldScaleBackground={shouldScaleBackground} {...props} />
 )
 Drawer.displayName = "Drawer"
 
-// 12/05/2026 : DrawerNested pour les drawers imbriqués (drawer ouvert depuis
-// un autre drawer). Sans cela, vaul casse l'empilement et le contenu du
-// drawer parent disparaît (problème observé sur Market.jsx mobile :
-// "Vendre" → "Choisir un objet" affichait juste l'image de fond).
-// Doc vaul : https://vaul.emilkowal.ski/ section Nested Drawers.
+// DrawerNested pour les drawers imbriqués (drawer ouvert depuis un autre
+// drawer). Utilise vaul.NestedRoot qui gère correctement focus et empilement.
 const DrawerNested = (props) => (
   <DrawerPrimitive.NestedRoot {...props} />
 )
