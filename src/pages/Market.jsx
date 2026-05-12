@@ -16,7 +16,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Search } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -967,17 +966,27 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           )}
         </div>
 
-        <Dialog open={sellOpen} onOpenChange={setSellOpen}>
-           <DialogTrigger asChild>
-             <Button className="font-heading">
-               Vendre 🏷️
-             </Button>
-           </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle className="font-heading">Mettre en vente</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
+        {/* 12/05/2026 : Drawer "Mettre en vente" (remplace l'ancien Dialog).
+            Bug fixé : sur mobile, le contenu de la page disparaît (image de fond
+            visible uniquement) quand on ouvre le drawer enfant "Choisir un objet"
+            depuis ce drawer parent.
+            Cause racine : vaul applique un transform CSS scale sur le body via
+            shouldScaleBackground (effet iOS), et empiler deux drawers cumule
+            les transforms — le contenu HTML est scaled à ~0, donc invisible.
+            Fix : shouldScaleBackground={false} sur les deux drawers du Market.
+            Note : on garde le pattern Drawer parent + Drawer enfant (et non
+            Dialog parent comme avant) car vaul gère mieux l'empilement de ses
+            propres drawers que Dialog Radix + Drawer vaul, et car le mobile
+            est notre cible principale. */}
+        <Button className="font-heading" onClick={() => setSellOpen(true)}>
+          Vendre 🏷️
+        </Button>
+        <Drawer open={sellOpen} onOpenChange={setSellOpen} shouldScaleBackground={false}>
+          <DrawerContent className="max-h-[90vh]">
+            <DrawerHeader>
+              <DrawerTitle className="font-heading">Mettre en vente</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-6 overflow-y-auto space-y-4">
               <p className="text-xs text-muted-foreground font-body bg-muted/40 rounded px-3 py-2">
                 📍 Annonce postée sur le marché de <strong>{city.name}</strong>.
                 {` L'acheteur paiera +${taxRate}% de taxes reversées à ${city.name}.`}
@@ -1062,15 +1071,15 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 Mettre en vente
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+          </DrawerContent>
+        </Drawer>
 
         {/* Drawer picker d'item à vendre (10/05/2026)
          * Remplace l'ancien SelectContent shadcn qui scrollait mal sur mobile.
          * Inclut une barre de recherche pour filtrer rapidement parmi un grand
          * inventaire. Filtre tier <= 3 (T4/T5 masqués) — aligné avec les autres
          * lieux qui filtrent l'inventaire vendable. */}
-        <Drawer open={pickerOpen} onOpenChange={setPickerOpen}>
+        <Drawer open={pickerOpen} onOpenChange={setPickerOpen} shouldScaleBackground={false}>
           <DrawerContent className="max-h-[85vh]">
             <DrawerHeader>
               <DrawerTitle className="font-heading">Choisir un objet à vendre</DrawerTitle>
