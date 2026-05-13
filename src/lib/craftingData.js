@@ -407,10 +407,12 @@ export const ITEMS = {
   couronne_bronze: {
     name: "Couronne en bronze", icon: "👑", category: "magique", tier: "magique",
     trigger: "consumed", effect: "magic_gold_reward", value: 100,
-    // value = bonus or fixe ajouté en plus de la valeur de marché des T1 cumulés.
-    // À l'utilisation : calcule prix dynamique des T1 sous-jacents au chaudron,
-    // additionne, ajoute +100, crédite le joueur. Cf. handleApplyConsumed.
-    use: "Consommée : donne X + 100 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~270-300 or selon marché). Craftée au Chaudron magique.",
+    // 13/05/2026 : description simplifiée pour les joueurs. La mécanique reste
+    // dynamique côté code (handleApplyConsumed calcule la somme des prix T1 +
+    // 100 or de bonus). Le texte d'avant ("X + 100 or, valeur dynamique...")
+    // était techniquement précis mais incompréhensible. Désormais le ton est
+    // donné par un vers de ménestrel, et le chiffre est volontairement flou.
+    use: "« Brillante au front d'un roi, elle vaut mille rançons quand on la fond. » — Consommée, elle apporte au porteur une grande bourse d'or (≈ 300 pièces).",
   },
 
   // ════════════════════════════════

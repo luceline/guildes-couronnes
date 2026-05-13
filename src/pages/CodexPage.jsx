@@ -25,6 +25,7 @@ import {
   WAVE_STATS,
   describePattern,
 } from "@/lib/combatPvE";
+import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "@/lib/rareResources";
 
 // Construit un index recipe.outputKey -> recette pour récupérer rapidement
 // la recette qui produit un item donné.
@@ -79,7 +80,7 @@ const MONSTER_WAVES_BY_INDEX = (() => {
 const TIERS = [1, 2, 3];
 
 export default function CodexPage() {
-  const [activeTab, setActiveTab] = useState("items"); // "items" | "bestiary"
+  const [activeTab, setActiveTab] = useState("items"); // "items" | "bestiary" | "rares"
 
   return (
     <div className="container mx-auto px-3 py-4 max-w-5xl">
@@ -91,10 +92,10 @@ export default function CodexPage() {
       </div>
 
       {/* Onglets */}
-      <div className="mb-4 flex gap-2 border-b">
+      <div className="mb-4 flex gap-2 border-b overflow-x-auto">
         <button
           onClick={() => setActiveTab("items")}
-          className={`font-heading text-sm px-4 py-2 border-b-2 transition-colors ${
+          className={`font-heading text-sm px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "items"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -104,7 +105,7 @@ export default function CodexPage() {
         </button>
         <button
           onClick={() => setActiveTab("bestiary")}
-          className={`font-heading text-sm px-4 py-2 border-b-2 transition-colors ${
+          className={`font-heading text-sm px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "bestiary"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -112,9 +113,21 @@ export default function CodexPage() {
         >
           🐉 Bestiaire
         </button>
+        <button
+          onClick={() => setActiveTab("rares")}
+          className={`font-heading text-sm px-4 py-2 border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "rares"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          ✨ Ressources rares
+        </button>
       </div>
 
-      {activeTab === "items" ? <ItemsTab /> : <BestiaryTab />}
+      {activeTab === "items"    && <ItemsTab />}
+      {activeTab === "bestiary" && <BestiaryTab />}
+      {activeTab === "rares"    && <RaresTab />}
     </div>
   );
 }
@@ -632,4 +645,61 @@ function getStrategicTip(pattern) {
     case "regen":   return "Se régénère doucement. Plus vous traînez, plus il se rétablit. Allez vite.";
     default: return null;
   }
+}
+
+/**
+ * RaresTab : présente les 6 ressources rares de biome avec leur effet
+ * d'activation (+XP). Source de vérité : @/lib/rareResources.
+ *
+ * Si on ajoute une ressource rare dans rareResources.js, elle apparaît ici
+ * automatiquement (pas de duplication).
+ */
+function RaresTab() {
+  // On préserve l'ordre des biomes tel que défini dans RARE_RESOURCES,
+  // qui suit l'ordre du jeu (foret, champs, mine, atelier, forge, guilde).
+  const rares = Object.entries(RARE_RESOURCES).map(([key, def]) => ({ key, ...def }));
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="py-4">
+          <p className="font-body text-sm text-muted-foreground">
+            Chaque contrée sauvage cache une ressource rare qui ne tombe que lors des combats de biome.
+            Activez-la depuis votre inventaire pour gagner <strong>+{XP_PER_RARE_RESOURCE} XP</strong> et faire progresser
+            votre rang de joueur.
+          </p>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {rares.map(r => (
+          <Card key={r.key}>
+            <CardContent className="py-4">
+              <div className="flex items-start gap-3">
+                <span className="text-4xl flex-shrink-0">{r.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="font-heading text-base">{r.name}</div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Drop du biome : <span className="font-semibold">{r.biome_name}</span>
+                  </div>
+                  <Badge variant="secondary" className="font-body text-xs">
+                    +{XP_PER_RARE_RESOURCE} XP à l'activation
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <CardContent className="py-3">
+          <p className="font-body text-xs text-muted-foreground italic">
+            Le taux de drop dépend de la position du monstre tué dans la vague et de son grade.
+            Les paliers de la statue royale et certaines épopées augmentent vos chances.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
