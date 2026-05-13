@@ -68,7 +68,14 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   const [myListings, setMyListings] = useState([]);   // toutes mes annonces actives (toutes villes)
   const [loading, setLoading] = useState(true);
   const [sellOpen, setSellOpen] = useState(false);
-  const [sellForm, setSellForm] = useState({ item_index: "", quantity: 1, price: 1, itemKey: "" });
+  // 13/05/2026 — FIX BUG VENTE : avant on identifiait l'item à vendre par son
+  // INDEX dans une liste filtrée. Problème : la liste filtrée du picker
+  // (tier <= 3) et celle du handleSell (quantity > 0) n'étaient pas identiques,
+  // ce qui désalignait les indices. Résultat : sélectionner "Laine 8" pouvait
+  // pointer en réalité sur un autre item (ex: Fil 1) → "quantité invalide" ou
+  // vente du mauvais item. Corrigé en identifiant l'item par son item_key
+  // (clé stable), pas par sa position.
+  const [sellForm, setSellForm] = useState({ quantity: 1, price: 1, itemKey: "" });
   // Picker d'item à vendre : drawer mobile-friendly avec barre de recherche (10/05/2026)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -175,9 +182,23 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   // Helpers isPermit/hasPermit/getHasPermitForItem retirés (devenus orphelins).
 
   const handleSell = async () => {
-    const idx = parseInt(sellForm.item_index);
-    const filteredInv = (profile.inventory || []).filter(i => i.quantity > 0);
-    const rawItem = filteredInv[idx];
+    // 13/05/2026 — Recherche par item_key (stable) au lieu d'index (volatile).
+    // On prend la première ligne d'inventaire avec ce key qui a quantity > 0.
+    // Note : pour les équipements à durabilité, plusieurs lignes peuvent avoir
+    // le même key — pour l'instant on prend la première éligible.
+    const keyToFind = sellForm.itemKey;
+    if (!keyToFind) {
+      toast.error("Aucun objet sélectionné.");
+      return;
+    }
+    const rawItem = (profile.inventory || []).find(i =>
+      i.quantity > 0 && (
+        i.item_key === keyToFind ||
+        // Fallback : si l'item n'a pas d'item_key, on tente le matching par item_name
+        // via la table ITEMS (pour la rétro-compat avec items legacy).
+        (!i.item_key && ITEMS[keyToFind]?.name === i.item_name)
+      )
+    );
     if (!rawItem || sellForm.quantity <= 0 || sellForm.quantity > rawItem.quantity) {
       toast.error("La quantité indiquée n'est pas valide : vérifiez votre saisie.");
       return;
@@ -282,7 +303,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       toast.success(`📒 Bon de commande honoré : +${carnetBonus}💰 bonus encaissé !`, { duration: 5000 });
     }
     setSellOpen(false);
-    setSellForm({ item_index: "", quantity: 1, price: 1, itemKey: "" });
+    setSellForm({ quantity: 1, price: 1, itemKey: "" });
 
     // ── Valider les quêtes "sell" via checkAndAwardObjective ──
     try {
@@ -989,8 +1010,17 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                   const sellableInventory = (profile.inventory || []).filter(
                     i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3
                   );
-                  const selectedItem = sellForm.item_index !== ""
-                    ? sellableInventory[parseInt(sellForm.item_index)]
+                  // 13/05/2026 — Recherche par item_key (stable) au lieu d'index.
+                  // sellableInventory peut désormais ne pas contenir l'item sélectionné
+                  // si son tier > 3, mais on cherche dans l'inventaire complet pour
+                  // afficher correctement même un item "non vendable" (fallback safe).
+                  const selectedItem = sellForm.itemKey
+                    ? (profile.inventory || []).find(i =>
+                        i.quantity > 0 && (
+                          i.item_key === sellForm.itemKey ||
+                          (!i.item_key && ITEMS[sellForm.itemKey]?.name === i.item_name)
+                        )
+                      )
                     : null;
                   return (
                     <Button
@@ -1012,9 +1042,15 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                   );
                 })()}
               </div>
-              {sellForm.item_index !== "" && (() => {
-                // TEMP MASQUAGE T4/T5 (09/05/2026) - Le filtre tier <= 3 doit rester aligne avec celui du selecteur ci-dessus. A retirer simultanement.
-        const item = (profile.inventory || []).filter(i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3)[parseInt(sellForm.item_index)];
+              {sellForm.itemKey && (() => {
+                // 13/05/2026 — Recherche par item_key, plus aucun risque de désalignement
+                // d'index avec le picker. Fallback item_name pour items legacy sans key.
+                const item = (profile.inventory || []).find(i =>
+                  i.quantity > 0 && (
+                    i.item_key === sellForm.itemKey ||
+                    (!i.item_key && ITEMS[sellForm.itemKey]?.name === i.item_name)
+                  )
+                );
                 if (!item) return null;
                 return (
                   <div className="space-y-2">
@@ -1118,21 +1154,21 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 return (
                   <div className="space-y-1 pb-4">
                     {filtered.map((item) => {
-                      // Index dans la liste NON filtrée (sellForm.item_index est l'index dans sellableInventory)
-                      const realIdx = sellableInventory.indexOf(item);
-                      const isSelected = sellForm.item_index === String(realIdx);
+                      // 13/05/2026 — Sélection par item_key (stable) au lieu d'index.
+                      // resolvedKey est calculé tôt pour permettre l'identification et
+                      // la mise en surbrillance correcte de l'item déjà sélectionné.
+                      const resolvedKey = item.item_key ||
+                        Object.entries(ITEMS).find(([, def]) => def.name === item.item_name)?.[0] || "";
+                      const isSelected = sellForm.itemKey === resolvedKey && !!resolvedKey;
                       return (
                         <button
-                          key={realIdx}
+                          key={resolvedKey || item.item_name}
                           type="button"
                           onClick={() => {
-                            const resolvedKey = item.item_key ||
-                              Object.entries(ITEMS).find(([, def]) => def.name === item.item_name)?.[0] || "";
                             // Billet de fortune : prix forcé à 3 or (Tombola)
                             const forcedPrice = resolvedKey === "billet_fortune" ? 3 : sellForm.price;
                             setSellForm({
                               ...sellForm,
-                              item_index: String(realIdx),
                               quantity: 1,
                               itemKey: resolvedKey,
                               price: forcedPrice,
