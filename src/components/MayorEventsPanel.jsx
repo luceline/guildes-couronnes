@@ -610,10 +610,9 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
                               <div className="font-heading text-sm font-semibold">{c.name}</div>
                               <div className="text-xs text-muted-foreground font-body">Niveau {c.level || 1}</div>
                             </div>
-                            <div className="text-right">
-                              <div className="text-sm font-heading text-amber-700">{c.gold_treasury || 0} 💰</div>
-                              <div className="text-[10px] text-muted-foreground">trésorerie</div>
-                            </div>
+                            {/* 13/05/2026 — On ne révèle plus la trésorerie de la cible.
+                                Espionner les comptes d'autrui sans rien risquer cassait
+                                l'incertitude qui fait l'intérêt de la razzia. */}
                           </CardContent>
                         </Card>
                       ))}
@@ -624,9 +623,7 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
                   <>
                     <div className="bg-red-50 border border-red-200 rounded p-3">
                       <div className="text-sm font-heading">🎯 Cible : {razziaTarget.selected.name}</div>
-                      <div className="text-xs font-body text-red-800 mt-1">
-                        Trésorerie : {razziaTarget.selected.gold_treasury || 0} 💰
-                      </div>
+                      {/* 13/05/2026 — Trésorerie cible masquée (cf. spec antiespionnage). */}
                       {razziaTarget.cooldownInfo?.onCooldown && (
                         <div className="text-xs text-red-700 italic mt-1">
                           ⏳ Cooldown actif : {razziaTarget.cooldownInfo.daysRemaining}j restants
@@ -673,10 +670,13 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
                         <span className="font-semibold">{razziaBasketTotal} T1</span>
                       </div>
                       <div className="flex justify-between mt-1">
-                        <span>Or volé estimé</span>
+                        <span>Or volé au maximum</span>
                         <span className="font-semibold text-red-800">
-                          {Math.min(razziaBasketTotal * 2, razziaTarget.selected.gold_treasury || 0)} 💰
+                          {razziaBasketTotal * 2} 💰
                         </span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground italic mt-1">
+                        Vous volerez au maximum {razziaBasketTotal * 2} or, sous réserve que la cible en dispose. La trésorerie ennemie n'est jamais révélée à l'avance.
                       </div>
                       <div className="text-[10px] text-muted-foreground italic mt-1">
                         ⚠️ Si la cible est protégée par un dôme, vos ressources seront perdues sans rien voler.

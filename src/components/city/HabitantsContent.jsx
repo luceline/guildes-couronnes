@@ -129,7 +129,7 @@ export default function HabitantsContent({
                   "🟢 Joueur en ligne\n\n" +
                   "Sous le nom :\n" +
                   "🏆 Rang vendeur · 🏗️ Rang contributeur entrepôt · ⚔️ Rang PvP\n" +
-                  "⚔️X Score d'attaque · 🛡️X Score de défense\n\n" +
+                  "⚔️X Score d'attaque · 🛡️X Score de défense (visibles uniquement chez vos concitoyens)\n\n" +
                   "Boutons :\n" +
                   "🏪 Atelier : Commander à un artisan ou améliorer ton équipement\n" +
                   "⚔️ Défier : Lancer un défi PvP\n" +
@@ -178,8 +178,11 @@ export default function HabitantsContent({
                       <span title={`Ventes: ${p.cumul_ventes_or || 0}💰`}>{getVendeurRank(p.cumul_ventes_or || 0).icon}</span>
                       <span title={`Entrepôt: ${p.cumul_contributions_warehouse || 0}`}>{getContributeurRank(p.cumul_contributions_warehouse || 0).icon}</span>
                       {(p.cumul_t5_envoyes || 0) > 0 && <span title={`T5: ${p.cumul_t5_envoyes}`}>{getPvpRank(p.cumul_t5_envoyes || 0).icon}</span>}
-                      {getAttackScore(p) > 0 && <span title="Score d'attaque">⚔️{getAttackScore(p)}</span>}
-                      {getDefenseScore(p) > 0 && <span title="Score de défense">🛡️{getDefenseScore(p)}</span>}
+                      {/* 13/05/2026 — atk/def visibles SEULEMENT si on est chez soi (concitoyens)
+                          ou si c'est nos propres stats. En visite dans une autre ville,
+                          les habitants ne dévoilent pas leurs capacités de combat. */}
+                      {(isMe || isHomeCity) && getAttackScore(p) > 0 && <span title="Score d'attaque">⚔️{getAttackScore(p)}</span>}
+                      {(isMe || isHomeCity) && getDefenseScore(p) > 0 && <span title="Score de défense">🛡️{getDefenseScore(p)}</span>}
                       {!isMe && !isHomeCity && (() => {
                         const hasBourse = (profile.inventory || []).some(i => i.item_key === "bourse_protection" && (i.quantity || 0) > 0);
                         if (!hasBourse) return null;
@@ -272,7 +275,7 @@ export default function HabitantsContent({
                 side="bottom"
                 text={
                   "Voyageurs de passage dans la cité.\n\n" +
-                  "🟢 En ligne · 🛡️X Score de défense\n\n" +
+                  "🟢 En ligne\n\n" +
                   "⚔️ Défier : Lancer un défi PvP contre ce visiteur"
                 }
               />
@@ -302,7 +305,10 @@ export default function HabitantsContent({
                     </div>
                     <div className="text-muted-foreground text-xs flex items-center gap-2 flex-wrap mb-2">
                       <span className="font-semibold">{p.profession} · de {p.home_city_id ? "ailleurs" : "?"}</span>
-                      {defenderScore > 0 && <span title="Score de défense">🛡️{defenderScore}</span>}
+                      {/* 13/05/2026 — La défense des visiteurs (joueurs d'une autre ville)
+                          est cachée. On ne voit les stats que de ses propres concitoyens
+                          ou de soi-même. Cohérent avec le filtrage côté résidents. */}
+                      {isMe && defenderScore > 0 && <span title="Score de défense">🛡️{defenderScore}</span>}
                     </div>
                     {!isMe && !isPlayerKO(profile) && !isPlayerKO(p) && (
                       <div className="flex">
