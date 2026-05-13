@@ -15,10 +15,11 @@ import MaireOffresPanel from "./MaireOffresPanel";
 import MaireDashboard from "./MaireDashboard";
 import ProfessionChangePanel from "./ProfessionChangePanel";
 import DecreePanel from "./DecreePanel";
-// 12/05/2026 : imports militaires (CityArmyPanel, ArmySupplyPanel,
-// MilitaryCampaignPanel) retirés définitivement après archivage de
-// MilitaryCampaignPanel et militaryData dans _attic/. Le système militaire
-// inter-villes est remplacé par la mécanique "brûler trésorerie pour tier".
+import CityInvestmentPanel from "./CityInvestmentPanel";
+// 11/05/2026 : imports militaires retirés (système supprimé).
+// import CityArmyPanel from "./CityArmyPanel";
+// import ArmySupplyPanel from "./ArmySupplyPanel";
+// import MilitaryCampaignPanel from "./MilitaryCampaignPanel";
 
 export default function MairieTab({ city, profile, homeCity, isMayor, mayorActive, isAdmin, onRefresh, routes = [], cities = [], cityPlayers = [] }) {
   // ── Rôles nommés par le maire ──
@@ -345,7 +346,15 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
         </div>
       )}
 
-
+        {/* 13/05/2026 — Panneau d'investissement palier (remplace l'ancien
+            système basé sur lingots militaires). Visible par tous, slider et
+            bouton fonctionnels uniquement pour le maire actuel. */}
+        <CityInvestmentPanel
+          city={city}
+          profile={profile}
+          isMayor={isMayor}
+          onRefresh={onRefresh}
+        />
 
         </TabsContent>
 

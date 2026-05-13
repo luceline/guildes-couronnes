@@ -13,6 +13,7 @@ import HelpTooltip from "../HelpTooltip";
 import {
   BUILDING_TYPES, BUILDING_CATEGORIES, ITEM_CATEGORIES,
   getBuildingCost, getBuildingLevel, getBuildingCount, canBuildMore,
+  isCategoryUnlocked, getCityTier, CITY_LEVELS,
   getTodayDateStr,
 } from "../../lib/gameData";
 import { ITEMS as GAME_ITEMS } from "../../lib/craftingData";
@@ -109,22 +110,39 @@ export default function BatimentsContent({
           )}
 
           <div className="flex flex-wrap gap-2 mb-3">
-            {Object.entries(BUILDING_CATEGORIES).map(([catKey, cat]) => (
-              <button
-                key={catKey}
-                onClick={() => setActiveCategory(catKey)}
-                className={`text-xs px-3 py-1.5 rounded-full font-body border transition-colors ${
-                  activeCategory === catKey
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted border-border text-muted-foreground hover:border-primary/50"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
+            {Object.entries(BUILDING_CATEGORIES).map(([catKey, cat]) => {
+              // 13/05/2026 — Indicateur visuel si catégorie verrouillée par palier.
+              // La catégorie reste cliquable (pour voir ce qu'elle contient), mais
+              // les bâtiments seront non-constructibles via canBuildMore.
+              const unlocked = isCategoryUnlocked(city, catKey);
+              return (
+                <button
+                  key={catKey}
+                  onClick={() => setActiveCategory(catKey)}
+                  className={`text-xs px-3 py-1.5 rounded-full font-body border transition-colors ${
+                    activeCategory === catKey
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted border-border text-muted-foreground hover:border-primary/50"
+                  } ${!unlocked ? "opacity-50" : ""}`}
+                >
+                  {!unlocked && "🔒 "}{cat.label}
+                </button>
+              );
+            })}
           </div>
 
           <p className="text-xs text-muted-foreground font-body">{BUILDING_CATEGORIES[activeCategory]?.description}</p>
+
+          {/* 13/05/2026 — Bannière si catégorie verrouillée : explique le palier requis. */}
+          {!isCategoryUnlocked(city, activeCategory) && (() => {
+            // Trouver le premier palier qui débloque cette catégorie.
+            const unlockingTier = CITY_LEVELS.find(l => (l.unlocksCategories || []).includes(activeCategory));
+            return (
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-2 text-xs font-body text-amber-900 mt-2">
+                🔒 Catégorie verrouillée. Débloquée au palier <strong>{unlockingTier?.icon} {unlockingTier?.label}</strong> (seuil {unlockingTier?.threshold?.toLocaleString()} or investis).
+              </div>
+            );
+          })()}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {(buildingsByCategory[activeCategory] || []).map(bType => {
