@@ -1,4 +1,4 @@
-import { STREAK_REWARDS } from "../lib/gameData";
+import { STREAK_REWARDS, getStreakReward } from "../lib/gameData";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { logGold } from "../lib/goldLog";
@@ -6,20 +6,18 @@ import { isInRepos } from "../lib/repos";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 
-// Récompenses par palier de streak
-// STREAK_REWARDS importé depuis gameData.js
-
+// 13/05/2026 — Récompense désormais linéaire (cf. gameData.js).
+// getStreakReward(streak) retourne l'or à verser : 1..14 puis plafond à 15.
 function getRewardForStreak(streak) {
-  let reward = STREAK_REWARDS[0];
-  for (const r of STREAK_REWARDS) {
-    if (streak >= r.days) reward = r;
-    else break;
-  }
-  return reward;
+  return { gold: getStreakReward(streak) };
 }
 
+// Prochain jalon "marquant" pour l'UI. Avec la formule linéaire, on garde
+// uniquement deux jalons psychologiques : J7 (1 semaine) et J15 (palier max).
 function getNextMilestone(streak) {
-  return STREAK_REWARDS.find(r => r.days > streak) || null;
+  if (streak < 7) return STREAK_REWARDS.find(r => r.days === 7);
+  if (streak < 15) return STREAK_REWARDS.find(r => r.days === 15);
+  return null;
 }
 
 // Affiche 7 cases jour (la semaine en cours)
@@ -167,9 +165,9 @@ export default function LoginStreakWidget({ profile, onProfileUpdate }) {
             <strong className="text-amber-600">{nextMilestone.icon} {nextMilestone.label} (+{nextMilestone.gold}💰)</strong>
           </p>
         )}
-        {!nextMilestone && streak >= 30 && (
+        {!nextMilestone && streak >= 15 && (
           <p className="text-xs text-center text-amber-600 font-heading mt-1">
-            👑 Série maximale atteinte ! +150💰 chaque jour !
+            👑 Palier maximal atteint ! +15💰 chaque jour de fidélité !
           </p>
         )}
       </CardContent>

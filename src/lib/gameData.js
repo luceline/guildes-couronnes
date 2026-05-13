@@ -1062,15 +1062,32 @@ export const MAYOR_DAYS = 10;
 export const PROFESSION_CHANGE_COST = 20; // or détruit (n'enrichit pas la ville)
 
 // ── Récompenses connexion quotidienne (modifier ici pour rééquilibrer) ──
+// 13/05/2026 — Refonte du login streak.
+// Avant : paliers fixes 1/2/3/8/15/35/100 or aux jours 1/2/3/5/7/14/30.
+//   → Trop généreux : un joueur stable à streak 30+ gagnait 100 or/jour
+//     passifs (= ~3000 or/mois sans rien faire). Source majeure d'inflation.
+// Maintenant : progression LINÉAIRE de J1 à J14 (1, 2, ..., 14 or) puis
+// PLAFOND à 15 or/jour maintenu indéfiniment. Total max sur 30j ≈ 345 or
+// (au lieu de 790+). Récompense la fidélité long terme sans casser l'éco.
+//
+// Le tableau ci-dessous n'est plus une grille de paliers (la formule est
+// faite dans getRewardForStreak côté widget). Il sert juste à l'affichage
+// du jalon "palier max atteint" dans l'UI.
 export const STREAK_REWARDS = [
-  { days: 1,  gold: 1,   label: "1 jour",    icon: "🌱" },
-  { days: 2,  gold: 2,   label: "2 jours",   icon: "🌿" },
-  { days: 3,  gold: 3,   label: "3 jours",   icon: "🌾" },
-  { days: 5,  gold: 8,   label: "5 jours",   icon: "⭐" },
-  { days: 7,  gold: 15,  label: "1 semaine", icon: "🔥" },
-  { days: 14, gold: 35,  label: "2 semaines",icon: "💎" },
-  { days: 30, gold: 100, label: "1 mois",    icon: "👑" },
+  { days: 1,  gold: 1,  label: "1 jour",     icon: "🌱" },
+  { days: 7,  gold: 7,  label: "1 semaine",  icon: "🔥" },
+  { days: 15, gold: 15, label: "Palier max", icon: "👑" },
 ];
+
+// Récompense effective d'un streak donné. Source de vérité unique.
+// Streak ≤ 0  → 0 or (sécurité, ne devrait jamais arriver en pratique)
+// Streak 1-14 → streak or (linéaire)
+// Streak 15+  → 15 or (plafond)
+export function getStreakReward(streak) {
+  if (streak <= 0) return 0;
+  if (streak >= 15) return 15;
+  return streak;
+}
 
 // ── XP par ressource rare échangée/consommée ──
 export const RARE_RESOURCE_XP = 100;
