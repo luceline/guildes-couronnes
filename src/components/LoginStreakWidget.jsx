@@ -2,6 +2,7 @@ import { STREAK_REWARDS } from "../lib/gameData";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { logGold } from "../lib/goldLog";
+import { isInRepos } from "../lib/repos";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 
@@ -63,6 +64,14 @@ export default function LoginStreakWidget({ profile, onProfileUpdate }) {
     const today = new Date().toISOString().split("T")[0];
     const lastLogin = profile.last_login_date;
     const streak = profile.login_streak || 0;
+
+    // 13/05/2026 — Mode repos : si le joueur séjourne à Repos-sur-Mer (ou toute
+    // autre bot_city), on ne touche PAS au streak. Conséquence : last_login_date
+    // ne se met pas à jour pendant le séjour, donc à son retour la dernière
+    // connexion enregistrée est ANCIENNE, et le streak repart à 1 au prochain
+    // accès depuis une vraie ville. Cohérent avec "le joueur est considéré
+    // comme inactif pendant son repos".
+    if (isInRepos(profile)) return;
 
     // Déjà récompensé aujourd'hui → rien à faire
     if (profile.streak_rewarded_today && lastLogin === today) return;
