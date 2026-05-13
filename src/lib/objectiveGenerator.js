@@ -171,7 +171,12 @@ export const PROFESSION_QUESTS = {
     { title: "💠 Polisseur",             item: "quartz_poli", qty: 4, desc: "Fabriquez 4 quartz polis." },
   ],
   Marchand: [
-    { title: "📜 Greffier du commerce",  item: "autorisation_marche", qty: 8, desc: "Produisez 8 autorisations de marché." },
+    // 13/05/2026 — Remplacement de autorisation_marche par billet_fortune
+    // (T1 Marchand actuel depuis la refonte du 10/05). Avant cette refonte,
+    // autorisation_marche était l'item de profession Marchand mais elle a été
+    // retirée du jeu en tant que recette. La quête tirait donc un item
+    // impossible à produire → blocage joueur.
+    { title: "🎫 Imprimeur de billets",  item: "billet_fortune", qty: 8, desc: "Produisez 8 billets de fortune." },
     { title: "💼 Négociant",             item: "any_t2", qty: 4, desc: "Mettez en vente 4 items T2 ou T3." },
   ],
 };
