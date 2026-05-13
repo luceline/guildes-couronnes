@@ -16,6 +16,7 @@ import MaireDashboard from "./MaireDashboard";
 import ProfessionChangePanel from "./ProfessionChangePanel";
 import DecreePanel from "./DecreePanel";
 import CityInvestmentPanel from "./CityInvestmentPanel";
+import WealthTaxPanel from "./WealthTaxPanel";
 // 11/05/2026 : imports militaires retirés (système supprimé).
 // import CityArmyPanel from "./CityArmyPanel";
 // import ArmySupplyPanel from "./ArmySupplyPanel";
@@ -348,7 +349,15 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
             />
           </div>
         </div>
-      )}
+      )}      {/* 13/05/2026 — Impôt sur la fortune : levier politique pour le maire,
+          prélèvement quotidien sur les citoyens riches (≥ 1500 or).
+          Visible par tous pour transparence civique, fonctionnel maire seul. */}
+      <WealthTaxPanel
+        city={city}
+        profile={profile}
+        isMayor={isMayor}
+        onRefresh={onRefresh}
+      />
 
         </TabsContent>
 
