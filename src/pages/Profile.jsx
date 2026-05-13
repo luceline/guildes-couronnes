@@ -8,6 +8,7 @@ import PlayerStatusBar from "../components/PlayerStatusBar";
 import HelpTooltip from "../components/HelpTooltip";
 import { PROFESSIONS, HOUSING, HOUSING_MAINTENANCE, getFatigueRegenInterval } from "../lib/gameData";
 import { activateVacationMode, cancelVacationMode, isOnVacation, isVacationExpiringSoon } from "../lib/inactivityCheck";
+import { REPOS_CITY_ID, REPOS_TRAVEL_COST, REPOS_TRAVEL_DURATION_MIN, canGoToRepos } from "@/lib/repos";
 import MusicPlayer from "../components/MusicPlayer";
 import PlayerLevelBadge from "../components/PlayerLevelBadge";
 import { toast } from "sonner";
@@ -130,6 +131,68 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
     } else {
       await activateVacationMode(profile, onRefresh);
       toast.success("🏖️ Mode vacances activé pour 15 jours. Votre compte est protégé.");
+    }
+  };
+
+  // 13/05/2026 — Partir à Repos-sur-Mer (mode repos remplaçant le flag vacation_until).
+  // Le départ déclenche un voyage standard (50 or, 10 min). À l'arrivée, l'UI rend
+  // automatiquement la ReposView via la bascule de CityPage. Tous les garde-fous
+  // sont concentrés dans canGoToRepos() pour cohérence (cf. /lib/repos.js).
+  const [reposLoading, setReposLoading] = useState(false);
+  const handleGoToRepos = async () => {
+    if (reposLoading) return;
+    setReposLoading(true);
+    try {
+      // Fetch des listings actifs et challenges PvP entrants pour les garde-fous.
+      let listings = [];
+      let incomingChallenges = [];
+      try {
+        listings = await base44.entities.MarketListing.filter({
+          seller_email: profile.user_email,
+          status: "active",
+        }).catch(() => []);
+      } catch {}
+      try {
+        incomingChallenges = await base44.entities.CombatChallenge.filter({
+          target_email: profile.user_email,
+          status: "pending_defense",
+        }).catch(() => []);
+      } catch {}
+
+      const check = canGoToRepos(profile, { listings, incomingChallenges });
+      if (!check.ok) {
+        toast.error(check.reason);
+        setReposLoading(false);
+        return;
+      }
+
+      const arrivalTime = new Date(Date.now() + REPOS_TRAVEL_DURATION_MIN * 60 * 1000).toISOString();
+      const newGold = (profile.gold || 0) - REPOS_TRAVEL_COST;
+
+      await base44.entities.PlayerProfile.update(profile.id, {
+        gold: newGold,
+        is_traveling: true,
+        travel_destination_id: REPOS_CITY_ID,
+        travel_arrival_time: arrivalTime,
+      });
+
+      // Log de la transaction pour traçabilité économique.
+      try {
+        await logGold({
+          profile,
+          amount: -REPOS_TRAVEL_COST,
+          type: "frais_voyage",
+          description: "Voyage vers Repos-sur-Mer",
+        });
+      } catch (e) { console.warn("logGold repos:", e); }
+
+      toast.success(`🏖️ Vous prenez la route. Arrivée à Repos-sur-Mer dans ${REPOS_TRAVEL_DURATION_MIN} minutes.`);
+      if (onRefresh) await onRefresh();
+    } catch (e) {
+      toast.error("Impossible de partir au repos. Réessayez.");
+      console.error("handleGoToRepos:", e);
+    } finally {
+      setReposLoading(false);
     }
   };
 
@@ -294,53 +357,62 @@ export default function Profile({ profile, city, homeCity, cities = [], onRefres
       {/* Musique de fond */}
       <MusicPlayer />
 
-      {/* Mode Vacances */}
-      <Card className={isOnVacation(profile) ? "border-blue-300 bg-blue-50" : ""}>
-        <CardHeader>
-          <CardTitle className="font-heading text-lg">🏖️ Mode Vacances</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {isOnVacation(profile) ? (
-            <>
-              <div className="text-sm font-body text-blue-800 space-y-2">
-                <p className="font-semibold">✅ Mode vacances actif</p>
-                <p className="text-xs text-blue-700">
-                  Compte protégé jusqu'au <strong>{new Date(profile.vacation_until).toLocaleDateString("fr-FR")}</strong>.
-                </p>
-                {isVacationExpiringSoon(profile) && (
-                  <p className="text-xs text-orange-600 font-semibold">⚠️ Votre mode vacances expire dans moins de 2 jours !</p>
-                )}
-                <div className="text-xs text-blue-700 border-t border-blue-200 pt-2 mt-2 space-y-0.5">
-                  <p className="font-semibold">Ce qui est suspendu :</p>
-                  <p>• Impôts journaliers et entretien du logement</p>
-                  <p>• Suppression pour inactivité</p>
-                  <p>• Attaques PvP : vous êtes intouchable</p>
-                  <p>• Échéances des prêts (prolongées d'autant de jours)</p>
-                </div>
-                <div className="text-xs text-blue-700 space-y-0.5">
-                  <p className="font-semibold">Ce qui continue :</p>
-                  <p>• Intérêts bancaires (prêts et dépôts)</p>
-                  <p>• Salaires du Palais et de la mairie</p>
-                  <p>• Consommation de l'entrepôt de votre ville</p>
-                  <p>• Expiration des potions, buffs et annonces marché</p>
-                </div>
-              </div>
-              <Button variant="outline" className="w-full font-body text-blue-700 border-blue-300" onClick={handleVacation}>
-                Annuler le mode vacances
-              </Button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground font-body">
-                Partez l'esprit tranquille : <strong>15 jours maximum</strong>. Impôts, entretien, suppression pour inactivité et attaques PvP sont suspendus. Les intérêts bancaires et la consommation de votre ville continuent.
+      {/* Repos-sur-Mer (13/05/2026 — remplace l'ancien mode vacances flag-based).
+          Si un joueur a encore un flag vacation_until actif d'avant la refonte,
+          on continue d'afficher l'ancien bloc pour qu'il puisse l'annuler. */}
+      {isOnVacation(profile) ? (
+        <Card className="border-blue-300 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="font-heading text-lg">🏖️ Mode Vacances (legacy)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="text-sm font-body text-blue-800 space-y-2">
+              <p className="font-semibold">✅ Mode vacances actif</p>
+              <p className="text-xs text-blue-700">
+                Compte protégé jusqu'au <strong>{new Date(profile.vacation_until).toLocaleDateString("fr-FR")}</strong>.
               </p>
-              <Button variant="outline" className="w-full font-body" onClick={handleVacation}>
-                🏖️ Activer le mode vacances (15 jours)
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              {isVacationExpiringSoon(profile) && (
+                <p className="text-xs text-orange-600 font-semibold">⚠️ Votre mode vacances expire dans moins de 2 jours !</p>
+              )}
+              <p className="text-xs text-blue-700">
+                Pour profiter du nouveau mode repos (séjour à Repos-sur-Mer), annulez d'abord ce mode.
+              </p>
+            </div>
+            <Button variant="outline" className="w-full font-body text-blue-700 border-blue-300" onClick={handleVacation}>
+              Annuler le mode vacances
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-heading text-lg">🏖️ Repos-sur-Mer</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground font-body">
+              Partez vous reposer au bord de la mer. Pendant votre séjour, vous ne participez plus à l'économie :
+              <strong> aucun impôt, aucun loyer, aucune nouvelle quête, aucun intérêt bancaire</strong>.
+              Vos terres et votre maison restent intactes.
+            </p>
+            <p className="text-xs text-muted-foreground italic">
+              Avant de partir, vous devez avoir réglé vos prêts, dépôts et retiré vos items du marché.
+              Le voyage coûte {REPOS_TRAVEL_COST} or et dure {REPOS_TRAVEL_DURATION_MIN} minutes. Le retour est gratuit.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full font-body"
+              onClick={handleGoToRepos}
+              disabled={reposLoading || profile.is_traveling}
+            >
+              {reposLoading
+                ? "Vérification..."
+                : profile.is_traveling
+                ? "Déjà en voyage"
+                : `🏖️ Partir à Repos-sur-Mer (${REPOS_TRAVEL_COST} or, ${REPOS_TRAVEL_DURATION_MIN} min)`}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Button variant="outline" className="w-full font-body" onClick={() => setShowPatchnote(true)}>
         📜 Chroniques du royaume

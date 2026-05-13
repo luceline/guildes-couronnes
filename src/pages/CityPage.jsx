@@ -15,8 +15,10 @@ import { usePlayerData } from "../lib/usePlayerData";
 import { BIOMES } from "../lib/biomes";
 import { MAX_HUNGER } from "@/lib/gameData";
 import { base44 } from "@/api/base44Client";
+import { isInRepos } from "@/lib/repos";
 import CityView from "./CityView";
 import BiomeView from "../components/BiomeView";
+import ReposView from "../components/ReposView";
 
 export default function CityPage() {
   const { profile, city, homeCity, loading, refresh } = usePlayerData();
@@ -32,6 +34,14 @@ export default function CityPage() {
         <div className="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
       </div>
     );
+  }
+
+  // 13/05/2026 — Mode repos : si le joueur séjourne à Repos-sur-Mer (ou toute
+  // autre bot_city future), afficher la vue simplifiée sans aucun panneau
+  // d'action. Cette bascule prime sur la bascule biome ci-dessous : un joueur
+  // en bot_city n'est jamais dans un biome simultanément.
+  if (profile && !profile.is_traveling && isInRepos(profile)) {
+    return <ReposView profile={profile} onRefresh={refresh} />;
   }
 
   // Si le joueur est dans un biome : afficher la BiomeView (map immersive
