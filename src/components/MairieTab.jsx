@@ -118,6 +118,10 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
           <TabsTrigger value="mairie">🏛️ Mairie</TabsTrigger>
           {/* 11/05/2026 : onglets "⚔️ Armée" et "🗺️ Guerre" retirés (système militaire supprimé). */}
           {(isMayor || isAcheteur) && <TabsTrigger value="offres">🛒 Offres d'achat</TabsTrigger>}
+          {/* 13/05/2026 : nouvel onglet "Paliers de ville" (investissement de la trésorerie
+              pour faire monter la ville en palier). Visible par tous pour la transparence,
+              slider et bouton fonctionnels uniquement pour le maire. */}
+          <TabsTrigger value="palier">🏛️ Paliers</TabsTrigger>
           {(isMayor || isPercepteur || isChefGuerre) && <TabsTrigger value="dashboard">📊 Tableau de bord</TabsTrigger>}
         </TabsList>
 
@@ -346,16 +350,6 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
         </div>
       )}
 
-        {/* 13/05/2026 — Panneau d'investissement palier (remplace l'ancien
-            système basé sur lingots militaires). Visible par tous, slider et
-            bouton fonctionnels uniquement pour le maire actuel. */}
-        <CityInvestmentPanel
-          city={city}
-          profile={profile}
-          isMayor={isMayor}
-          onRefresh={onRefresh}
-        />
-
         </TabsContent>
 
         {/* ── ARMÉE et GUERRE (11/05/2026) ──
@@ -369,6 +363,18 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
             <MaireOffresPanel city={city} onRefresh={onRefresh} />
           </TabsContent>
         )}
+
+        {/* 13/05/2026 — Onglet "Paliers de ville" : investissement de la
+            trésorerie pour faire monter la ville en palier. Visible par tous,
+            interactions restreintes au maire. */}
+        <TabsContent value="palier" className="mt-4">
+          <CityInvestmentPanel
+            city={city}
+            profile={profile}
+            isMayor={isMayor}
+            onRefresh={onRefresh}
+          />
+        </TabsContent>
 
         {(isMayor || isPercepteur || isChefGuerre) && (
           <TabsContent value="dashboard" className="mt-4">

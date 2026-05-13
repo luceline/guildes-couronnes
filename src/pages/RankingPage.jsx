@@ -72,7 +72,7 @@ export default function RankingPage({ profile }) {
                   <div key={lvl.level} className="text-center bg-muted/40 rounded-lg p-2">
                     <div className="text-xl">{lvl.icon}</div>
                     <div className="font-heading font-semibold text-xs mt-1">{lvl.label}</div>
-                    <div className="text-xs text-muted-foreground font-body">{lvl.threshold === 0 ? "Départ" : `${lvl.threshold.toLocaleString()} 🪙`}</div>
+                    <div className="text-xs text-muted-foreground font-body">{lvl.threshold === 0 ? "Départ" : `${lvl.threshold.toLocaleString()} 💰`}</div>
                     <div className="text-xs text-primary font-body mt-1">
                       {lvl.description || "Aucun bonus"}
                     </div>
@@ -115,8 +115,8 @@ export default function RankingPage({ profile }) {
                         <div className="font-semibold">{realPop[city.id] ?? city.population ?? 0}/{city.max_population || 5}</div>
                       </div>
                       <div className="bg-muted/50 rounded p-2">
-                        <div className="text-muted-foreground text-xs">Lingots</div>
-                        <div className="font-semibold">{(city.lingots_cumul || 0).toLocaleString()} 🪙</div>
+                        <div className="text-muted-foreground text-xs">Or investi</div>
+                        <div className="font-semibold">{(city.lingots_cumul || 0).toLocaleString()} 💰</div>
                       </div>
                       <div className="bg-muted/50 rounded p-2">
                         <div className="text-muted-foreground text-xs">Taxe</div>

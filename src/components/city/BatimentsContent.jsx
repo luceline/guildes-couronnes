@@ -133,13 +133,13 @@ export default function BatimentsContent({
 
           <p className="text-xs text-muted-foreground font-body">{BUILDING_CATEGORIES[activeCategory]?.description}</p>
 
-          {/* 13/05/2026 — Bannière si catégorie verrouillée : explique le palier requis. */}
+          {/* 13/05/2026 — Bannière si catégorie verrouillée. On indique seulement
+              le palier requis pour ne pas décourager (sans afficher le seuil exact). */}
           {!isCategoryUnlocked(city, activeCategory) && (() => {
-            // Trouver le premier palier qui débloque cette catégorie.
             const unlockingTier = CITY_LEVELS.find(l => (l.unlocksCategories || []).includes(activeCategory));
             return (
               <div className="bg-amber-50 border border-amber-200 rounded-md p-2 text-xs font-body text-amber-900 mt-2">
-                🔒 Catégorie verrouillée. Débloquée au palier <strong>{unlockingTier?.icon} {unlockingTier?.label}</strong> (seuil {unlockingTier?.threshold?.toLocaleString()} or investis).
+                🔒 Catégorie verrouillée. Débloquée au palier <strong>{unlockingTier?.icon} {unlockingTier?.label}</strong>.
               </div>
             );
           })()}
