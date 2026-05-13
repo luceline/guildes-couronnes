@@ -49,6 +49,13 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   const [cityBuildings, setCityBuildings] = useState([]);
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
 
+  // 13/05/2026 — Filtre tier dans l'onglet Fabriquer
+  // Toggle radio : "1.5" | "2" | "3" — affiche un seul tier à la fois pour
+  // alléger la liste sur mobile. Défaut T2 = recettes les plus courantes.
+  // Nom volontairement long (craftTierFilter) pour éviter le shadowing
+  // avec les `const craftTier` locaux des handlers handleCraft.
+  const [craftTierFilter, setCraftTierFilter] = useState("2");
+
   // ── Sprint 5B : buffs de mairie (Fête du travail, Bénédiction, etc.) ──
   // On lit les buffs sur la ville d'origine (homeCity) car les événements
   // de mairie s'appliquent aux résidents de la ville où ils sont organisés.
@@ -1574,22 +1581,34 @@ export default function Production({ profile, city, homeCity, onRefresh, default
             <p className="text-xs text-muted-foreground font-body">Transformez vos ressources en objets de valeur.</p>
             <HelpTooltip text="Le craft transforme des matières premières en items de tier supérieur (T2-T5). ⚠️ Le T3 est libre. Pour crafter du T4 il vous faut un Outil multifonction (T3) en inventaire avec de la durabilité. Pour le T5, un Outil multifonction renforcé (T4) est requis. Ces outils s'usent à chaque craft." />
           </div>
-          {(() => {
-            const inv = profile?.inventory || [];
-            const hasEpeeCourte = inv.some(i => i.item_key === "epee_courte" && (i.durability ?? 0) > 0);
-            const hasEpeeLongue = inv.some(i => i.item_key === "epee_longue" && (i.durability ?? 0) > 0);
-            if (hasEpeeCourte && hasEpeeLongue) return null;
-            return (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs font-body text-orange-800 mb-2 space-y-1">
-                <p className="font-semibold">⚠️ Équipement requis pour crafter :</p>
-                {!hasEpeeCourte && <p>• 🛠️ <strong>Outil multifonction</strong> (avec durabilité) : nécessaire pour crafter les <strong>T4</strong></p>}
-                {!hasEpeeLongue && <p>• ⚒️ <strong>Outil multifonction renforcé</strong> (avec durabilité) : nécessaire pour crafter les <strong>T5</strong></p>}
-                <p className="text-orange-600 italic">Ces outils sont craftés par le Forgeron.</p>
-              </div>
-            );
-          })()}
 
-          {/* Recettes PvP T1.5 quotidiennes */}
+          {/* 13/05/2026 — Toggles de filtre tier (T1.5 / T2 / T3).
+              Affiche un seul tier à la fois pour alléger la liste mobile.
+              Le cadre orange "Équipement requis" a été retiré : l'info est
+              déjà portée par les badges/messages d'erreur au moment du craft. */}
+          <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+            <span className="text-xs text-muted-foreground font-body mr-1">Filtrer :</span>
+            {[
+              { key: "1.5", label: "T1.5 ⚔️" },
+              { key: "2",   label: "T2"     },
+              { key: "3",   label: "T3"     },
+            ].map(t => (
+              <button
+                key={t.key}
+                onClick={() => setCraftTierFilter(t.key)}
+                className={`font-heading text-xs px-3 py-1 rounded-full border transition-colors ${
+                  craftTierFilter === t.key
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted/50"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Recettes PvP T1.5 quotidiennes (affichées si toggle T1.5) */}
+          {craftTierFilter === "1.5" && (
           <div className="mt-4">
             <h4 className="font-heading text-sm font-semibold mb-2 text-accent">⚔️ Items PvP (Inputs quotidiens aléatoires)</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1637,8 +1656,10 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               })}
             </div>
           </div>
+          )}
 
-          {/* Recettes standard T2-T5 */}
+          {/* Recettes standard T2-T3 (affichées si toggle T2 ou T3) */}
+          {(craftTierFilter === "2" || craftTierFilter === "3") && (
           <div className="mt-4">
             {/* NOUVEAU v3 (09/05/2026) - Outil d'artisan : badge si possede, carte d'invitation sinon */}
             {profile.artisan_tool_obtained ? (() => {
@@ -1714,10 +1735,11 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                 </CardContent>
               </Card>
             )}
-            <h4 className="font-heading text-sm font-semibold mb-2">⚒️ Recettes standard (T2-T3)</h4>
+            <h4 className="font-heading text-sm font-semibold mb-2">⚒️ Recettes standard (T{craftTierFilter})</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* TEMP MASQUAGE T4/T5 (09/05/2026) - Restaurer en retirant le filtre tier <= 3 quand le joueur Lucas le demandera. Les recettes T4/T5 existent toujours dans CRAFTING_RECIPES, juste cachees a l affichage. */}
               {/* NOUVEAU v3 (09/05/2026) - Filtre outil d'artisan : si pas obtenu ou charges <= 0, on cache toutes les recettes T2+ */}
+              {/* 13/05/2026 - Filtre tier dynamique : n'affiche que les recettes du tier sélectionné via les toggles */}
               {CRAFTING_RECIPES.filter(recipe => {
                 const recipeTier = recipe.tier || 1;
                 if (!recipe.profession || recipe.profession === profile?.profession) {
@@ -1726,6 +1748,8 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                   return false;
                 }
                 if (recipeTier > 3) return false; // TEMP MASQUAGE T4/T5
+                // Filtre tier dynamique via le toggle UI (craftTierFilter vaut "2" ou "3" ici)
+                if (String(recipeTier) !== craftTierFilter) return false;
                 if (recipeTier >= 2) {
                   // Outil d'artisan requis pour T2+
                   if (!profile.artisan_tool_obtained) return false;
@@ -1787,6 +1811,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               })}
             </div>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="atelier" className="mt-4">
