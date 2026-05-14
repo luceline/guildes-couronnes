@@ -106,9 +106,11 @@ export default function VillageMenuView({ profile, city, onRefresh }) {
           base44.entities.PlayerObjective.filter({ player_email: profile.user_email, status: "completed" }),
         ]);
         if (cancelled) return;
+        // 14/05/2026 — Fix bug compteur quêtes (affichait 0/4 au lieu de 0/6) :
+        // l'ancien filtre excluait `deposit` et `deposit_t1` du décompte alors
+        // que ce sont bien des quêtes journalières. Retiré.
         const isQuestToday = (o) =>
-          o.type !== "deposit" && o.type !== "deposit_t1"
-          && (o.created_date || o.quest_date || "").startsWith(todayStr);
+          (o.created_date || o.quest_date || "").startsWith(todayStr);
         const today = [...(active || []), ...(done || [])].filter(isQuestToday);
         setQuests(today);
       } catch (e) { /* silent */ }
