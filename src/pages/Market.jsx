@@ -68,7 +68,26 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   const [myListings, setMyListings] = useState([]);   // toutes mes annonces actives (toutes villes)
   const [loading, setLoading] = useState(true);
   const [sellOpen, setSellOpen] = useState(false);
-  const [sellForm, setSellForm] = useState({ item_index: "", quantity: 1, price: 1, itemKey: "" });
+  // sellForm : structure de l'annonce en cours de création.
+  // Refonte 14/05/2026 (fix bug item_index décalé) — on identifie l'item
+  // sélectionné par sa SIGNATURE (item_key + grade + durability) plutôt que
+  // par un index dans une liste filtrée. Raison : le picker filtrait par
+  // `tier <= 3` mais handleSell filtrait seulement par `quantity > 0`, ce
+  // qui causait des décalages d'index dès qu'un T4/T5 traînait dans
+  // l'inventaire → toast "quantité non valide".
+  //   - selectedKey       : item_key canonique de l'instance choisie
+  //   - selectedGrade     : grade (null si non équipement)
+  //   - selectedDurability: durability courante (null si non applicable)
+  // Ces 3 champs permettent de retrouver l'instance exacte dans l'inventaire
+  // (idem au matching ligne ~239 qui sert déjà pour la déduction).
+  const [sellForm, setSellForm] = useState({
+    selectedKey: "",
+    selectedGrade: null,
+    selectedDurability: null,
+    quantity: 1,
+    price: 1,
+    itemKey: "",
+  });
   // Picker d'item à vendre : drawer mobile-friendly avec barre de recherche (10/05/2026)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -173,9 +192,19 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
   // Helpers isPermit/hasPermit/getHasPermitForItem retirés (devenus orphelins).
 
   const handleSell = async () => {
-    const idx = parseInt(sellForm.item_index);
-    const filteredInv = (profile.inventory || []).filter(i => i.quantity > 0);
-    const rawItem = filteredInv[idx];
+    // Refonte 14/05/2026 — Lookup par SIGNATURE (item_key + grade + durability)
+    // au lieu d'un index dans une liste filtrée. Robuste à tout filtre
+    // appliqué côté UI (tier <= 3, recherche, etc.).
+    if (!sellForm.selectedKey) {
+      toast.error("Aucun objet sélectionné.");
+      return;
+    }
+    const rawItem = (profile.inventory || []).find(i =>
+      i.quantity > 0 &&
+      i.item_key === sellForm.selectedKey &&
+      (i.grade ?? null) === sellForm.selectedGrade &&
+      (i.durability ?? null) === sellForm.selectedDurability
+    );
     if (!rawItem || sellForm.quantity <= 0 || sellForm.quantity > rawItem.quantity) {
       toast.error("La quantité indiquée n'est pas valide : vérifiez votre saisie.");
       return;
@@ -280,7 +309,14 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       toast.success(`📒 Bon de commande honoré : +${carnetBonus}💰 bonus encaissé !`, { duration: 5000 });
     }
     setSellOpen(false);
-    setSellForm({ item_index: "", quantity: 1, price: 1, itemKey: "" });
+    setSellForm({
+      selectedKey: "",
+      selectedGrade: null,
+      selectedDurability: null,
+      quantity: 1,
+      price: 1,
+      itemKey: "",
+    });
 
     // ── Valider les quêtes "sell" via checkAndAwardObjective ──
     try {
@@ -983,12 +1019,15 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               <div className="space-y-2">
                 <Label className="font-body">Objet à vendre</Label>
                 {(() => {
-                  // Liste filtrée par tier (T4/T5 masqués pour la vente)
-                  const sellableInventory = (profile.inventory || []).filter(
-                    i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3
-                  );
-                  const selectedItem = sellForm.item_index !== ""
-                    ? sellableInventory[parseInt(sellForm.item_index)]
+                  // Lookup par SIGNATURE (item_key + grade + durability) — refonte 14/05/2026.
+                  // Ne dépend plus d'un index dans une liste filtrée (cf. handleSell).
+                  const selectedItem = sellForm.selectedKey
+                    ? (profile.inventory || []).find(i =>
+                        i.quantity > 0 &&
+                        i.item_key === sellForm.selectedKey &&
+                        (i.grade ?? null) === sellForm.selectedGrade &&
+                        (i.durability ?? null) === sellForm.selectedDurability
+                      )
                     : null;
                   return (
                     <Button
@@ -1010,9 +1049,14 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                   );
                 })()}
               </div>
-              {sellForm.item_index !== "" && (() => {
-                // TEMP MASQUAGE T4/T5 (09/05/2026) - Le filtre tier <= 3 doit rester aligne avec celui du selecteur ci-dessus. A retirer simultanement.
-        const item = (profile.inventory || []).filter(i => i.quantity > 0 && (ITEMS[i.item_key]?.tier || 1) <= 3)[parseInt(sellForm.item_index)];
+              {sellForm.selectedKey && (() => {
+                // Lookup par SIGNATURE (cohérent avec handleSell et le bouton picker).
+                const item = (profile.inventory || []).find(i =>
+                  i.quantity > 0 &&
+                  i.item_key === sellForm.selectedKey &&
+                  (i.grade ?? null) === sellForm.selectedGrade &&
+                  (i.durability ?? null) === sellForm.selectedDurability
+                );
                 if (!item) return null;
                 return (
                   <div className="space-y-2">
@@ -1115,13 +1159,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 }
                 return (
                   <div className="space-y-1 pb-4">
-                    {filtered.map((item) => {
-                      // Index dans la liste NON filtrée (sellForm.item_index est l'index dans sellableInventory)
-                      const realIdx = sellableInventory.indexOf(item);
-                      const isSelected = sellForm.item_index === String(realIdx);
+                    {filtered.map((item, mapIdx) => {
+                      // Refonte 14/05/2026 — on n'a plus besoin d'un realIdx, on
+                      // identifie l'item par sa SIGNATURE (key + grade + durability).
+                      // La key React reste un index stable (mapIdx) car deux instances
+                      // du même équipement à dura différente sont des lignes distinctes.
+                      const itemGrade = item.grade ?? null;
+                      const itemDurability = item.durability ?? null;
+                      const isSelected =
+                        sellForm.selectedKey === item.item_key &&
+                        sellForm.selectedGrade === itemGrade &&
+                        sellForm.selectedDurability === itemDurability;
                       return (
                         <button
-                          key={realIdx}
+                          key={`${item.item_key}-${itemGrade ?? "ng"}-${itemDurability ?? "nd"}-${mapIdx}`}
                           type="button"
                           onClick={() => {
                             const resolvedKey = item.item_key ||
@@ -1130,7 +1181,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                             const forcedPrice = resolvedKey === "billet_fortune" ? 3 : sellForm.price;
                             setSellForm({
                               ...sellForm,
-                              item_index: String(realIdx),
+                              selectedKey: resolvedKey,
+                              selectedGrade: itemGrade,
+                              selectedDurability: itemDurability,
                               quantity: 1,
                               itemKey: resolvedKey,
                               price: forcedPrice,
