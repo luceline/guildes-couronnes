@@ -40,6 +40,7 @@ import RepairGearModal from "../components/RepairGearModal";
 import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "../lib/playerLevelSystem";
 import { findInventoryItem, getInventoryQty as getInvQty, removeFromInventory, addToInventory, hasInInventory } from "../lib/inventoryHelpers";
 import { formatCooldown, canCraftRecipe } from "../lib/recipeHelpers";
+import { useLocalStats } from "../hooks/useLocalStats";
 import { showXPToast } from "../lib/xpToasts";
 import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeDoubleProdChance, activateBiomeHarvestBonus } from "../lib/playerBuffs";
 
@@ -137,26 +138,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   const cityFatigueBonus = getCityFatigueBonus(cityBuildings);
   const effectiveMaxHunger = getMaxHunger(profile || {}, cityHungerBonus);
 
-  const [localFatigue, setLocalFatigue] = useState(null);
-  const [localHunger, setLocalHunger] = useState(null);
-
-  useEffect(() => {
-    if (!profile) return;
-    const maxFat = getMaxFatigue(profile, cityFatigueBonus);
-    const fatigue = profile.fatigue ?? maxFat;
-    setLocalFatigue(fatigue);
-  }, [profile?.id, profile?.fatigue, cityFatigueBonus]);
-
-  useEffect(() => {
-    if (!profile) return;
-    if (profile.hunger !== undefined && profile.hunger !== null) {
-      setLocalHunger(profile.hunger);
-    } else if (localHunger === null) {
-      const maxH = getMaxHunger(profile, cityHungerBonus);
-      setLocalHunger(maxH);
-      base44.entities.PlayerProfile.update(profile.id, { hunger: maxH });
-    }
-  }, [profile?.id, profile?.hunger, cityHungerBonus]);
+  const { localFatigue, setLocalFatigue, localHunger, setLocalHunger } = useLocalStats(profile, cityFatigueBonus, cityHungerBonus);
 
   // NB : la régen Fontaine est désormais gérée par applyHungerRegen (×2 vitesse) : pas de useEffect ici.
 
