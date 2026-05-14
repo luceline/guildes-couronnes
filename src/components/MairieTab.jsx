@@ -17,10 +17,6 @@ import ProfessionChangePanel from "./ProfessionChangePanel";
 import DecreePanel from "./DecreePanel";
 import CityInvestmentPanel from "./CityInvestmentPanel";
 import WealthTaxPanel from "./WealthTaxPanel";
-// 11/05/2026 : imports militaires retirés (système supprimé).
-// import CityArmyPanel from "./CityArmyPanel";
-// import ArmySupplyPanel from "./ArmySupplyPanel";
-// import MilitaryCampaignPanel from "./MilitaryCampaignPanel";
 
 export default function MairieTab({ city, profile, homeCity, isMayor, mayorActive, isAdmin, onRefresh, routes = [], cities = [], cityPlayers = [] }) {
   // ── Rôles nommés par le maire ──
