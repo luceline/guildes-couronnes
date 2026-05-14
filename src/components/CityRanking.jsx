@@ -27,7 +27,11 @@ export default function CityRanking({ profile }) {
     );
   }
 
-  const ranked = [...cities].sort((a, b) => (b.treasury_cumulative || 0) - (a.treasury_cumulative || 0));
+  // 13/05/2026 — Tri et affichage des paliers basés sur lingots_cumul
+  // (l'or investi par le maire via CityInvestmentPanel), source de vérité
+  // unique. Avant : treasury_cumulative (historique de l'or qui a transité),
+  // ce qui désynchronisait l'affichage du palier avec la Mairie.
+  const ranked = [...cities].sort((a, b) => (b.lingots_cumul || 0) - (a.lingots_cumul || 0));
 
   return (
     <div className="space-y-3">
@@ -57,7 +61,7 @@ export default function CityRanking({ profile }) {
         <p className="text-muted-foreground font-body text-sm text-center py-8">Aucune ville pour l'instant.</p>
       ) : (
         ranked.map((city, idx) => {
-          const cum = city.treasury_cumulative || 0;
+          const cum = city.lingots_cumul || 0;
           const tier = getCityTier(cum);
           const bonuses = getCityBonuses(cum);
           const nextTier = CITY_LEVELS.find(l => l.threshold > cum);

@@ -322,8 +322,8 @@ export default function MapView({ profile }) {
             const isCurrent  = profile?.city_id === city.id;
             const isHome     = profile?.home_city_id === city.id;
             const isSelected = selected === city.id;
-            const size       = getCitySize(city.lingots_cumul || city.treasury_cumulative || 0);
-            const tier       = getCityTier(city.lingots_cumul || city.treasury_cumulative || 0);
+            const size       = getCitySize(city.lingots_cumul || 0);
+            const tier       = getCityTier(city.lingots_cumul || 0);
             const nTravHere  = travelers.filter(p => p.travel_destination_id === city.id).length;
 
             return (
@@ -411,7 +411,7 @@ export default function MapView({ profile }) {
 
         {/* ── Tooltip ville sélectionnée ── */}
         {selectedCity && selPos && (() => {
-          const tier = getCityTier(selectedCity.lingots_cumul || selectedCity.treasury_cumulative || 0);
+          const tier = getCityTier(selectedCity.lingots_cumul || 0);
           const svgW = 900, svgH = 520;
           // Positionnement relatif (% du SVG)
           const pxPct = (selPos.x / svgW) * 100;
@@ -447,7 +447,7 @@ export default function MapView({ profile }) {
                     </div>
                   </div>
                   <div className="bg-[#ffffff08] rounded p-1.5">
-                    <div className="text-[#8a9a78]">Prestige</div>
+                    <div className="text-[#8a9a78]">Chiffre d'affaires</div>
                     <div className="font-bold">
                       {(selectedCity.treasury_cumulative || 0).toLocaleString()}💰
                     </div>
