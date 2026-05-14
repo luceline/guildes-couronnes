@@ -102,7 +102,6 @@ export default function BatimentsContent({
                 {Object.keys(dailyMaintenance).length > 0 && (
                   <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs font-body text-amber-800">
                     🔧 Entretien quotidien : {Object.entries(dailyMaintenance).map(([r, q]) => `${q} ${WAREHOUSE_LABELS[r] || GAME_ITEMS[r]?.name || r}`).join(" · ")}
-                    <span className="ml-2 text-amber-600">({nbResidents} résident{nbResidents > 1 ? "s" : ""} : ×{(1 + 0.2 * Math.max(0, nbResidents - 1)).toFixed(1)} multiplicateur)</span>
                   </div>
                 )}
               </CardContent>

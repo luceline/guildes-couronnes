@@ -12,7 +12,7 @@
 
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { BUILDING_TYPES } from "@/lib/gameData";
+import { getCityDailyMaintenance } from "@/lib/gameData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -125,22 +125,16 @@ export default function MaireDashboard({ city, profile, players = [] }) {
       dailyCostByKey[k] = (dailyCostByKey[k] || 0) + residents.length * share;
     }
   }
-  // ── Coût entretien bâtiments (calculé depuis city.buildings comme dans dailyReset) ──
-  // REFONTE : entretien additif (×level) au lieu de doublé (×2^(level-1)), cohérent avec le coût de construction.
-  const buildings = city?.buildings || [];
-  const maintMultiplier = 1 + 0.2 * Math.max(0, residents.length - 1);
-  for (const building of buildings) {
-    const bType = BUILDING_TYPES[building.building_type];
-    if (!bType?.maintenance) continue;
-    const level = building.level || 1;
-    const levelMultiplier = (bType.category === "production" || bType.category === "bien_etre")
-      ? level : 1;
-    for (const [res, qty] of Object.entries(bType.maintenance)) {
-      if (res === "or") continue; // l'or vient de la trésorerie, pas de l'entrepôt
-      const realCost = Math.ceil(qty * maintMultiplier * levelMultiplier);
-      if (realCost > 0) {
-        dailyCostByKey[res] = (dailyCostByKey[res] || 0) + realCost;
-      }
+  // ── Coût entretien bâtiments — source unique : getCityDailyMaintenance ──
+  // 14/05/2026 — Refonte : appel à la fonction centralisée (mayor.js) au lieu de
+  // dupliquer le calcul ici. La formule est : qty × level (additif, toutes catégories,
+  // sans multiplicateur résidents). L'or n'est pas comptabilisé dans dailyCostByKey
+  // (il vient de la trésorerie, pas de l'entrepôt).
+  const buildingMaint = getCityDailyMaintenance(city);
+  for (const [res, qty] of Object.entries(buildingMaint)) {
+    if (res === "or") continue;
+    if (qty > 0) {
+      dailyCostByKey[res] = (dailyCostByKey[res] || 0) + qty;
     }
   }
 
