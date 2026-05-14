@@ -249,16 +249,14 @@ export default function TavernPage() {
   }
 
   return (
-    <div className="space-y-4 pb-20 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div>
-          <h2 className="font-heading text-2xl font-bold heading-medieval">🍺 La Taverne</h2>
-          <p className="text-muted-foreground font-body text-sm">
-            {city ? `La taverne de ${city.name} : Échangez vos bons plans !` : "Taverne locale"}
-          </p>
-        </div>
+    <div className="space-y-3 pb-20 md:pb-0">
+      {/* Header compact (14/05/2026) : titre + badge + sous-titre sur 1 seule ligne */}
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <h2 className="font-heading text-xl font-bold heading-medieval">🍺 La Taverne</h2>
         {hasTavern && <Badge className="bg-amber-100 text-amber-800 border-amber-200">Ouverte</Badge>}
+        <p className="text-muted-foreground font-body text-xs">
+          {city ? `${city.name} : Échangez vos bons plans !` : "Taverne locale"}
+        </p>
       </div>
 
       {!hasTavern ? (
@@ -358,13 +356,7 @@ export default function TavernPage() {
 
             {/* Public chat */}
             <TabsContent value="grande-salle">
-              <Card className="flex flex-col" style={{ height: "55vh", minHeight: 360 }}>
-                <CardHeader className="pb-2 border-b border-border">
-                  <CardTitle className="font-heading text-base flex items-center gap-2">
-                    🍺 Grande Salle : {city?.name}
-                    <span className="text-xs text-muted-foreground font-body font-normal">Résidents & Visiteurs</span>
-                  </CardTitle>
-                </CardHeader>
+              <Card className="flex flex-col" style={{ height: "60vh", minHeight: 400 }}>
                 <ChatMessages
                   messages={messages}
                   profile={profile}
@@ -448,21 +440,6 @@ export default function TavernPage() {
           </Tabs>
         </>
       )}
-
-      {/* Tips */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="font-heading font-semibold text-sm mb-2">💡 Règles de la taverne</h3>
-          <ul className="text-xs text-muted-foreground font-body space-y-1">
-            <li>• Partagez les prix du marché, vos stratégies de farming et de crafting.</li>
-            <li>• Signalez les bonnes affaires et les ressources rares en stock.</li>
-            <li>• Le langage respectueux est de rigueur : les grossièretés sont filtrées automatiquement.</li>
-            <li>• La taverne est locale à votre ville actuelle.</li>
-            <li>• 🔒 La Salle des Résidents est réservée aux habitants permanents de la ville.</li>
-            <li>• 🛌 Dormir à la taverne récupère de l'énergie, mais seulement si aucune nourriture n'est dispo sur le marché.</li>
-          </ul>
-        </CardContent>
-      </Card>
     </div>
   );
 }
