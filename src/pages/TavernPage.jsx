@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Send, Lock } from "lucide-react";
 import BountyBoard from "../components/BountyBoard";
-import PlayerRanking from "../components/PlayerRanking";
 import TavernDicePanel from "../components/TavernDicePanel";
 import TavernLotteryPanel from "../components/TavernLotteryPanel";
 import { FOOD_ITEMS_WITH_FATIGUE, computeFatigueWithDailyReset, getTodayStr } from "../lib/craftingData";
@@ -351,7 +350,6 @@ export default function TavernPage() {
               </TabsTrigger>
               <TabsTrigger value="primes" className="flex-1">🏴‍☠️ Primes</TabsTrigger>
               <TabsTrigger value="jeux" className="flex-1">🎲 Jeux</TabsTrigger>
-              <TabsTrigger value="classement" className="flex-1">🏆 Classement</TabsTrigger>
             </TabsList>
 
             {/* Public chat */}
@@ -433,9 +431,6 @@ export default function TavernPage() {
                 <TavernDicePanel profile={profile} city={city} isResident={isResident} onRefresh={refresh} />
                 <TavernLotteryPanel profile={profile} city={city} onRefresh={refresh} />
               </div>
-            </TabsContent>
-            <TabsContent value="classement" className="mt-2">
-              <PlayerRanking />
             </TabsContent>
           </Tabs>
         </>
