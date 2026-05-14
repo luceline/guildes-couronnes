@@ -41,6 +41,7 @@ import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "..
 import { findInventoryItem, getInventoryQty as getInvQty, removeFromInventory, addToInventory, hasInInventory } from "../lib/inventoryHelpers";
 import { formatCooldown, canCraftRecipe } from "../lib/recipeHelpers";
 import { useLocalStats } from "../hooks/useLocalStats";
+import { useProductionBonuses } from "../hooks/useProductionBonuses";
 import { showXPToast } from "../lib/xpToasts";
 import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeDoubleProdChance, activateBiomeHarvestBonus } from "../lib/playerBuffs";
 
@@ -133,9 +134,13 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     grande_place:cityBuildings.some(b => b.building_type === "grande_place"),
     palais:      cityBuildings.some(b => b.building_type === "palais"),
   };
-  // Bonus ville (Cathédrale, Université) appliqués aux max
-  const cityHungerBonus  = getCityHungerBonus(cityBuildings);
-  const cityFatigueBonus = getCityFatigueBonus(cityBuildings);
+  // ── Bonus de production centralisés via useProductionBonuses ──
+  // Source unique pour : cooldowns effectifs, yields farm/craft, bonus ville (fatigue/hunger).
+  const bonuses = useProductionBonuses({
+    profile, city, cityBuildings, cityEvents, royalStatue,
+    buildingLevels, buildingBonuses,
+  });
+  const { cityFatigueBonus, cityHungerBonus } = bonuses;
   const effectiveMaxHunger = getMaxHunger(profile || {}, cityHungerBonus);
 
   const { localFatigue, setLocalFatigue, localHunger, setLocalHunger } = useLocalStats(profile, cityFatigueBonus, cityHungerBonus);
@@ -780,28 +785,10 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     ];
     const recipe = allRecipes.find(r => r.id === recipeId);
     if (!recipe) return 0;
-    const hasToolCharges = (profile?.tool_charges || 0) > 0;
-    const reduction = hasToolCharges ? (ITEM_EFFECTS.outils?.value || 0) : 0;
-    // 11/05/2026 : COOLDOWN_PENALTY_NO_TOOLS retiré. Plus de malus quand
-    // l'outil d'artisan est épuisé. L'outil reste utile pour son bonus
-    // actif (reduction) mais ne pénalise plus quand il est à 0.
-    const tractsActive = city?.production_malus?.tracts_greve_active_until && new Date(city.production_malus.tracts_greve_active_until) > new Date();
-    const tractsMalus = tractsActive ? 1.2 : 1;
-    const cityLingotBonus = getCityBonuses(city?.lingots_cumul || 0).cooldownReduction / 100;
-    const tempCooldownBonus = getPassiveCooldownBonus(profile);
-    // ── Hook chaudron : 🔥 Pierre de feu : -30% durée crafts pendant 4h ──
-    const pierreFeuActive = profile?.craft_speed_buff_until && new Date(profile.craft_speed_buff_until) > new Date();
-    const pierreFeuBonus = pierreFeuActive ? (profile.craft_speed_buff_value || 0.30) : 0;
-    // ── Hook événement mairie : 🛠️ Fête du travail : -50% durée crafts (cumul multiplicatif) ──
-    const workFestivalActive = cityEvents.hasBuff("work_festival");
-    const workFestivalBonus = workFestivalActive ? 0.50 : 0;
-    // ── Sprint 2C : Palier 1 statue royale : -10% cooldown crafts (cumul multiplicatif) ──
-    const statuePalier1Bonus = royalStatue.hasPalier(1) ? 0.10 : 0;
-    // REFONTE : la fonderie ne réduit plus le cooldown forgeron. Son seul effet est désormais
-    // le bonus quantité quartz scalé par niveau (cf. plus bas).
-    const levelBonuses = getPlayerLevelBonuses(profile?.player_level || 1);
-    const levelCooldownBonus = levelBonuses.cooldownBonus / 100; // −1% par niveau
-    const effectiveCooldown = recipe.cooldown * (1 - reduction) * (1 - cityLingotBonus) * (1 - tempCooldownBonus) * (1 - pierreFeuBonus) * (1 - workFestivalBonus) * (1 - statuePalier1Bonus) * (1 - levelCooldownBonus) * tractsMalus;
+    // 14/05/2026 — Le calcul du cooldown effectif (outil, tracts, lingot ville,
+    // pierre de feu, fête du travail, statue palier 1, level joueur, etc.) est
+    // centralisé dans useProductionBonuses (hooks/useProductionBonuses.js).
+    const effectiveCooldown = bonuses.computeEffectiveCooldown(recipe);
     const elapsed = (Date.now() - new Date(lastProduced).getTime()) / 1000;
     return Math.max(0, effectiveCooldown - elapsed);
   };
@@ -852,48 +839,16 @@ export default function Production({ profile, city, homeCity, onRefresh, default
       newInventory = newInventory.filter(i => i.quantity > 0);
     }
 
-    const cityProdBonus = getCityBonuses(city?.lingots_cumul || 0).cooldownReduction;
-    const bonusQty = cityProdBonus > 0 ? Math.floor(recipe.quantity * cityProdBonus / 100) : 0;
+    // 14/05/2026 — Calcul des yields centralisé via useProductionBonuses.
+    // computeFarmYield retourne tous les bonus (lingot ville, bâtiments, double prod,
+    // biome harvest) et fait le roll Math.random() une seule fois.
+    const yieldResult = bonuses.computeFarmYield(recipe);
+    const { totalQty, bonusQty, buildingQtyBonus, doubleBonus, doubleSources, biomeHarvestBonus } = yieldResult;
+    const biomeBonusQty = 0; // absorbé dans doubleBonus (rétro-compat variable, non-utilisée pour calcul)
 
-    let buildingQtyBonus = 0;
-    // REFONTE bonus bâtiments : +1 par niveau du bâtiment (niveau 1 = +1, ..., niveau 5 = +5)
-    if (recipe.outputKey === "bois_brut"    && buildingLevels.scierie > 0)     buildingQtyBonus += buildingLevels.scierie;
-    if (recipe.outputKey === "minerai_fer"  && buildingLevels.mine > 0)        buildingQtyBonus += buildingLevels.mine;
-    if (recipe.outputKey === "ble"          && buildingLevels.moulin > 0)      buildingQtyBonus += buildingLevels.moulin;
-    if (recipe.outputKey === "laine_brute"  && buildingLevels.bergerie > 0)    buildingQtyBonus += buildingLevels.bergerie;
-    if (recipe.outputKey === "herbes"       && buildingLevels.laboratoire > 0) buildingQtyBonus += buildingLevels.laboratoire;
-    if (recipe.outputKey === "quartz_brut"  && buildingLevels.fonderie > 0)    buildingQtyBonus += buildingLevels.fonderie;
-    // Atelier (T2 tissu) : effet legacy non scalé pour le moment
-    if (recipe.outputKey === "tissu"        && buildingBonuses.atelier)        buildingQtyBonus += 1;
-    // REFONTE : la fonderie n'octroie plus +1 lingots_or (son effet est désormais le bonus quartz uniquement).
-
-    // ── Chance double production : tous les bonus additifs (REFONTE v5) ──
-    // Charbon T2 est désormais un PASSIF : présence dans inventaire = +5%, peu importe la quantité.
-    // S'AJOUTE aux bonus biome et niveau (cumul additif).
-    const biomeDoubleChanceProd  = getBiomeDoubleProdChance(profile);
-    const levelBonusesProd       = getPlayerLevelBonuses(profile?.player_level || 1);
-    const doubleChanceLevel      = levelBonusesProd.doubleProductionBonus / 100;
-    const charbonBonus = getPassiveCharbonDoubleProdBonus(profile); // 0.05 si charbon en stock, sinon 0
-    // ── Hook événement mairie : 💰 Bénédiction de l'abondance : +5% double prod ──
-    const blessingBonus = cityEvents.hasBuff("abundance_blessing") ? 0.05 : 0;
-    const doubleChance = doubleChanceLevel + biomeDoubleChanceProd + charbonBonus + blessingBonus;
-    const doubleBonus  = (!isNaN(doubleChance) && doubleChance > 0 && Math.random() < doubleChance) ? recipe.quantity : 0;
-    const biomeBonusQty = 0; // absorbé dans doubleBonus
     if (doubleBonus > 0) {
-      const sources = [
-        doubleChanceLevel     > 0 ? `rang ${profile?.player_level || 1}` : null,
-        biomeDoubleChanceProd > 0 ? `biome` : null,
-        charbonBonus          > 0 ? `charbon` : null,
-        blessingBonus         > 0 ? `bénédiction` : null,
-      ].filter(Boolean).join(" + ");
-      setCoupDeMaitre({ qty: doubleBonus, itemName: item?.name || recipe.name, sources });
+      setCoupDeMaitre({ qty: doubleBonus, itemName: item?.name || recipe.name, sources: doubleSources });
     }
-    // Biome harvest bonus T1 (timer 5min : indépendant du double prod)
-    let biomeHarvestBonus = 0;
-    if (recipe.tier === 1 && isBiomeHarvestActive(profile)) {
-      biomeHarvestBonus = 1;
-    }
-    const totalQty = recipe.quantity + bonusQty + buildingQtyBonus + doubleBonus + biomeHarvestBonus;
     if (biomeHarvestBonus > 0) toast(`🌿 Bonus biome récolte ! +1 ${recipe.outputKey} !`);
 
     const isEquipment = EQUIPMENT_KEYS.includes(recipe.outputKey);
@@ -1096,30 +1051,17 @@ export default function Production({ profile, city, homeCity, onRefresh, default
       inv[idx] = { ...inv[idx], quantity: inv[idx].quantity - input.quantity };
     }
 
-    // REFONTE : la fonderie ne donne plus +20% de bonus au craft.
+    // 14/05/2026 — Calcul des yields centralisé via useProductionBonuses.
+    // computeCraftYield retourne le bonus ville et fait le roll double prod
+    // (Math.random()) une seule fois. La fonderie ne donne plus de bonus craft (REFONTE).
     const forgeBonusQty = 0;
-    const cityProdBonus = getCityBonuses(city?.lingots_cumul || 0).cooldownReduction;
-    const cityBonusQty = cityProdBonus > 0 ? Math.floor(recipe.output.quantity * cityProdBonus / 100) : 0;
-    
-    // ── Chance double production : tous les bonus additifs (REFONTE v5) ──
-    const levelBonusesCraft = getPlayerLevelBonuses(profile?.player_level || 1);
-    const doubleChanceLevelCraft  = levelBonusesCraft.doubleProductionBonus / 100;
-    const biomeDoubleChanceCraft  = getBiomeDoubleProdChance(profile);
-    const charbonBonusCraft = getPassiveCharbonDoubleProdBonus(profile);
-    const doubleChanceCraft = doubleChanceLevelCraft + biomeDoubleChanceCraft + charbonBonusCraft;
-    const doubleBonusCraft  = (!isNaN(doubleChanceCraft) && doubleChanceCraft > 0 && Math.random() < doubleChanceCraft)
-      ? recipe.output.quantity : 0;
-    const biomeBonusQty = 0; // absorbé dans doubleBonusCraft
-    if (doubleBonusCraft > 0) {
-      const sources = [
-        doubleChanceLevelCraft  > 0 ? `rang ${profile?.player_level || 1}` : null,
-        biomeDoubleChanceCraft  > 0 ? `biome` : null,
-        charbonBonusCraft       > 0 ? `charbon` : null,
-      ].filter(Boolean).join(" + ");
-      setCoupDeMaitre({ qty: doubleBonusCraft, itemName: ITEMS[recipe.output.key]?.name || recipe.name, sources });
-    }
+    const craftYield = bonuses.computeCraftYield(recipe);
+    const { totalQty, cityBonusQty, doubleBonus: doubleBonusCraft, doubleSources } = craftYield;
+    const biomeBonusQty = 0; // absorbé dans doubleBonusCraft (rétro-compat variable, non-utilisée pour calcul)
 
-    const totalQty = recipe.output.quantity + forgeBonusQty + cityBonusQty + doubleBonusCraft;
+    if (doubleBonusCraft > 0) {
+      setCoupDeMaitre({ qty: doubleBonusCraft, itemName: ITEMS[recipe.output.key]?.name || recipe.name, sources: doubleSources });
+    }
 
     const outItem = ITEMS[recipe.output.key];
 
