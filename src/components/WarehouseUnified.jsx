@@ -587,7 +587,7 @@ export default function WarehouseUnified({
 
         {/* Grille d'items */}
         {selectedTier === "t1" ? (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start">
             {[...items].map(item => {
               const isGold = item.key === "or";
               const playerStock = isGold
@@ -603,18 +603,18 @@ export default function WarehouseUnified({
               const dailyUse = dailyMaintenance[item.key] || 0;
 
               if (playerStock === 0 && !isGold) {
+                // 14/05/2026 — Cacher complètement les items vides SAUF s'il y a
+                // une offre maire active (on garde le bandeau vert pour inciter
+                // le joueur à en récolter). Le Marchand sans stock n'a rien à
+                // revendre, inutile de l'afficher.
+                const showForOffer = hasOffer && remaining > 0 && city.warehouse_rachat_enabled;
+                if (!showForOffer) return null;
                 return (
                   <div key={item.key} className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs font-body rounded-lg px-3 py-2 bg-muted/30 text-muted-foreground">
-                      <span>{item.icon}</span>
-                      <span className="flex-1 font-semibold">{item.name}</span>
-                      <span>Vous n'en avez pas</span>
+                    <div className="text-xs font-body text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                      <span className="mr-1.5">{item.icon}</span>
+                      <strong>{item.name}</strong> · 🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> à <strong>{offer.price} or</strong>/u (reste : <strong>{remaining}</strong>). Apportez-en !
                     </div>
-                    {hasOffer && remaining > 0 && city.warehouse_rachat_enabled && (
-                      <div className="text-xs font-body text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce : quota restant : <strong>{remaining}</strong>. Apportez-en !
-                      </div>
-                    )}
                   </div>
                 );
               }
@@ -738,7 +738,7 @@ export default function WarehouseUnified({
             })}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 items-start">
             {items.map(item => {
               const playerQty = (profile.inventory || []).find(i => i.item_key === item.key)?.quantity || 0;
               const warehouseStock = isHomeCity ? (warehouse[item.key] || 0) : null;
@@ -750,18 +750,17 @@ export default function WarehouseUnified({
               const amount = amounts[item.key] ?? 1;
 
               if (playerQty === 0) {
+                // 14/05/2026 — Cacher complètement les items vides SAUF s'il y a
+                // une offre maire active (on garde le bandeau vert pour inciter
+                // le joueur à en crafter).
+                const showForOffer = hasOffer && remaining > 0 && city.warehouse_rachat_enabled;
+                if (!showForOffer) return null;
                 return (
                   <div key={item.key} className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs font-body rounded-lg px-3 py-2 bg-muted/30 text-muted-foreground">
-                      <span>{item.icon}</span>
-                      <span className="flex-1 font-semibold">{item.name}</span>
-                      <span>Vous n'en avez pas</span>
+                    <div className="text-xs font-body text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+                      <span className="mr-1.5">{item.icon}</span>
+                      <strong>{item.name}</strong> · 🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> à <strong>{offer.price} or</strong>/u (reste : <strong>{remaining}</strong>). Apportez-en !
                     </div>
-                    {hasOffer && remaining > 0 && city.warehouse_rachat_enabled && (
-                      <div className="text-xs font-body text-green-800 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
-                        🏪 La ville rachète jusqu'à <strong>{offer.qty_max}</strong> unité{offer.qty_max > 1 ? "s" : ""} à <strong>{offer.price} or</strong> pièce : quota restant : <strong>{remaining}</strong>. Apportez-en !
-                      </div>
-                    )}
                   </div>
                 );
               }
