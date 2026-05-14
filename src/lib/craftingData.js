@@ -263,10 +263,12 @@ export const ITEMS = {
   },
 
   // NOUVEAU v3 (09/05/2026) - Recharge l outil d artisan personnel
+  // 13/05/2026 — Rééquilibrage : valeurs et cap réduits pour créer plus de
+  // tension de craft. Avant : +15 (cap 50). Après : +5 (cap 25).
   pierre_aiguiser: {
     name: "Pierre à aiguiser", icon: "🪊", category: "pierre", tier: 2,
-    trigger: "consumed", effect: "recharge_artisan_tool", value: 15,
-    use: "Consommée : +15 charges à votre outil d'artisan (cap 50).",
+    trigger: "consumed", effect: "recharge_artisan_tool", value: 5,
+    use: "Consommée : +5 charges à votre outil d'artisan (cap 25).",
   },
 
   // ════════════════════════════════
@@ -338,8 +340,8 @@ export const ITEMS = {
   },
   affutage_maitre: {
     name: "Affûtage de maître", icon: "⚙️", category: "fer", tier: 3,
-    trigger: "consumed", effect: "recharge_artisan_tool", value: 50,
-    use: "Consommé : +50 charges à votre outil d'artisan (cap 50, surplus perdu).",
+    trigger: "consumed", effect: "recharge_artisan_tool", value: 20,
+    use: "Consommé : +20 charges à votre outil d'artisan (cap 25, surplus perdu).",
   },
   bon_tresor: {
     name: "Bon du Trésor", icon: "💼", category: "or", tier: 3,
@@ -407,12 +409,10 @@ export const ITEMS = {
   couronne_bronze: {
     name: "Couronne en bronze", icon: "👑", category: "magique", tier: "magique",
     trigger: "consumed", effect: "magic_gold_reward", value: 100,
-    // 13/05/2026 : description simplifiée pour les joueurs. La mécanique reste
-    // dynamique côté code (handleApplyConsumed calcule la somme des prix T1 +
-    // 100 or de bonus). Le texte d'avant ("X + 100 or, valeur dynamique...")
-    // était techniquement précis mais incompréhensible. Désormais le ton est
-    // donné par un vers de ménestrel, et le chiffre est volontairement flou.
-    use: "« Brillante au front d'un roi, elle vaut mille rançons quand on la fond. » — Consommée, elle apporte au porteur une grande bourse d'or (≈ 300 pièces).",
+    // value = bonus or fixe ajouté en plus de la valeur de marché des T1 cumulés.
+    // À l'utilisation : calcule prix dynamique des T1 sous-jacents au chaudron,
+    // additionne, ajoute +100, crédite le joueur. Cf. handleApplyConsumed.
+    use: "Consommée : donne X + 100 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~270-300 or selon marché). Craftée au Chaudron magique.",
   },
 
   // ════════════════════════════════

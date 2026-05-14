@@ -327,9 +327,10 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
       return;
     }
 
-    // ── NOUVEAU v3 (09/05/2026) - Pierre a aiguiser / Affutage de maitre : recharge l'outil d'artisan (cap 50) ──
+    // ── NOUVEAU v3 (09/05/2026) - Pierre a aiguiser / Affutage de maitre : recharge l'outil d'artisan ──
+    // 13/05/2026 — Cap abaissé de 50 à 25 (rééquilibrage tension de craft).
     if (itemDef.effect === "recharge_artisan_tool") {
-      const ARTISAN_TOOL_MAX_CHARGES = 50;
+      const ARTISAN_TOOL_MAX_CHARGES = 25;
       if (!profile.artisan_tool_obtained) {
         toast.error("Vous n'avez pas encore obtenu votre Outil d'artisan ! Allez dans l'onglet Fabriquer pour le recuperer gratuitement.");
         return;
