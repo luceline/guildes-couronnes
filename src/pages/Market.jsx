@@ -968,9 +968,6 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="font-heading text-2xl font-bold heading-medieval">🌍 Marché</h2>
-          <p className="text-xs text-muted-foreground font-body italic">
-            Toutes les annonces de toutes les villes sont visibles : la taxe appliquée est celle de la ville du vendeur.
-          </p>
           {(city.daily_tax_collected || 0) > 0 && (
             <p className="text-xs text-muted-foreground font-body mt-0.5">
               📊 Taxes collectées aujourd'hui : <strong>{city.daily_tax_collected}💰</strong> (versées à la trésorerie au reset)
@@ -986,11 +983,6 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               </p>
             );
           })()}
-          {true && (
-            <p className="text-xs text-muted-foreground font-body mt-0.5 italic">
-              Pour accéder au marché d'une autre ville, voyagez-y physiquement.
-            </p>
-          )}
         </div>
 
         <Dialog open={sellOpen} onOpenChange={setSellOpen}>
@@ -1200,32 +1192,38 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       <MarketInsights />
 
       <Tabs defaultValue="buy">
-        {/* 14/05/2026 — Bouton "Vendre" rapatrié dans la barre des onglets pour
-            économiser de la verticale. Le Dialog "Vendre" reste contrôlé par
-            sellOpen / setSellOpen, donc le DialogTrigger d'origine a été retiré
-            plus haut au profit d'un Button onClick direct ici. */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button onClick={() => setSellOpen(true)} className="font-heading shrink-0">
+        {/* 14/05/2026 — Bouton "Vendre" intégré DANS le TabsList pour rester
+            visuellement dans le même cadre brun que les onglets. Le Dialog
+            "Vendre" reste contrôlé par sellOpen/setSellOpen, donc le
+            DialogTrigger d'origine a été retiré plus haut au profit d'un
+            Button onClick direct ici. */}
+        <TabsList className="font-heading flex-wrap h-auto gap-1">
+          <Button
+            onClick={() => setSellOpen(true)}
+            size="sm"
+            className="font-heading h-8 px-3 shrink-0"
+          >
             Vendre 🏷️
           </Button>
-          <TabsList className="font-heading flex-wrap h-auto gap-1">
-            <TabsTrigger value="buy">🛒 Acheter ({listings.length})</TabsTrigger>
-            <TabsTrigger value="mine">📦 Mes annonces ({myListings.length})</TabsTrigger>
-            <TabsTrigger value="orders">🚚 Mes commandes ({(profile.pending_packages || []).length})</TabsTrigger>
-          </TabsList>
-        </div>
+          <TabsTrigger value="buy">🛒 Acheter ({listings.length})</TabsTrigger>
+          <TabsTrigger value="mine">📦 Mes annonces ({myListings.length})</TabsTrigger>
+          <TabsTrigger value="orders">🚚 Mes commandes ({(profile.pending_packages || []).length})</TabsTrigger>
+        </TabsList>
 
         {/* ── BUY TAB ── */}
         <TabsContent value="buy" className="space-y-3 mt-4">
 
-          <div className="flex flex-wrap gap-2">
+          {/* 14/05/2026 — Filtres forcés sur 1 ligne (flex-nowrap), police
+              réduite sur mobile pour qu'ils tiennent sans wrap. Libellés
+              raccourcis ("Catégories" / "Tiers" / "Toutes"). */}
+          <div className="flex flex-nowrap gap-1.5">
             {categoriesInListings.length > 1 && (
               <select
                 value={filterCategory}
                 onChange={e => setFilterCategory(e.target.value)}
-                className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
+                className="border border-border rounded-lg px-2 py-1 text-[10px] sm:text-xs font-body bg-background min-w-0 flex-1"
               >
-                <option value="all">📦 Toutes catégories</option>
+                <option value="all">📦 Catégories</option>
                 {categoriesInListings.map(cat => (
                   <option key={cat} value={cat}>
                     {ITEM_CATEGORIES[cat]?.icon} {cat}
@@ -1237,9 +1235,9 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
             <select
               value={filterTier}
               onChange={e => setFilterTier(e.target.value)}
-              className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
+              className="border border-border rounded-lg px-2 py-1 text-[10px] sm:text-xs font-body bg-background min-w-0 flex-1"
             >
-              <option value="all">🎯 Tous tiers</option>
+              <option value="all">🎯 Tiers</option>
               <option value="1">T1</option>
               <option value="1.5">T1.5</option>
               <option value="2">T2</option>
@@ -1250,7 +1248,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
             <select
               value={filterCity}
               onChange={e => setFilterCity(e.target.value)}
-              className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
+              className="border border-border rounded-lg px-2 py-1 text-[10px] sm:text-xs font-body bg-background min-w-0 flex-1"
             >
               <option value="all">🌍 Toutes</option>
               <option value="local">📍 Ma ville</option>
