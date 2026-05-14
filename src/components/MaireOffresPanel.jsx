@@ -12,7 +12,12 @@ const T1_ITEMS = [
   { key: "quartz_brut", name: "Quartz brut",    icon: "🔮" },
 ];
 
-const T2T3_ITEMS = [
+// 14/05/2026 — Items T3 (meuble, lingots_fer, tissu, pain, potion_soin) masqués
+// temporairement dans le panneau mairie. Le rachat T3 est désactivé côté UI.
+// Les items restent dans le code et peuvent être réactivés en retirant le `.filter`
+// ci-dessous ; en attendant, les offres T3 déjà posées en BDD sont inertes
+// (inaccessibles via l'UI mais ne plantent rien).
+const T2T3_ITEMS_ALL = [
   { key: "planches",    name: "Planches",       icon: "🪵", tier: 2 },
   { key: "pierre_brute",name: "Pierre taillée",   icon: "🗿", tier: 2 },
   { key: "fil",         name: "Fil",            icon: "🧵", tier: 2 },
@@ -27,6 +32,7 @@ const T2T3_ITEMS = [
   { key: "pain",        name: "Pain",           icon: "🍞", tier: 3 },
   { key: "potion_soin", name: "Potion soin",    icon: "🧪", tier: 3 },
 ];
+const T2T3_ITEMS = T2T3_ITEMS_ALL.filter(it => it.tier !== 3);
 
 export default function MaireOffresPanel({ city, onRefresh }) {
   const offers_t1 = city.rachat_t1_offers || {};
@@ -98,9 +104,9 @@ export default function MaireOffresPanel({ city, onRefresh }) {
         )}
       </div>
 
-      {/* ── Offres d'achat T2/T3 ── */}
+      {/* ── Offres d'achat T2 ── */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 space-y-2">
-        <p className="text-xs font-body text-indigo-900 font-semibold">🏭 Offres d'achat T2/T3 :</p>
+        <p className="text-xs font-body text-indigo-900 font-semibold">🏭 Offres d'achat T2 :</p>
         <p className="text-xs font-body text-indigo-700">Fixez le prix et la quantité max que la ville veut acheter.</p>
         <div className="space-y-1.5">
           {T2T3_ITEMS.map(item => {

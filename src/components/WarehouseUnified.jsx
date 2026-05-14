@@ -563,11 +563,13 @@ export default function WarehouseUnified({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Filtre tier */}
+        {/* 14/05/2026 — Onglet T3 masqué. Le rachat T3 est désactivé temporairement.
+            Pour le réactiver : remettre la ligne { value: "t3", label: "T3 - Finies" }
+            ci-dessous, et remettre les items T3 dans MaireOffresPanel.T2T3_ITEMS. */}
         <div className="flex gap-2">
           {[
             { value: "t1", label: "T1 - Brutes" },
             { value: "t2", label: "T2 - Travaillées" },
-            { value: "t3", label: "T3 - Finies" },
           ].map(tier => (
             <button
               key={tier.value}
