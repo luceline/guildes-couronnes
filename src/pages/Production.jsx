@@ -39,6 +39,7 @@ import AtelierVitrine from "../components/AtelierVitrine";
 import RepairGearModal from "../components/RepairGearModal";
 import { getPlayerLevelBonuses, grantXP, XP_REWARDS, getCraftXPReward } from "../lib/playerLevelSystem";
 import { findInventoryItem, getInventoryQty as getInvQty, removeFromInventory, addToInventory, hasInInventory } from "../lib/inventoryHelpers";
+import { formatCooldown, canCraftRecipe } from "../lib/recipeHelpers";
 import { showXPToast } from "../lib/xpToasts";
 import { isBiomeBuffActive, isBiomeHarvestActive, getBiomeDoubleProdChance, activateBiomeHarvestBonus } from "../lib/playerBuffs";
 
@@ -823,13 +824,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     return Math.max(0, effectiveCooldown - elapsed);
   };
 
-  const formatCooldown = (s) => {
-    if (s <= 0) return null;
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return m > 0 ? `${m}m ${s > 60 ? sec + "s" : ""}` : `${sec}s`;
-  };
-
   const farmRecipes = PROFESSION_PRODUCTION[profile?.profession] || [];
 
   const handleFarm = async (recipe) => {
@@ -1359,7 +1353,8 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   // Voir src/lib/inventoryHelpers.js pour l'implémentation et la gestion legacy.
   const getInventoryQty = (itemKey) => getInvQty(profile?.inventory, itemKey);
 
-  const canCraft = (recipe) => recipe.inputs.every(inp => getInventoryQty(inp.key) >= inp.quantity);
+  // Wrapper local : passe l'inventaire courant à canCraftRecipe (recipeHelpers.js).
+  const canCraft = (recipe) => canCraftRecipe(recipe, profile?.inventory);
 
   if (!profile) return null;
   const prof = PROFESSIONS[profile.profession];
