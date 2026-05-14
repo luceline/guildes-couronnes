@@ -967,14 +967,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="font-heading text-2xl font-bold heading-medieval">🌍 Marché unifié</h2>
-          <p className="text-muted-foreground text-sm font-body">
-            💰 Taxe en vendant à <strong>{city.name}</strong> : {taxRate}%
-            {city.tax_rate_next !== undefined && city.tax_rate_next !== null && (
-              <span className="ml-2 text-amber-600">→ {city.tax_rate_next}% demain</span>
-            )}
-            {" · "}Maire : {city.mayor_name || "Aucun"}
-          </p>
+          <h2 className="font-heading text-2xl font-bold heading-medieval">🌍 Marché</h2>
           <p className="text-xs text-muted-foreground font-body italic">
             Toutes les annonces de toutes les villes sont visibles : la taxe appliquée est celle de la ville du vendeur.
           </p>
@@ -1001,11 +994,6 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
         </div>
 
         <Dialog open={sellOpen} onOpenChange={setSellOpen}>
-           <DialogTrigger asChild>
-             <Button className="font-heading">
-               Vendre 🏷️
-             </Button>
-           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle className="font-heading">Mettre en vente</DialogTitle>
@@ -1212,11 +1200,20 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       <MarketInsights />
 
       <Tabs defaultValue="buy">
-        <TabsList className="font-heading flex-wrap h-auto gap-1">
-          <TabsTrigger value="buy">🛒 Acheter ({listings.length})</TabsTrigger>
-          <TabsTrigger value="mine">📦 Mes annonces ({myListings.length})</TabsTrigger>
-          <TabsTrigger value="orders">🚚 Mes commandes ({(profile.pending_packages || []).length})</TabsTrigger>
-        </TabsList>
+        {/* 14/05/2026 — Bouton "Vendre" rapatrié dans la barre des onglets pour
+            économiser de la verticale. Le Dialog "Vendre" reste contrôlé par
+            sellOpen / setSellOpen, donc le DialogTrigger d'origine a été retiré
+            plus haut au profit d'un Button onClick direct ici. */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={() => setSellOpen(true)} className="font-heading shrink-0">
+            Vendre 🏷️
+          </Button>
+          <TabsList className="font-heading flex-wrap h-auto gap-1">
+            <TabsTrigger value="buy">🛒 Acheter ({listings.length})</TabsTrigger>
+            <TabsTrigger value="mine">📦 Mes annonces ({myListings.length})</TabsTrigger>
+            <TabsTrigger value="orders">🚚 Mes commandes ({(profile.pending_packages || []).length})</TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* ── BUY TAB ── */}
         <TabsContent value="buy" className="space-y-3 mt-4">
@@ -1255,8 +1252,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               onChange={e => setFilterCity(e.target.value)}
               className="border border-border rounded-lg px-3 py-1.5 text-xs font-body bg-background"
             >
-              <option value="all">🌍 Marché unifié (toutes villes)</option>
-              <option value="local">📍 Ma ville uniquement ({city?.name || "—"})</option>
+              <option value="all">🌍 Toutes</option>
+              <option value="local">📍 Ma ville</option>
             </select>
           </div>
 
