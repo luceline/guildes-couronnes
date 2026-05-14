@@ -129,7 +129,6 @@ export async function createNewCityWithRoutes(existingCities) {
     warehouse: {},
     is_bot_city: false,
     daily_tax_per_player: 0,
-    treasury_cumulative: 0,
     territory_id: targetTerritoryId,
   });
 

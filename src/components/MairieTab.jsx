@@ -63,7 +63,6 @@ export default function MairieTab({ city, profile, homeCity, isMayor, mayorActiv
       mayor_name: profile.character_name,
       mayor_until: untilStr,
       gold_treasury: (city.gold_treasury || 0) + effectiveMayorCost,
-      treasury_cumulative: (city.treasury_cumulative || 0) + effectiveMayorCost,
       election_candidates: [],
       election_votes: {},
     });

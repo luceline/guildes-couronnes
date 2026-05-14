@@ -334,7 +334,6 @@ export default function AtelierCommande({ producer, clientProfile, onClose, onRe
           const freshCity = await base44.entities.City.get(cityIdForCommission);
           await base44.entities.City.update(cityIdForCommission, {
             gold_treasury:       (freshCity.gold_treasury || 0) + cityShare,
-            treasury_cumulative: (freshCity.treasury_cumulative || 0) + cityShare,
           });
           // Log côté VILLE : trace explicite pour le résumé du maire.
           // Le profile est minimal (pas attaché à un joueur particulier) car cette

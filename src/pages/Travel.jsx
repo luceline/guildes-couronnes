@@ -185,7 +185,6 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       if (arrivalCity && actualToll > 0) {
         await base44.entities.City.update(arrivalCity.id, {
           gold_treasury: (arrivalCity.gold_treasury || 0) + actualToll,
-          treasury_cumulative: (arrivalCity.treasury_cumulative || 0) + actualToll,
         });
         await logGold(profile.user_email, profile.character_name, arrivalCity.id, arrivalCity.name,
           -actualToll, "peage", `Péage remparts de ${arrivalCity.name}`);
@@ -331,7 +330,6 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       if (arrivalCity) {
         await base44.entities.City.update(arrivalCity.id, {
           gold_treasury: (arrivalCity.gold_treasury || 0) + travelCost,
-          treasury_cumulative: (arrivalCity.treasury_cumulative || 0) + travelCost,
         });
         if (travelCost > 0) {
           await logGold(profile.user_email, profile.character_name, arrivalCity.id, arrivalCity.name,

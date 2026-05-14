@@ -258,7 +258,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       mayor_name:          profile.character_name,
       mayor_until:         untilStr,
       gold_treasury:       (city.gold_treasury || 0) + effectiveMayorCost,
-      treasury_cumulative: (city.treasury_cumulative || 0) + effectiveMayorCost,
       election_candidates: [],
       election_votes:      {},
     });

@@ -383,7 +383,7 @@ export default function WarehouseUnified({
         await Promise.all([
           base44.entities.City.update(city.id, {
             warehouse: newWarehouse,
-            ...(isGold ? { gold_treasury: (city.gold_treasury || 0) + qty, treasury_cumulative: (city.treasury_cumulative || 0) + qty } : {}),
+            ...(isGold ? { gold_treasury: (city.gold_treasury || 0) + qty } : {}),
           }),
           base44.entities.PlayerProfile.update(profile.id, {
             gold: isGold ? (profile.gold || 0) - qty : (profile.gold || 0),

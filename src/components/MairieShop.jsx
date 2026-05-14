@@ -118,7 +118,6 @@ export default function MairieShop({ profile, city, onRefresh }) {
 
     await base44.entities.City.update(city.id, {
       gold_treasury: (city.gold_treasury || 0) + finalPrice,
-      treasury_cumulative: (city.treasury_cumulative || 0) + finalPrice,
     });
 
     await logGold({

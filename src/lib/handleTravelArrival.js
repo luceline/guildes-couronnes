@@ -62,7 +62,6 @@ export async function handleTravelArrival(p) {
       profileUpdates.gold = (p.gold || 0) - actualToll;
       await base44.entities.City.update(arrivalCity.id, {
         gold_treasury: (arrivalCity.gold_treasury || 0) + actualToll,
-        treasury_cumulative: (arrivalCity.treasury_cumulative || 0) + actualToll,
       });
       // Log péage
       await logGold({

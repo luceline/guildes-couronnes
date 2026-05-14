@@ -697,7 +697,6 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
         if (creditorCity) {
           await base44.entities.City.update(cid, {
             gold_treasury: (creditorCity.gold_treasury || 0) + amount,
-            treasury_cumulative: (creditorCity.treasury_cumulative || 0) + amount,
           }).catch(() => {});
         }
       }

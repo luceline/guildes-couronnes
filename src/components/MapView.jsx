@@ -447,9 +447,9 @@ export default function MapView({ profile }) {
                     </div>
                   </div>
                   <div className="bg-[#ffffff08] rounded p-1.5">
-                    <div className="text-[#8a9a78]">Chiffre d'affaires</div>
+                    <div className="text-[#8a9a78]">Or investi</div>
                     <div className="font-bold">
-                      {(selectedCity.treasury_cumulative || 0).toLocaleString()}💰
+                      {(selectedCity.lingots_cumul || 0).toLocaleString()}💰
                     </div>
                   </div>
                   <div className="bg-[#ffffff08] rounded p-1.5">

@@ -291,7 +291,6 @@ export default function MayorEventsPanel({ city, profile, isMayor, onRefresh }) 
       await base44.entities.City.update(city.id, {
         warehouse: newWarehouse,
         gold_treasury: (city.gold_treasury || 0) + actualSteal,
-        treasury_cumulative: (city.treasury_cumulative || 0) + actualSteal,
       });
 
       if (actualSteal > 0) {
