@@ -48,6 +48,9 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   const [objectives, setObjectives] = useState([]);
   const [cityBuildings, setCityBuildings] = useState([]);
   const [priceMultiplier, setPriceMultiplier] = useState(1.0);
+  // 14/05/2026 — Onglet actif dans la page Fabriquer : T1.5 PvP / T2 / T3.
+  // Par défaut T2 (le plus utilisé au quotidien). T4/T5 cachés (cf. filtre plus bas).
+  const [activeCraftTab, setActiveCraftTab] = useState("t2");
 
   // ── Sprint 5B : buffs de mairie (Fête du travail, Bénédiction, etc.) ──
   // On lit les buffs sur la ville d'origine (homeCity) car les événements
@@ -1575,22 +1578,33 @@ export default function Production({ profile, city, homeCity, onRefresh, default
             <p className="text-xs text-muted-foreground font-body">Transformez vos ressources en objets de valeur.</p>
             <HelpTooltip text="Le craft transforme des matières premières en items de tier supérieur (T2-T5). ⚠️ Le T3 est libre. Pour crafter du T4 il vous faut un Outil multifonction (T3) en inventaire avec de la durabilité. Pour le T5, un Outil multifonction renforcé (T4) est requis. Ces outils s'usent à chaque craft." />
           </div>
-          {(() => {
-            const inv = profile?.inventory || [];
-            const hasEpeeCourte = inv.some(i => i.item_key === "epee_courte" && (i.durability ?? 0) > 0);
-            const hasEpeeLongue = inv.some(i => i.item_key === "epee_longue" && (i.durability ?? 0) > 0);
-            if (hasEpeeCourte && hasEpeeLongue) return null;
-            return (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-xs font-body text-orange-800 mb-2 space-y-1">
-                <p className="font-semibold">⚠️ Équipement requis pour crafter :</p>
-                {!hasEpeeCourte && <p>• 🛠️ <strong>Outil multifonction</strong> (avec durabilité) : nécessaire pour crafter les <strong>T4</strong></p>}
-                {!hasEpeeLongue && <p>• ⚒️ <strong>Outil multifonction renforcé</strong> (avec durabilité) : nécessaire pour crafter les <strong>T5</strong></p>}
-                <p className="text-orange-600 italic">Ces outils sont craftés par le Forgeron.</p>
-              </div>
-            );
-          })()}
+
+          {/* 14/05/2026 — Sélecteur d'onglet T1.5 / T2 / T3 pour densifier la
+              page Fabriquer. T4 et T5 restent masqués (filtre tier > 3 plus bas),
+              à réactiver en ajoutant des entrées à TABS_CRAFT et adaptant le
+              filtre du grid. */}
+          <div className="flex gap-2">
+            {[
+              { value: "t1_5", label: "⚔️ T1.5 PvP" },
+              { value: "t2",   label: "⚒️ T2" },
+              { value: "t3",   label: "🛠️ T3" },
+            ].map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveCraftTab(tab.value)}
+                className={`text-xs px-3 py-1.5 rounded-full font-body border transition-colors ${
+                  activeCraftTab === tab.value
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted border-border hover:border-primary/50"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
           {/* Recettes PvP T1.5 quotidiennes */}
+          {activeCraftTab === "t1_5" && (
           <div className="mt-4">
             <h4 className="font-heading text-sm font-semibold mb-2 text-accent">⚔️ Items PvP (Inputs quotidiens aléatoires)</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1638,8 +1652,10 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               })}
             </div>
           </div>
+          )}
 
-          {/* Recettes standard T2-T5 */}
+          {/* Recettes standard T2 ou T3 (selon onglet) */}
+          {(activeCraftTab === "t2" || activeCraftTab === "t3") && (
           <div className="mt-4">
             {/* NOUVEAU v3 (09/05/2026) - Outil d'artisan : badge si possede, carte d'invitation sinon */}
             {profile.artisan_tool_obtained ? (() => {
@@ -1715,9 +1731,12 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                 </CardContent>
               </Card>
             )}
-            <h4 className="font-heading text-sm font-semibold mb-2">⚒️ Recettes standard (T2-T3)</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {/* TEMP MASQUAGE T4/T5 (09/05/2026) - Restaurer en retirant le filtre tier <= 3 quand le joueur Lucas le demandera. Les recettes T4/T5 existent toujours dans CRAFTING_RECIPES, juste cachees a l affichage. */}
+              {/* 14/05/2026 — Filtre par onglet T2 ou T3 (T1.5 PvP traité plus haut).
+                  T4/T5 toujours masqués (return false sur recipeTier > 3) — pour les
+                  réactiver : ajouter des tabs "t4"/"t5" à la liste plus haut, et
+                  étendre la condition ci-dessous. Les recettes T4/T5 existent
+                  toujours dans CRAFTING_RECIPES, juste cachées à l'affichage. */}
               {/* NOUVEAU v3 (09/05/2026) - Filtre outil d'artisan : si pas obtenu ou charges <= 0, on cache toutes les recettes T2+ */}
               {CRAFTING_RECIPES.filter(recipe => {
                 const recipeTier = recipe.tier || 1;
@@ -1727,6 +1746,9 @@ export default function Production({ profile, city, homeCity, onRefresh, default
                   return false;
                 }
                 if (recipeTier > 3) return false; // TEMP MASQUAGE T4/T5
+                // Affiche T2 sur l'onglet T2, T3 sur l'onglet T3.
+                if (activeCraftTab === "t2" && recipeTier !== 2) return false;
+                if (activeCraftTab === "t3" && recipeTier !== 3) return false;
                 if (recipeTier >= 2) {
                   // Outil d'artisan requis pour T2+
                   if (!profile.artisan_tool_obtained) return false;
@@ -1788,6 +1810,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
               })}
             </div>
           </div>
+          )}
         </TabsContent>
 
         <TabsContent value="atelier" className="mt-4">
