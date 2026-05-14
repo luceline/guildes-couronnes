@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -38,9 +39,38 @@ export default function MaireOffresPanel({ city, onRefresh }) {
   const offers_t1 = city.rachat_t1_offers || {};
   const offers_t2t3 = city.rachat_t2t3_offers || {};
 
+  // 14/05/2026 — Tabs T1 / T2 pour densifier le panneau mairie.
+  // Avant : T1 et T2 s'affichaient l'un en dessous de l'autre, long à scroller.
+  // Désormais 1 seul panneau visible à la fois, switch via les boutons en haut.
+  // T3 reste masqué (cf. T2T3_ITEMS_ALL filtré plus haut) — pour le réactiver,
+  // retirer le `.filter` ET ajouter un onglet `t3` à la liste TABS ci-dessous.
+  const [activeTab, setActiveTab] = useState("t1");
+  const TABS = [
+    { value: "t1", label: "📦 T1 - Brutes" },
+    { value: "t2", label: "🏭 T2 - Travaillées" },
+  ];
+
   return (
     <div className="space-y-3">
+      {/* ── Sélecteur d'onglet T1 / T2 ── */}
+      <div className="flex gap-2">
+        {TABS.map(tab => (
+          <button
+            key={tab.value}
+            onClick={() => setActiveTab(tab.value)}
+            className={`text-xs px-3 py-1.5 rounded-full font-body border transition-colors ${
+              activeTab === tab.value
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-muted border-border hover:border-primary/50"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── Offres d'achat T1 ── */}
+      {activeTab === "t1" && (
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 space-y-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-body text-amber-900 font-semibold">📦 Offres d'achat T1 :</span>
@@ -103,8 +133,10 @@ export default function MaireOffresPanel({ city, onRefresh }) {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Offres d'achat T2 ── */}
+      {activeTab === "t2" && (
       <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 space-y-2">
         <p className="text-xs font-body text-indigo-900 font-semibold">🏭 Offres d'achat T2 :</p>
         <p className="text-xs font-body text-indigo-700">Fixez le prix et la quantité max que la ville veut acheter.</p>
@@ -155,6 +187,7 @@ export default function MaireOffresPanel({ city, onRefresh }) {
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }
