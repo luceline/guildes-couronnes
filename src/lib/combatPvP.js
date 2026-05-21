@@ -229,6 +229,7 @@ export function resolveCombat(attacker, defender, challenge, rng = Math.random) 
 
   // Récupération des items pertinents
   const attackerWeapon = getEquippedItem(attacker, "weapon");
+  const defenderWeapon = getEquippedItem(defender, "weapon"); // V7 : parade via arme défenseur
   const parryArmor = defense_zone ? getEquippedItem(defender, `${defense_zone}_def`) : null;
   const blockArmor = getEquippedItem(defender, `${attack_zone}_def`);
   const defenderShield = getEquippedItem(defender, "shield");
@@ -253,14 +254,25 @@ export function resolveCombat(attacker, defender, challenge, rng = Math.random) 
 
   if (defense_zone && defense_zone === attack_zone) {
     parryAttempted = true;
-    const parryChance = durabilityChance(parryArmor);
+    // V7 : parade basée sur l'arme du défenseur (pas l'armure de la zone)
+    const parryChance = durabilityChance(defenderWeapon);
     const parryRoll = rng();
     rolls.parry = parryRoll;
 
     if (parryRoll < parryChance) {
-      // Parade réussie → coup annulé, riposte ouverte, armure -1 dura
+      // Parade réussie → coup annulé, riposte ouverte, arme défenseur +1 dura (récompense)
       parrySucceeded = true;
-      defenderNewEquipment = decrementDurability(defenderNewEquipment, `${defense_zone}_def`);
+      if (defenderWeapon) {
+        const currentDura = defenderWeapon.durability == null
+          ? EQUIPMENT_MAX_DURABILITY
+          : defenderWeapon.durability;
+        if (currentDura < EQUIPMENT_MAX_DURABILITY) {
+          defenderNewEquipment = {
+            ...defenderNewEquipment,
+            weapon: { ...defenderWeapon, durability: currentDura + 1 },
+          };
+        }
+      }
       if (defenderNewEquipment !== (defender.equipment || {})) {
         defenderUpdates.equipment = defenderNewEquipment;
       }
@@ -405,8 +417,8 @@ export function resolveCombat(attacker, defender, challenge, rng = Math.random) 
   let saveChance = 0;
 
   if (attackerWins) {
-    // Dégâts : 1 PV par défaut, 2 si tête (coup décisif)
-    damageDealt = attack_zone === "head" ? 2 : 1;
+    // Dégâts uniformes : 1 PV pour toutes les zones (V7, comme combat boss)
+    damageDealt = 1;
 
     // ── Jet de sauvegarde ──
     saveAttempted = true;
@@ -442,26 +454,24 @@ export function resolveCombat(attacker, defender, challenge, rng = Math.random) 
     goldStolen = Math.max(0, theft);
   }
 
-  // ── Usure des défenses (uniquement si elles ont servi avec succès) ──
+  // ── Usure des défenses (V7 : si le bouclier bloque, il absorbe seul l'usure) ──
   if (!attackerWins) {
-    // Le défenseur a tenu : armure -1 dura
-    if (blockArmor) {
-      defenderNewEquipment = decrementDurability(defenderNewEquipment, `${attack_zone}_def`);
-    }
-    // Bouclier -1 dura uniquement s'il a contribué à tenir
+    // Le défenseur a tenu : usure répartie selon qui a réellement absorbé
     if (shieldSucceeded) {
+      // Le bouclier a bloqué : SEUL le bouclier perd 1 dura, l'armure reste intacte
       defenderNewEquipment = decrementDurability(defenderNewEquipment, "shield");
+    } else if (blockArmor) {
+      // Pas de bouclier impliqué : l'armure prend l'usure
+      defenderNewEquipment = decrementDurability(defenderNewEquipment, `${attack_zone}_def`);
     }
   }
   // Si attackerWins ET defenseRollSucceeded : l'armure a bloqué mais pas suffisamment.
-  // Règle V6 : on considère qu'elle a tout de même servi → -1 dura. Idem bouclier
-  // s'il a eu son moment de gloire avant d'être surclassé.
+  // V7 : pareil que ci-dessus, le bouclier (s'il a contribué) absorbe seul l'usure.
   else if (defenseRollSucceeded) {
-    if (blockArmor) {
-      defenderNewEquipment = decrementDurability(defenderNewEquipment, `${attack_zone}_def`);
-    }
     if (shieldSucceeded) {
       defenderNewEquipment = decrementDurability(defenderNewEquipment, "shield");
+    } else if (blockArmor) {
+      defenderNewEquipment = decrementDurability(defenderNewEquipment, `${attack_zone}_def`);
     }
   }
   // Sinon (defenseRollSucceeded === false) : l'armure n'a rien arrêté, pas d'usure.
@@ -480,11 +490,7 @@ export function resolveCombat(attacker, defender, challenge, rng = Math.random) 
   if (damageDealt > 0) {
     const newHp = Math.max(0, getPlayerHP(defender) - damageDealt);
     defenderUpdates.hp = newHp;
-    if (newHp === 0) {
-      defenderUpdates.hp_ko_until = new Date(
-        Date.now() + COMBAT_KO_DURATION_HOURS * 3600 * 1000
-      ).toISOString();
-    }
+    // KO 48h retir� du jeu (16/05/2026)
   }
   if (goldStolen > 0) {
     defenderUpdates.gold = Math.max(0, (defender.gold || 0) - goldStolen);

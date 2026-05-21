@@ -44,7 +44,6 @@ import {
 import { COMBAT_MAX_HP, getPlayerHP, isPlayerKO } from "@/lib/gameData";
 import { ITEMS } from "@/lib/craftingData";
 import { BIOMES } from "@/lib/biomes";
-import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import "./CombatScreen.css";
 
 const ZONE_META = {
@@ -74,9 +73,6 @@ export default function CombatScreen({
   const [state, setState] = useState(null);
   const [logMsg, setLogMsg] = useState("Prêt au combat.");
 
-  // ── Sprint 2C : palier 3 statue royale (+5% drop biome) ──
-  const royalStatue = useRoyalStatue(profile?.home_city_id);
-  const dropBonusFlat = royalStatue.hasPalier(3) ? 0.05 : 0;
   const [busy, setBusy] = useState(false);
   // Copie locale du profil pour refléter les soins pré-combat (cataplasme).
   // Sera utilisée pour HP affichés et pour createInitialWaveState.
@@ -328,7 +324,7 @@ export default function CombatScreen({
     await wait(400);
     setShake(false);
 
-    const newState = applyCounters(state, profile, counterTargets, { bonusDropFlat: dropBonusFlat });
+    const newState = applyCounters(state, profile, counterTargets, { bonusDropFlat: 0 });
     setState(newState);
     setCounterTargets([]);
 

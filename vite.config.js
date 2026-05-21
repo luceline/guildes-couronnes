@@ -17,9 +17,8 @@ export default defineConfig({
       visualEditAgent: true
     }),
     react(),
-    // ── PWA (10/05/2026) ─────────────────────────────────────────────
-    // - Force le mode paysage sur Android (iOS ignore mais l'utilisateur
-    //   peut tourner manuellement).
+    // ── PWA (10/05/2026, maj 17/05/2026) ─────────────────────────────
+    // - Orientation portrait-only (mode carte sprite retiré du flow).
     // - Service worker avec strategy NetworkFirst pour HTML/JS (toujours
     //   à jour) + CacheFirst pour les assets (sprites, fonts).
     // - registerType 'autoUpdate' : déploiement transparent, le SW se met
@@ -37,11 +36,14 @@ export default defineConfig({
         // et notre splash inline.
         background_color: '#0d0805',
         display: 'standalone',
-        // 11/05/2026 : orientation 'any' (au lieu de 'landscape') pour que
-        // l'app suive l'orientation physique du téléphone. La vue village
-        // bascule automatiquement : portrait → mode Menu, landscape → mode
-        // Carte. Le joueur peut aussi forcer un mode dans les Paramètres.
-        orientation: 'any',
+        // 17/05/2026 : orientation 'portrait' (au lieu de 'any').
+        // Le mode paysage (CityView/BiomeView sprite map) est désactivé :
+        // toute l'UI est désormais portrait-only (VillageMenuView + tuiles).
+        // Historique :
+        //  - 10/05 : 'landscape' (vue carte sprite uniquement)
+        //  - 11/05 : 'any' (bascule auto menu/carte selon orientation)
+        //  - 17/05 : 'portrait' (mode carte retiré du flow)
+        orientation: 'portrait',
         start_url: '/',
         scope: '/',
         icons: [

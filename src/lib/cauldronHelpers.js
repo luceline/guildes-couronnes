@@ -9,7 +9,6 @@
  *   - calcul de la valeur en or virtuel d'un item (computeFeedValue)
  */
 import { base44 } from "@/api/base44Client";
-import { getDonationValue } from "@/lib/royalStatueHelpers";
 
 // ─── Constantes ──────────────────────────────────────────────────────────
 export const CAULDRON_RANK_THRESHOLDS = {
@@ -208,11 +207,29 @@ export function rollOutput(rank) {
 
 // ─── Valeur en or virtuel d'un item (pour nourrir le chaudron) ───────────
 /**
- * Calcule la valeur en or virtuel d'un item (utilisé pour le système
- * de nourrissage du chaudron). Réutilise le helper de la statue royale.
+ * Calcule la valeur en or virtuel d'un item selon les prix dynamiques.
+ * Utilisé pour le système de nourrissage du chaudron.
+ *
+ * @param {string} itemKey - clé de l'item (ex: "bois_brut")
+ * @param {number} qty
+ * @param {Object} dynamicPrices - résultat de calculateDynamicPrices()
+ * @returns {number} valeur totale en or virtuel
  */
 export function computeFeedValue(itemKey, qty, dynamicPrices) {
-  return getDonationValue(itemKey, qty, dynamicPrices);
+  if (!itemKey || !qty || qty <= 0) return 0;
+  if (!dynamicPrices) return 0;
+
+  // Cherche l'item dans les tiers 1 à 4 (T5 exclu)
+  for (const tier of [1, 2, 3, 4]) {
+    const tierPrices = dynamicPrices[`tier${tier}`] || dynamicPrices[tier] || {};
+    if (tierPrices[itemKey]) {
+      const price = tierPrices[itemKey];
+      // Le prix peut être un objet {min, max} ou un nombre direct
+      const value = typeof price === "object" ? (price.min + price.max) / 2 : price;
+      return Math.floor(value * qty);
+    }
+  }
+  return 0;
 }
 
 // ─── Vérification du dôme de protection ──────────────────────────────────

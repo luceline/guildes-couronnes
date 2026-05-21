@@ -28,7 +28,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { base44 } from "@/api/base44Client";
-import CombatScreen from "./CombatScreen";
+import WaveCombatPage from "./WaveCombatPage";
 import {
   COMBAT_MAX_HP,
   isPlayerKO,
@@ -229,6 +229,29 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         combat_total_drops: newDropsCount,
       };
 
+      // Persistence equipment durability (refonte 16/05/2026)
+      // Le combat PvE biome use maintenant la dura comme le combat boss.
+      // On préserve l'item_key et le grade existants, on n'écrit QUE la nouvelle dura.
+      if (finalState?.playerEquipment) {
+        const oldEq = localProfile.equipment || {};
+        const newEq = finalState.playerEquipment;
+        const merged = {};
+        const zones = ['weapon', 'shield', 'head_def', 'torso_def', 'arms_def', 'legs_def'];
+        for (const z of zones) {
+          if (!oldEq[z]) continue;
+          merged[z] = { ...oldEq[z] };
+          if (newEq[z]?.durability != null) {
+            const newDura = Number(newEq[z].durability);
+            const oldDura = Number(oldEq[z].durability ?? 10);
+            // Validation : la dura ne peut pas augmenter
+            if (Number.isFinite(newDura) && newDura >= 0 && newDura <= oldDura) {
+              merged[z].durability = newDura;
+            }
+          }
+        }
+        updates.equipment = merged;
+      }
+
       // Crédit de maîtrise biome : +1 point par mob tué (rewards.masteryGain = killCount)
       const masteryGain = rewards?.masteryGain || 0;
       if (masteryGain > 0) {
@@ -239,10 +262,12 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         };
       }
 
-      // Bonus biome (+10% double prod / -10% cooldown pendant 1h) :
-      // Attribué dès la 1ère vague complétée, pas de re-attribution si déjà actif.
-      // Donné à tout le monde (peu importe la profession).
-      if (isWaveCompleted) {
+      // Bonus biome (-10% cooldown + +10% double prod pendant 1h) :
+      // Attribué si vague complétée OU timeout (pas si flee).
+      // Pas de re-attribution si déjà actif. Donné à tout le monde.
+      // Note : activateBiomeBuff met automatiquement biome_double_prod_bonus = value.
+      const grantBiomeBuff = isWaveCompleted || finalState?.status === 'out_of_turns';
+      if (grantBiomeBuff) {
         if (!isBiomeBuffActive(localProfile)) {
           updates.biome_cooldown_bonus_value = 0.10;
           activateBiomeBuff(updates, { value: 0.10 });
@@ -338,6 +363,12 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
         biome_cooldown_bonus_value: updates.biome_cooldown_bonus_value ?? prev.biome_cooldown_bonus_value,
         biome_double_prod_bonus: updates.biome_double_prod_bonus ?? prev.biome_double_prod_bonus,
         biome_cooldown_bonus_expires_at: updates.biome_cooldown_bonus_expires_at ?? prev.biome_cooldown_bonus_expires_at,
+        // 18/05/2026 — FIX : sans cette ligne, l'equipment local restait à
+        // l'état pré-épopée, donc chaque vague repartait de la dura initiale
+        // (ex: arme 10 au début de chaque vague au lieu de cumuler les usures).
+        // Effet : seule la dernière vague semblait user le stuff, les pertes
+        // des vagues précédentes étaient écrasées par le nouveau setLocalProfile.
+        equipment: updates.equipment || prev.equipment,
       }));
       setTotalGold(newTotalGold);
       setTotalDrops(newDropsCount);
@@ -529,21 +560,48 @@ export default function CombatEpic({ profile, biomeKey, onExit }) {
     );
   }
 
-  // ── Phase fighting : CombatScreen avec epicMode + skipIntro ──
+  // ── Phase fighting : WaveCombatPage (refonte 16/05/2026) ──
   if (phase === "fighting") {
     return (
-      <CombatScreen
-        key={`epic-wave-${waveIndex}`} // force remount entre les vagues
+      <WaveCombatPage
+        key={`epic-wave-${waveIndex}`}
         profile={localProfile}
         biomeKey={biomeKey}
         waveIndex={waveIndex}
         dayStr={today}
-        biomeRareKey={biomeRare?.key}
-        epicMode={true}
-        skipIntro={true}
         startingHP={currentHp}
-        onComplete={handleWaveComplete}
-        onCancel={() => {/* en epicMode pas de cancel possible */}}
+        onComplete={(result) => {
+          // Adapter le format result → format attendu par handleWaveComplete
+          // result : { status, killRewards, goldStolenInWave, finalHP, finalEquipment, roundsPlayed }
+          // Reconstruire rewards via computeWaveRewards
+          const fakeState = {
+            killRewards: result.killRewards,
+            goldStolenInWave: result.goldStolenInWave,
+            status: result.status,
+          };
+          // Import lazy pour éviter cycle
+          import("@/lib/combatPvE").then(({ computeWaveRewards }) => {
+            const rewards = computeWaveRewards(
+              fakeState,
+              localProfile,
+              biomeKey,
+              biomeRare?.key,
+            );
+            // Mapper status → "status" attendu par l'ancien code
+            // - "wave_complete" → wave_complete (OK)
+            // - "out_of_turns" → wave_complete partiel (treated as completed avec partial loot)
+            // - "fled" → fled
+            // - "dead" → dead (n'arrive plus en PvE biome, plancher 1 HP)
+            handleWaveComplete(
+              { ...rewards, dropCount: rewards.drops.length },
+              {
+                playerHP: result.finalHP,
+                status: result.status,
+                playerEquipment: result.finalEquipment,
+              },
+            );
+          });
+        }}
       />
     );
   }

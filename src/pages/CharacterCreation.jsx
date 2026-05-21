@@ -8,22 +8,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PROFESSIONS, MAX_HUNGER, COMBAT_MAX_HP } from "../lib/gameData";
 import { createNewCityWithRoutes } from "../lib/cityCreation";
+// 17/05/2026 — Scoring de pénurie professionnelle (basé joueurs + listings T1).
+// Remplace l'ancien getProfessionBadge qui ne regardait que le nombre de joueurs.
+import { computeProfessionScores } from "../lib/professionScoring";
 
 export default function CharacterCreation({ onComplete }) {
   const [cities, setCities] = useState([]);
   const [players, setPlayers] = useState([]);
+  const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ character_name: "", sex: "", height: "", profession: "", city_id: "" });
 
   useEffect(() => {
     async function load() {
-      const [allCities, allPlayers] = await Promise.all([
+      const [allCities, allPlayers, allListings] = await Promise.all([
         base44.entities.City.list(),
         base44.entities.PlayerProfile.list(),
+        // 17/05/2026 : listings actifs pour le scoring de pénurie T1 par métier.
+        base44.entities.MarketListing.filter({ status: "active" }, "", 500).catch(() => []),
       ]);
       setCities(allCities);
       setPlayers(allPlayers);
+      setListings(allListings);
       setLoading(false);
     }
     load();
@@ -37,22 +44,10 @@ export default function CharacterCreation({ onComplete }) {
     return { activeCount: activePlayers.length, inactiveCount: inactivePlayers.length, canCreate: activePlayers.length < 500 };
   };
 
-  // Compte les métiers sur l'ensemble du jeu : les joueurs voyagent, la ville n'a pas de sens ici
-  const getProfessionCounts = () => {
-    const counts = {};
-    for (const p of players) {
-      if (p.profession) counts[p.profession] = (counts[p.profession] || 0) + 1;
-    }
-    return counts;
-  };
-
-  const getProfessionBadge = (profKey, counts) => {
-    const count = counts[profKey] || 0;
-    if (count === 0) return { label: "✨ Absent du jeu", color: "bg-green-100 text-green-800 border-green-300" };
-    if (count === 1) return { label: "👍 Conseillé", color: "bg-blue-100 text-blue-800 border-blue-300" };
-    if (count <= 3) return { label: "⚠️ Présent", color: "bg-yellow-100 text-yellow-800 border-yellow-300" };
-    return { label: "❌ Saturé", color: "bg-red-100 text-red-800 border-red-300" };
-  };
+  // 17/05/2026 — Scores de pénurie remplaçant getProfessionCounts + getProfessionBadge.
+  // Le score est calculé à partir du nombre de joueurs ET du volume de T1 sur le marché.
+  // Voir src/lib/professionScoring.js pour la logique.
+  const professionScores = computeProfessionScores(players, listings);
 
   const MAX_CITIES = 10;
 
@@ -153,7 +148,6 @@ export default function CharacterCreation({ onComplete }) {
   const allCitiesFull = realNonBotCities.length > 0 && availableCities.length === 0;
   const citiesCappedRender = realNonBotCities.length >= 10;
   const isSdfMode = allCitiesFull && citiesCappedRender;
-  const counts = getProfessionCounts();
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
@@ -242,8 +236,16 @@ export default function CharacterCreation({ onComplete }) {
               Votre destinée <span className="text-xs text-muted-foreground ml-1">(les métiers absents du royaume sont les plus précieux)</span>
             </Label>
             <div className="grid grid-cols-1 gap-2">
-              {Object.entries(PROFESSIONS).map(([key, val]) => {
-                const badge = getProfessionBadge(key, counts);
+              {/* 17/05/2026 : tri par priorité du badge (Très demandé → Conseillé → Présent → Saturé) */}
+              {Object.entries(PROFESSIONS)
+                .sort(([keyA], [keyB]) => {
+                  const pA = professionScores[keyA]?.badge?.priority ?? 99;
+                  const pB = professionScores[keyB]?.badge?.priority ?? 99;
+                  return pA - pB;
+                })
+                .map(([key, val]) => {
+                const scoring = professionScores[key];
+                const badge = scoring?.badge || { label: "—", color: "bg-muted text-muted-foreground border-border" };
                 const isSelected = form.profession === key;
                 return (
                   <button

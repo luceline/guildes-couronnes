@@ -27,10 +27,13 @@ export const BUILDING_TYPES = {
     name: "Maison", icon: "🏠",
     category: "logement",
     popBonus: 2,
-    stackable: true, unique: false, maxStack: 2,
+    // 17/05/2026 : maxStack passé de 2 à 20 pour permettre l'expansion démographique.
+    // Note : la vue paysage VillageView.jsx n'a que 2 slots sprites (maison_1, maison_2),
+    // les maisons 3+ ne s'affichent pas mais comptent dans le bonus de population.
+    stackable: true, unique: false, maxStack: 20,
     costBase: { bois_brut: 20, pierre: 10 },
     maintenance: { bois_brut: 1, or: 1 },
-    effect: "+2 emplacements de population par maison construite (max 2 maisons).",
+    effect: "+2 emplacements de population par maison construite (max 20 maisons).",
     functionType: "population",
   },
 

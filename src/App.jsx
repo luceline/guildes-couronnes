@@ -32,6 +32,7 @@ import CodexPage from './pages/CodexPage';
 import LabeurHubPage from './pages/LabeurHubPage';
 import AventureHubPage from './pages/AventureHubPage';
 import SavoirHubPage from './pages/SavoirHubPage';
+import BossArenaPage from './pages/BossArenaPage';
 import landscapeBg from './assets/landscape.jpg';
 
 // Injection de l'image de fond paysage en variable CSS (utilisée dans index.css)

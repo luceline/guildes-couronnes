@@ -10,7 +10,6 @@ import { getTodayDateStr, getCityTier, getMaxWeight, getInventoryWeight, applyRa
 import { addToInventory } from "../lib/inventoryHelpers";
 import { logGold } from "../lib/goldLog";
 import { isBiomeBuffActive, activateBiomeBuff } from "../lib/playerBuffs";
-import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import CombatEpic from "./combat/CombatEpic";
 import HelpTooltip from "./HelpTooltip";
 import BiomePlayersList from "./BiomePlayersList";
@@ -49,7 +48,7 @@ function computeHarvestAccumulated(profile, biomeKey, harvestMax = 4) {
   const maxWeight = getMaxWeight(profile);
   const freeSlots = Math.max(0, maxWeight - currentWeight);
 
-  // Plafond session AFK : 4 par défaut, 10 si palier 5 statue royale actif (Sprint 2C)
+  // Plafond session AFK : 4 unités max
   return Math.min(hoursRaw, maxByGold, freeSlots, harvestMax);
 }
 
@@ -289,9 +288,8 @@ export default function BiomeHub({ profile, biomeKey, biomeInfo, city, onRefresh
   const profileRef = useRef(profile);
   const biomeDataRef = useRef(null);
 
-  // ── Sprint 2C : palier 5 statue royale (stockage récolte AFK 4 → 10) ──
-  const royalStatue = useRoyalStatue(profile?.home_city_id);
-  const harvestMax = royalStatue.hasPalier(5) ? 10 : 4;
+  // Récolte AFK : capacité fixe (4 unités)
+  const harvestMax = 4;
 
   // Tenir les refs à jour pour accès dans les intervalles
   useEffect(() => { profileRef.current = profile; }, [profile]);

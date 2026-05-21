@@ -37,6 +37,7 @@ import {
   CAULDRON_OUTPUTS,
 } from "@/lib/cauldronHelpers";
 import { logGold } from "@/lib/goldLog";
+import { awardCouronne } from "@/lib/playerCumulators";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { toast } from "sonner";
 
@@ -510,6 +511,27 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
     return `${sec}s`;
   };
 
+  // ─────────────────────────────────────────────────────────────────────
+  // 17/05/2026 — Scoring des couronnes pour le classement joueur.
+  // ─────────────────────────────────────────────────────────────────────
+  // 17/05/2026 — Scoring des couronnes pour le classement joueur.
+  // 18/05/2026 (refacto) — Les incréments cumul_couronnes_total + _mois +
+  // month_key sont désormais centralisés dans awardCouronne() de
+  // playerCumulators.js. On garde juste la table des points ici.
+  //
+  // Pondération : nb T1 cumulés nécessaires au craft + 10 par rang.
+  //   fer    = 24 + 10 = 34
+  //   bronze = 72 + 20 = 92
+  //   argent = 144 + 30 = 174
+  //   or     = 216 + 40 = 256
+  // ─────────────────────────────────────────────────────────────────────
+  const COURONNE_SCORES = {
+    couronne_fer:    34,
+    couronne_bronze: 92,
+    couronne_argent: 174,
+    couronne_or:     256,
+  };
+
   const handleCraftMagicRecipe = async (recipe) => {
     if (submitting) return;
     // Cooldown
@@ -551,10 +573,22 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
       const newCooldowns = { ...(profile.magic_recipe_cooldowns || {}) };
       newCooldowns[recipe.id] = new Date().toISOString();
 
-      await base44.entities.PlayerProfile.update(profile.id, {
+      // ─────────────────────────────────────────────────────────────────
+      // 17/05/2026 — Tracking couronnes pour le classement joueur.
+      // 18/05/2026 (refacto) — awardCouronne() de playerCumulators.js gère
+      // cumul_couronnes_total + cumul_couronnes_mois + cumul_month_key
+      // (reset auto si nouveau mois). Mirror serveur dans monthly_rewards.pb.js.
+      // ─────────────────────────────────────────────────────────────────
+      const updates = {
         inventory: newInv,
         magic_recipe_cooldowns: newCooldowns,
-      });
+      };
+      const score = COURONNE_SCORES[recipe.output.key];
+      if (score) {
+        Object.assign(updates, awardCouronne(profile, score));
+      }
+
+      await base44.entities.PlayerProfile.update(profile.id, updates);
       toast.success(`✨ ${outDef?.name || recipe.output.key} ajoutée à votre inventaire ! Cooldown : ${Math.round((recipe.cooldown || 0) / 3600)}h.`);
       onRefresh?.();
     } catch (e) {
@@ -566,25 +600,27 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
   };
 
   /**
-   * Estime la valeur dynamique de la Couronne (somme T1 cumulés × prix marché)
-   * pour l'afficher en preview sur la card.
+   * Estime la valeur dynamique d'une recette magique (somme T1 cumulés × prix marché)
+   * pour l'afficher en preview sur la card. Calcul générique pour toutes les
+   * MAGIC_RECIPES (couronne_fer/bronze/argent/or).
    */
-  const estimateCouronneValue = useMemo(() => {
-    const recipe = MAGIC_RECIPES.find(r => r.output?.key === "couronne_bronze");
-    if (!recipe) return 0;
-    // T1 keys connus
-    const t1Keys = new Set(Object.keys(SUGGESTED_PRICES_T1));
-    // Cumul des T1 pour TOUS les inputs (la Couronne = 8 T3, on flatten chacun)
-    const totalT1Map = {};
-    for (const input of recipe.inputs) {
-      const flat = flattenToT1(input.key, CRAFTING_RECIPES_REFACTORED, t1Keys);
-      for (const [k, v] of Object.entries(flat)) {
-        totalT1Map[k] = (totalT1Map[k] || 0) + v * input.quantity;
+  const estimateMagicRecipeValue = useMemo(() => {
+    const cache = new Map();
+    return (recipe) => {
+      if (!recipe) return 0;
+      if (cache.has(recipe.id)) return cache.get(recipe.id);
+      const t1Keys = new Set(Object.keys(SUGGESTED_PRICES_T1));
+      const totalT1Map = {};
+      for (const input of recipe.inputs || []) {
+        const flat = flattenToT1(input.key, CRAFTING_RECIPES_REFACTORED, t1Keys);
+        for (const [k, v] of Object.entries(flat)) {
+          totalT1Map[k] = (totalT1Map[k] || 0) + v * input.quantity;
+        }
       }
-    }
-    // Prix dynamiques calculés au mount via listings (réutilise calculateDynamicPrices)
-    // Ici : on utilise les prix moyens des fourchettes faute de listings live ici
-    return calculateT1MarketValue(totalT1Map, []);
+      const value = calculateT1MarketValue(totalT1Map, []);
+      cache.set(recipe.id, value);
+      return value;
+    };
   }, []);
 
   // ─── Rendu ───
@@ -806,7 +842,7 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
                     </div>
                     {/* Valeur estimée + cooldown info */}
                     <div className="text-[10px] text-amber-800 italic">
-                      💡 Valeur estimée à l'usage : ~{estimateCouronneValue + (outDef?.value || 0)} or
+                      💡 Valeur estimée à l'usage : ~{estimateMagicRecipeValue(recipe) + (outDef?.value || 0)} or
                       (matières premières + bonus {outDef?.value || 0} or fixe).
                       Cooldown craft : {Math.round((recipe.cooldown || 0) / 3600)}h.
                     </div>
@@ -821,7 +857,7 @@ export default function CauldronPanel({ profile, city, onRefresh }) {
                         ? `⏳ ${formatCooldownLeft(cdLeft)}`
                         : !hasAll
                           ? "❌ Ingrédients manquants"
-                          : `🪄 Cuisiner (${recipe.inputs.length} T3 requis)`}
+                          : `🪄 Cuisiner (${recipe.inputs.length} ingrédient${recipe.inputs.length > 1 ? "s" : ""} requis)`}
                     </Button>
                   </div>
                 );

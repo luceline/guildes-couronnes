@@ -696,7 +696,7 @@ function RaresTab() {
         <CardContent className="py-3">
           <p className="font-body text-xs text-muted-foreground italic">
             Le taux de drop dépend de la position du monstre tué dans la vague et de son grade.
-            Les paliers de la statue royale et certaines épopées augmentent vos chances.
+            Certaines épopées augmentent vos chances.
           </p>
         </CardContent>
       </Card>

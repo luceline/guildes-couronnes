@@ -12,7 +12,7 @@
 // usePlayerData() interne).
 
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { base44, pb } from "@/api/base44Client";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 
 import QuestesPage from "@/pages/QuestesPage";
@@ -29,15 +29,34 @@ import MairieDrawer from "@/components/MairieDrawer";
 import SavoirHubPage from "@/pages/SavoirHubPage";
 import ComptoirDrawer from "@/components/ComptoirDrawer";
 import RankingPageWrapper from "@/pages/RankingPageWrapper";
-import RoyalStatuePanel from "@/components/RoyalStatuePanel";
+import BiomeHub from "@/components/BiomeHub";
+import BiomeReturnPanel from "@/components/BiomeReturnPanel";
+import TodoNextPanel from "@/components/TodoNextPanel";
 
 import {
   getMaxFatigue, MAX_HUNGER, getMaxHunger,
   getCityHungerBonus, HUNGER_WARNING_THRESHOLD,
 } from "@/lib/gameData";
 import { computeFatigueWithDailyReset } from "@/lib/craftingData";
-import { getBiomeName } from "@/lib/biomes";
-import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
+import { BIOMES, getBiomeName, getBiomeIcon } from "@/lib/biomes";
+import { generateTodoCards } from "@/lib/todoNext";
+import { hasUsedCauldronToday } from "@/lib/cauldronHelpers";
+
+// 16/05/2026 — Détermine le biome courant du joueur.
+// `current_biome` (champ texte) peut ne pas être alimenté en BDD pour les
+// "explorations directes" : dans ce cas, on regarde travel_destination_id
+// qui contient "biome:foret" (ou autre). Si le joueur est en voyage, il
+// n'est PAS dans un biome (il y voyage).
+function getActiveBiomeKey(profile) {
+  if (!profile) return null;
+  if (profile.is_traveling) return null;
+  if (profile.current_biome) return profile.current_biome;
+  const td = profile.travel_destination_id;
+  if (td && typeof td === "string" && td.startsWith("biome:")) {
+    return td.replace("biome:", "");
+  }
+  return null;
+}
 
 // Mapping identique à VillageView (cohérence)
 const DRAWER_TARGETS = {
@@ -52,10 +71,11 @@ const DRAWER_TARGETS = {
   taverne: { title: "Taverne", Component: TavernPage },
   pavillon: { title: "Pavillon de la Fortune", Component: PavillonPage },
   mairie: { title: "Mairie", Component: MairieDrawer, needsProps: true },
+  biome: { title: "Biome", Component: BiomeHub, needsProps: true },
   bibliotheque: { title: "Bibliothèque", Component: SavoirHubPage },
   comptoir: { title: "Comptoir bancaire", Component: ComptoirDrawer, needsProps: true },
   classement: { title: "Classement", Component: RankingPageWrapper },
-  statue_royale: { title: "Statue royale", Component: RoyalStatuePanel, needsProps: true },
+  aujourdhui: { title: "📅 Aujourd'hui", Component: TodoNextPanel, needsProps: true },
 };
 
 // Style par état d'urgence (border + bg)
@@ -76,23 +96,17 @@ const STATE_BADGE_STYLES = {
 
 export default function VillageMenuView({ profile, city, onRefresh }) {
   const [openDrawer, setOpenDrawer] = useState(null);
-  const [statueIsHere, setStatueIsHere] = useState(false);
   const [quests, setQuests] = useState([]);
   const [listingsActiveCount, setListingsActiveCount] = useState(null);
+  // 18/05/2026 — Données pour pré-calculer le badge "Aujourd'hui".
+  // On charge boss + état chaudron ici (les quêtes sont déjà chargées plus haut).
+  // Le drawer rechargera ces données à l'ouverture pour avoir l'état le + frais.
+  const [bossData, setBossData] = useState(null);
+  const [cauldronUsedToday, setCauldronUsedToday] = useState(false);
+  const [todoCardsLoaded, setTodoCardsLoaded] = useState(false);
 
-  // Statue royale (drawer optionnel selon présence dans la ville)
-  useEffect(() => {
-    if (!city?.id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const statue = await loadActiveStatue();
-        if (cancelled) return;
-        setStatueIsHere(statue ? isStatueInCity(statue, city.id) : false);
-      } catch (e) { /* silent */ }
-    })();
-    return () => { cancelled = true; };
-  }, [city?.id]);
+  // Biome actif : helper qui regarde current_biome OU travel_destination_id
+  const activeBiomeKey = getActiveBiomeKey(profile);
 
   // Quêtes du jour (pour afficher 3/6 etc.)
   useEffect(() => {
@@ -129,6 +143,28 @@ export default function VillageMenuView({ profile, city, onRefresh }) {
         setListingsActiveCount((rows || []).length);
       })
       .catch(() => { /* silent */ });
+    return () => { cancelled = true; };
+  }, [profile?.user_email]);
+
+  // 18/05/2026 — Pré-chargement boss + état chaudron pour le badge "Aujourd'hui".
+  // Boss via /api/boss/current (endpoint existant qui gère locks + normalisation).
+  // Erreurs silencieuses (le drawer affichera "Aucun boss" / "Pas utilisé" si fail).
+  useEffect(() => {
+    if (!profile?.user_email) { setTodoCardsLoaded(true); return; }
+    let cancelled = false;
+    Promise.all([
+      pb.send('/api/boss/current', { method: 'GET' }).then(r => r?.boss || null).catch(() => null),
+      hasUsedCauldronToday(profile.user_email).catch(() => ({})),
+    ])
+      .then(([bossRes, cauldronStatus]) => {
+        if (cancelled) return;
+        setBossData(bossRes);
+        setCauldronUsedToday(Object.values(cauldronStatus || {}).some(Boolean));
+      })
+      .catch(() => { /* silent */ })
+      .finally(() => {
+        if (!cancelled) setTodoCardsLoaded(true);
+      });
     return () => { cancelled = true; };
   }, [profile?.user_email]);
 
@@ -198,6 +234,17 @@ export default function VillageMenuView({ profile, city, onRefresh }) {
   const warehouseAlert = Object.entries(maintenance).some(
     ([k, v]) => v > 0 && (warehouse[k] || 0) < v * 2
   );
+
+  // 18/05/2026 — Compteur d'actions "à faire" pour le badge de la tuile
+  // "Aujourd'hui". Mêmes données passées au panel : on est cohérent.
+  const todoCards = generateTodoCards({
+    profile,
+    city,
+    quests,
+    boss: bossData,
+    cauldronUsedToday,
+  });
+  const todoOpenCount = todoCards.filter(c => c.state !== 'done').length;
 
   // ─────────────────────────────────────────────────────────────
   // Définition des menus avec leur status calculé
@@ -306,18 +353,39 @@ export default function VillageMenuView({ profile, city, onRefresh }) {
         status: null,
       },
       {
-        target: "mairie",
-        icon: "🏛️",
-        label: "Mairie",
-        hint: "Gouvernance de la ville",
-        status: null,
+        // 16/05/2026 : tuile dynamique selon biome actif.
+        // - Village (pas de biome) → tuile "Mairie" (gouvernance)
+        // - Biome actif → tuile "Biome" avec icone et nom du biome courant
+        ...(activeBiomeKey
+          ? {
+              target: "biome",
+              icon: getBiomeIcon(activeBiomeKey),
+              label: getBiomeName(activeBiomeKey, true),
+              hint: "Hub du biome",
+              status: null,
+            }
+          : {
+              target: "mairie",
+              icon: "🏛️",
+              label: "Mairie",
+              hint: "Gouvernance de la ville",
+              status: null,
+            }
+        ),
       },
       {
-        target: "bibliotheque",
-        icon: "📚",
-        label: "Bibliothèque",
-        hint: "Savoir & aide",
-        status: null,
+        // 18/05/2026 — Tuile "Aujourd'hui" (remplace Bibliothèque, qui est
+        // accessible depuis le drawer de cette tuile). Affiche un badge avec
+        // le nombre d'actions ouvertes (priorité visible 1er coup d'œil).
+        target: "aujourdhui",
+        icon: "📅",
+        label: "Aujourd'hui",
+        hint: "Tes actions du jour",
+        status: todoOpenCount > 0
+          ? { text: `${todoOpenCount} action${todoOpenCount > 1 ? 's' : ''}`, state: "info" }
+          : todoCardsLoaded
+          ? { text: "Tout fait !", state: "done" }
+          : null,
       },
       {
         target: "classement",
@@ -357,38 +425,61 @@ export default function VillageMenuView({ profile, city, onRefresh }) {
   };
 
   const visibleMenus = buildMenus();
-  if (statueIsHere) {
-    visibleMenus.push({
-      target: "statue_royale",
-      icon: "🗿",
-      label: "Statue royale",
-      hint: "Offrandes",
-      status: { text: "Présente", state: "info" },
-    });
-  }
+
+  // 16/05/2026 — Filtre en biome : ne garde que les tuiles utiles dans un biome
+  // (le joueur n'a pas accès aux services de ville quand il est en biome).
+  const BIOME_ALLOWED_TARGETS = new Set([
+    "biome",     // hub biome (BiomeHub avec épopée)
+    "arene",     // combat
+    "logement",  // inventaire
+    "ecurie",    // pour rentrer en voyage
+    "quetes",    // quêtes du jour (peuvent concerner le biome)
+  ]);
+  const filteredMenus = activeBiomeKey
+    ? visibleMenus.filter(m => BIOME_ALLOWED_TARGETS.has(m.target))
+    : visibleMenus;
 
   return (
     <div className="px-3 py-3 max-w-md mx-auto">
-      {/* Bandeau ville */}
-      <div className="mb-3 px-3 py-2 rounded-lg bg-card/80 border border-border">
-        <div className="font-heading text-base font-bold heading-medieval">
-          🏰 {city.name}
+      {/* Bandeau dynamique : ville ou biome selon contexte */}
+      {activeBiomeKey ? (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-card/80 border border-border">
+          <div className="font-heading text-base font-bold heading-medieval">
+            {getBiomeIcon(activeBiomeKey)} {getBiomeName(activeBiomeKey)}
+          </div>
+          <div className="text-xs font-body text-muted-foreground">
+            Exploration en cours
+          </div>
         </div>
-        <div className="text-xs font-body text-muted-foreground">
-          Gouvernée par {city.mayor_name || "personne"}
+      ) : (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-card/80 border border-border">
+          <div className="font-heading text-base font-bold heading-medieval">
+            🏰 {city.name}
+          </div>
+          <div className="text-xs font-body text-muted-foreground">
+            Gouvernée par {city.mayor_name || "personne"}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Grille de menus enrichis */}
       <div className="grid grid-cols-2 gap-2">
-        {visibleMenus.map(item => {
+        {filteredMenus.map(item => {
           const state = item.status?.state || "neutral";
+          // 18/05/2026 — Badge numérique sur la tuile "Aujourd'hui" pour
+          // attirer l'œil quand il y a des actions ouvertes.
+          const showBadge = item.target === "aujourdhui" && todoOpenCount > 0;
           return (
             <button
               key={item.target}
               onClick={() => setOpenDrawer(item.target)}
-              className={`flex flex-col items-start gap-1 p-3 rounded-lg border-2 active:scale-[0.98] transition-all text-left min-h-[90px] ${STATE_STYLES[state]}`}
+              className={`relative flex flex-col items-start gap-1 p-3 rounded-lg border-2 active:scale-[0.98] transition-all text-left min-h-[90px] ${STATE_STYLES[state]}`}
             >
+              {showBadge && (
+                <span className="absolute top-1 right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-heading font-bold flex items-center justify-center shadow-sm">
+                  {todoOpenCount}
+                </span>
+              )}
               <div className="flex items-center gap-2 w-full">
                 <span className="text-2xl shrink-0">{item.icon}</span>
                 <span className="font-heading text-sm font-semibold leading-tight">
@@ -408,16 +499,74 @@ export default function VillageMenuView({ profile, city, onRefresh }) {
         })}
       </div>
 
-      {/* Drawer commun à tous les menus */}
-      <Drawer open={!!openDrawer} onOpenChange={(open) => !open && setOpenDrawer(null)}>
+      {/* Drawer commun à tous les menus.
+          17/05/2026 — shouldScaleBackground=false : Vaul applique sinon un
+          transform: scale(0.96) sur le body qui assombrit les toasts XP
+          (Sonner les rend dans body, donc piégés dans le contexte de stacking
+          du transform). Conséquence : on perd l'effet visuel "contenu qui
+          rapetisse derrière", mais les toasts +1XP restent lisibles et brillants
+          quand on récolte/craft dans l'Atelier. Trade-off accepté. */}
+      <Drawer
+        open={!!openDrawer}
+        onOpenChange={(open) => !open && setOpenDrawer(null)}
+        shouldScaleBackground={false}
+      >
         <DrawerContent className="max-h-[85vh]">
           <DrawerHeader>
-            <DrawerTitle>{openDrawer && DRAWER_TARGETS[openDrawer]?.title}</DrawerTitle>
+            <DrawerTitle>
+              {openDrawer === "biome" && activeBiomeKey
+                ? `${getBiomeIcon(activeBiomeKey)} ${getBiomeName(activeBiomeKey)}`
+                : openDrawer === "ecurie" && activeBiomeKey
+                ? "🐴 Écurie — Retour à la ville"
+                : (openDrawer && DRAWER_TARGETS[openDrawer]?.title)}
+            </DrawerTitle>
           </DrawerHeader>
           <div className="overflow-y-auto px-4 pb-6 flex-1">
             {openDrawer && DRAWER_TARGETS[openDrawer] && (() => {
               const target = DRAWER_TARGETS[openDrawer];
               const Comp = target.Component;
+              // Drawer écurie en biome : panel de retour à la ville
+              if (openDrawer === "ecurie" && activeBiomeKey) {
+                return (
+                  <BiomeReturnPanel
+                    profile={profile}
+                    city={city}
+                    onRefresh={onRefresh}
+                    biomeKey={activeBiomeKey}
+                  />
+                );
+              }
+              // Drawer biome : passe biomeKey + biomeInfo en plus
+              if (openDrawer === "biome" && activeBiomeKey) {
+                const biomeInfo = BIOMES[activeBiomeKey] || null;
+                return (
+                  <Comp
+                    profile={profile}
+                    biomeKey={activeBiomeKey}
+                    biomeInfo={biomeInfo}
+                    city={city}
+                    onRefresh={onRefresh}
+                  />
+                );
+              }
+              // 18/05/2026 — Drawer Aujourd'hui : besoin de onNavigate pour
+              // ouvrir une autre tuile au clic d'une card, et onOpenSavoir
+              // pour rediriger vers la Bibliothèque (qui n'a plus de tuile).
+              if (openDrawer === "aujourdhui") {
+                return (
+                  <TodoNextPanel
+                    profile={profile}
+                    city={city}
+                    onNavigate={(targetKey /* , subTarget */) => {
+                      // Cas spécial : si target est "marche" avec subTarget="contracts",
+                      // on ouvre Marché. Le user trouve l'onglet Contrats depuis là.
+                      // (Phase 1.5 : passer subTarget en deep-link via query param)
+                      setOpenDrawer(targetKey);
+                    }}
+                    onOpenSavoir={() => setOpenDrawer("bibliotheque")}
+                  />
+                );
+              }
               if (target.needsProps) {
                 return <Comp profile={profile} city={city} onRefresh={onRefresh} />;
               }

@@ -12,7 +12,7 @@ import { BUILDING_TYPES } from "./buildings.js";
 export const MAYOR_COST_MAX = 20;
 export const MAYOR_COST_MAX_PALAIS = 20;
 export const MAYOR_DAYS = 10;
-export const PROFESSION_CHANGE_COST = 20; // or détruit (n'enrichit pas la ville)
+export const PROFESSION_CHANGE_COST = 100; // or détruit (n'enrichit pas la ville)
 
 export function generateMayorCost() {
   return 20;

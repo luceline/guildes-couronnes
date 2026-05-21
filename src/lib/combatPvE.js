@@ -1,845 +1,601 @@
 /**
- * src/lib/combatPvE.js : Logique pure du combat de biome tactique (V2 design, mécanique B).
+ * src/lib/combatPvE.js — Orchestrateur PvE biome (5 vagues, 1 mob/vague)
  *
- * Mécanique parade-only :
- *   - 3 mobs simultanés par vague
- *   - Le joueur ne tape jamais directement, il PARE
- *   - Le joueur fait UN choix de défense PAR mob (mécanique B)
- *   - Une parade = bonne zone devinée → 0 dégât + contre-attaque (peu importe l'armure)
- *   - L'armure ne sert que sur les zones NON défendues (absorbe si grade armure ≥ grade mob)
- *   - Avec un bouclier équipé, le joueur peut désigner une 2e zone par mob
- *     → si le mob frappe cette 2e zone : armure + bouclier (pas de contre, juste absorption)
- *   - Confiance d'indice variable selon % HP du mob
- *   - Enragement : grade +1 si mob ≤ 60% PV (plafond G6)
- *   - Plancher 1 PV joueur (jamais de mort PvE)
+ * Refonte mai 2026 : passage de 3 mobs simultanés à 1 mob par vague,
+ * combat tour-par-tour aligné sur la mécanique boss (combatEngine.js).
  *
- * Conventions :
- *   - "state" = objet immuable représentant l'état d'une vague en cours
- *   - Les fonctions qui modifient l'état renvoient un NOUVEAU state
+ * Une épopée = 5 vagues, 1 mob distinct par vague. Le joueur conserve son
+ * HP et sa durabilité entre les vagues. Il peut utiliser cataplasme/marteau
+ * entre les vagues pour se soigner ou réparer.
  *
- * NOTE : module AUTO-SUFFISANT (pas d'import gameData) pour testabilité Node.
+ * Patterns monstres :
+ *   - normal  : aucun effet
+ *   - weak    : grade -1
+ *   - heavy   : grade +1
+ *   - thief   : vole 5 or au joueur quand il touche
+ *   - drain   : +1 HP au mob ET -1 HP au joueur (cumul) quand touche
+ *   - regen   : 20% chance +1 HP au mob en début de tour
+ *   - revive  : ressuscite UNE fois avec hp = floor(hpMax/2) quand meurt
+ *
+ *   Rage : si HP ≤ 60% → grade +1
  */
 
+import {
+  COMBAT_ZONES,
+  ZONE_LABELS,
+  DURA_MAX,
+  createCombatant,
+  resolveStrike,
+  applyRegenStart,
+  pickRandomDefenseZones,
+  clampDura,
+} from './combatEngine.js';
+
+export { COMBAT_ZONES };
+
 // ─────────────────────────────────────────────────────────────
-// Constantes dupliquées de gameData.js (sync requis si modifié)
+// Constantes PvE
 // ─────────────────────────────────────────────────────────────
 
-export const COMBAT_ZONES = ["head", "torso", "arms", "legs"];
 export const COMBAT_MAX_HP = 10;
 
-/** Effet d'un item équipé : grade 0 → +1, grade 5 → +6 (1 + grade). */
 export function getCombatItemValue(grade) {
   return 1 + (grade ?? 0);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Constantes de combat
-// ─────────────────────────────────────────────────────────────
-
-export const MONSTERS_PER_WAVE = 3;
+export const MONSTERS_PER_WAVE = 1;
 export const MAX_WAVES_PER_DAY = 5;
-export const PVE_HP_FLOOR = 1;
-/** Limite de tours par vague (au-delà, le joueur est forcé de fuir avec ce qu'il a tué). */
-export const MAX_TURNS_PER_WAVE = 5;
+// 17/05/2026 — Plancher HP passé de 1 à 0 : la mort en PvE biome est désormais
+// possible. Le joueur conserve les récompenses des vagues précédemment réussies
+// (par vague, pas par épopée). Force à mieux gérer cataplasme/marteau et à
+// fuir quand nécessaire au lieu de farmer sans risque.
+export const PVE_HP_FLOOR = 0;
+
+export const MAX_TURNS_PER_MOB = 15;
+export const MAX_TURNS_PER_WAVE = MAX_TURNS_PER_MOB;
 
 export const WAVE_START_HUNGER_COST = 1;
 export const WAVE_START_ENERGY_COST = 1;
 export const POTION_HEAL_HP = 5;
 
-/** Grade max d'un item (G5). */
 export const MAX_ITEM_GRADE = 5;
-/** Grade max d'un mob enragé (G6 = au-delà de tout équipement). */
 export const MAX_RAGE_GRADE = 6;
-
-/** Seuil d'enragement : si mob.hp / mob.hpMax ≤ 0.60, grade +1. */
 export const RAGE_HP_THRESHOLD = 0.60;
 
-/**
- * Stats par vague (1-indexé : WAVE_STATS[0] = vague 1).
- * Vague N → 2N PV par mob, grade N (V5 = 10 PV, G5).
- */
+export const MOB_HP_PER_WAVE = 4;
+/** Durabilité de départ des items mob (arme, bouclier, armures). Plus bas que joueur pour équilibre. */
+export const MOB_STARTING_DURA = 5;
+
+// 17/05/2026 — Rééquilibrage PvE biome : difficulté progressive.
+// AVANT : toutes les vagues avaient HP=4, dmg=1, armure G0. Un joueur G1 pouvait
+//         finir les 5 vagues sans difficulté (HP joueur ne descendant jamais < 1).
+// APRÈS : HP, grade et dmgMult croissent avec la vague. Combiné au plancher HP=0
+//         (mort possible), le PvE devient un vrai challenge à partir de la vague 3.
+//
+// dmgMult multiplie les dégâts du mob avant application au joueur :
+//   vagues 1-2 : dmg de base (1)
+//   vagues 3-4 : dégâts doublés (2)
+//   vague 5    : dégâts triplés (3)
+//
+// armorGrade : la zone touchée du mob a ce grade d'armure (au lieu de G0 partout).
+// Force le joueur à monter en grade d'arme à mesure des vagues.
 export const WAVE_STATS = [
-  { wave: 1, hp: 2,  grade: 1 },
-  { wave: 2, hp: 4,  grade: 2 },
-  { wave: 3, hp: 6,  grade: 3 },
-  { wave: 4, hp: 8,  grade: 4 },
-  { wave: 5, hp: 10, grade: 5 },
+  { wave: 1, hp: 4,  grade: 1, dmgMult: 1, armorGrade: 0 },
+  { wave: 2, hp: 6,  grade: 2, dmgMult: 1, armorGrade: 1 },
+  { wave: 3, hp: 8,  grade: 3, dmgMult: 2, armorGrade: 2 },
+  { wave: 4, hp: 10, grade: 4, dmgMult: 2, armorGrade: 3 },
+  { wave: 5, hp: 12, grade: 5, dmgMult: 3, armorGrade: 4 },
 ];
 
-/**
- * Monstres + leur pattern spécial. Le pattern est un identifiant qui détermine
- * le comportement spécial du mob en plus de l'attaque normale.
- *
- * Patterns :
- *   - "normal"   : attaque standard, rien de plus
- *   - "weak"     : grade effectif -1 (corbeau, faible)
- *   - "blurry"   : son intent est toujours en mode "double" (jamais 100% sûr)
- *   - "thief"    : si le mob blesse le joueur, vole 5 or en plus
- *   - "elusive"  : 50% de chance d'ignorer la contre-attaque (esquive)
- *   - "drain"    : si le mob blesse le joueur, le mob soigne +1 PV à lui-même
- *   - "feint"    : 50% de chance que sa zone réelle ≠ zone annoncée (feinte)
- *   - "revive"   : à sa mort, revient à 1 PV une seule fois dans le combat
- *   - "heavy"    : grade effectif +1, mais HP +2 (plus dur, plus tanky)
- *   - "healer"   : à chaque tour, soigne +1 PV à TOUS les mobs vivants (et frappe normalement)
- *   - "regen"    : à chaque tour, +1 PV à lui-même (max HP)
- */
+// ─────────────────────────────────────────────────────────────
+// Monstres
+// ─────────────────────────────────────────────────────────────
+
 export const MONSTERS_DATA = [
   { name: "Gobelin",       icon: "👹", pattern: "normal" },
   { name: "Loup",          icon: "🐺", pattern: "normal" },
   { name: "Corbeau",       icon: "🐦", pattern: "weak" },
-  { name: "Ombre",         icon: "👻", pattern: "blurry" },
   { name: "Brigand",       icon: "🗡️", pattern: "thief" },
-  { name: "Élémental",     icon: "🔥", pattern: "elusive" },
   { name: "Vampire",       icon: "🧛", pattern: "drain" },
-  { name: "Dragon mineur", icon: "🐉", pattern: "feint" },
   { name: "Squelette",     icon: "💀", pattern: "revive" },
   { name: "Golem",         icon: "🗿", pattern: "heavy" },
-  { name: "Sorcière",      icon: "🧙", pattern: "healer" },
   { name: "Troll",         icon: "👺", pattern: "regen" },
+  { name: "Dragon mineur", icon: "🐉", pattern: "heavy" },
+  { name: "Ombre",         icon: "👻", pattern: "normal" },
+  { name: "Élémental",     icon: "🔥", pattern: "weak" },
+  { name: "Sorcière",      icon: "🧙", pattern: "regen" },
 ];
 
-/**
- * Pool de monstres autorisés par vague (difficulté progressive).
- * V1-V2 = patterns simples / faibles. V4-V5 = patterns complexes / dangereux.
- *
- * Chaque entrée est un index dans MONSTERS_DATA. La génération de vague
- * tire 3 mobs distincts dans le pool de la vague.
- */
 export const WAVE_MONSTER_POOLS = [
-  // V1 (index 0) : 4 mobs basiques + faible
-  [0, 1, 2, 9],            // Gobelin, Loup, Corbeau, Golem (heavy mais lent à V1)
-  // V2 (index 1) : ajout du voleur et indice flou
-  [0, 1, 2, 4, 9, 11],     // + Brigand (thief), + Troll (regen léger)
-  // V3 (index 2) : ajout des patterns moyens
-  [0, 1, 3, 4, 5, 8, 11],  // Ombre (blurry), Élémental (elusive), Squelette (revive)
-  // V4 (index 3) : patterns durs
-  [3, 4, 5, 6, 7, 8, 9, 11], // Vampire (drain), Dragon (feint)
-  // V5 (index 4) : tout est possible, y compris la sorcière
-  [3, 4, 5, 6, 7, 8, 9, 10, 11], // + Sorcière (healer boss-mode)
+  [0, 1, 2, 6],
+  [0, 1, 2, 3, 6, 7],
+  [0, 1, 3, 5, 6, 7, 9],
+  [3, 4, 5, 6, 7, 8, 9],
+  [3, 4, 5, 6, 7, 8, 9, 10, 11],
 ];
 
-/**
- * Récompenses par MOB tué (mécanique cumulative).
- *
- * Chaque mob d'une vague (3 par vague) rapporte une récompense propre selon :
- *   - sa POSITION dans la vague (1er, 2e, 3e) : tarif progressif
- *   - son GRADE (G1 à G5) : multiplicateur par grade
- *
- * L'or et le drop d'une vague = somme/cumul des récompenses des mobs tués.
- * Si la vague est partielle (joueur fuit/meurt), il garde l'or des mobs déjà tués
- * et chaque mob a déjà fait son propre roll de drop indépendant.
- *
- * Tableaux de base (G1) :
- *   - 1er mob tué  → 0 or, 0% drop
- *   - 2e mob tué   → 1 or, 2% drop
- *   - 3e mob tué   → 2 or, 5% drop
- * Chaque grade au-dessus de G1 ajoute :
- *   - +3 or par mob
- *   - +2% drop par mob
- *
- * Ainsi vague G5 complète = 12 + 13 + 14 = 39 or, drops à 8% + 10% + 13%.
- */
+// ─────────────────────────────────────────────────────────────
+// Récompenses mob
+// ─────────────────────────────────────────────────────────────
 
-/** Or de base d'un mob (G1) selon sa position dans la vague (0=1er, 1=2e, 2=3e). */
-export const MOB_GOLD_BASE = [0, 1, 2];
-/** Drop de base d'un mob (G1) selon sa position.
- *  Réajusté en mai 2026 pour rendre la progression XP via ressources rares
- *  visible (avant : 0/2/5%, désormais 5/10/15%). À grade 5, le 1er mob passe
- *  de 8% à 13%, le 2e de 10% à 18%, le 3e de 13% à 23%. */
-export const MOB_DROP_BASE = [0.05, 0.10, 0.15];
-/** Bonus or par grade au-dessus de G1. */
+export const MOB_GOLD_BASE = [1, 2, 3, 4, 5];
+export const MOB_DROP_BASE = [0.05, 0.10, 0.15, 0.20, 0.25];
 export const GOLD_PER_GRADE = 3;
-/** Bonus drop par grade au-dessus de G1. */
 export const DROP_PCT_PER_GRADE = 0.02;
 
-/**
- * Calcule la récompense d'un mob tué selon sa position et son grade.
- * @param {number} position - 0, 1 ou 2 (1er, 2e, 3e mob tué dans la vague)
- * @param {number} grade    - grade DE BASE du mob (1-5), pas le grade enragé
- * @param {number} bonusDropFlat - bonus drop additif (ex: 0.05 = +5%) — utilisé par Sprint 2C palier 3 statue
- * @returns {{ gold: number, dropChance: number }}
- */
-export function getMobReward(position, grade, bonusDropFlat = 0) {
-  const safePos = Math.max(0, Math.min(2, position));
-  const safeGrade = Math.max(1, Math.min(5, grade));
-  const gradeBonus = safeGrade - 1;
+export function getMobReward(waveIdx, grade, bonusDropFlat = 0) {
+  const gradeBonus = Math.max(0, (grade || 1) - 1);
   return {
-    gold: MOB_GOLD_BASE[safePos] + gradeBonus * GOLD_PER_GRADE,
-    dropChance: Math.min(1, MOB_DROP_BASE[safePos] + gradeBonus * DROP_PCT_PER_GRADE + bonusDropFlat),
+    gold: (MOB_GOLD_BASE[waveIdx] || 0) + gradeBonus * GOLD_PER_GRADE,
+    dropPct: Math.min(1, (MOB_DROP_BASE[waveIdx] || 0) + gradeBonus * DROP_PCT_PER_GRADE + bonusDropFlat),
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Maîtrise biome (LORE seulement)
+// ─────────────────────────────────────────────────────────────
+
 export const MASTERY_TIERS = [
-  { points: 50,  level: 1, hpBonus: 1, goldBonus: 0.05, partialDropBonus: 0.05 },
-  { points: 150, level: 2, hpBonus: 2, goldBonus: 0.10, partialDropBonus: 0.10 },
-  { points: 300, level: 3, hpBonus: 3, goldBonus: 0.15, partialDropBonus: 0.15 },
-  { points: 600, level: 4, hpBonus: 4, goldBonus: 0.20, partialDropBonus: 0.20 },
+  { level: 0, threshold: 0,    label: "Apprenti", goldBonus: 0, hpBonus: 0 },
+  { level: 1, threshold: 10,   label: "Novice",   goldBonus: 0, hpBonus: 0 },
+  { level: 2, threshold: 30,   label: "Adepte",   goldBonus: 0, hpBonus: 0 },
+  { level: 3, threshold: 75,   label: "Expert",   goldBonus: 0, hpBonus: 0 },
+  { level: 4, threshold: 150,  label: "Maître",   goldBonus: 0, hpBonus: 0 },
+  { level: 5, threshold: 300,  label: "Légende",  goldBonus: 0, hpBonus: 0 },
 ];
 
-/**
- * Paliers d'incertitude de l'indice selon % HP du mob.
- *   - mode = "single"  → annonce 1 zone, fiable à confidence
- *   - mode = "double"  → annonce 2 zones probables (50/50)
- *   - mode = "random"  → "frappe au hasard" (25% par zone)
- */
-/**
- * Calcule la confiance et le mode d'indice selon le % HP du mob.
- *
- * REFONTE V2 : indice "single" max 70% (jamais 100% sûr) : il y a toujours un risque.
- * Le mob peut frapper une autre zone que celle annoncée 30% du temps même à full HP.
- */
 export function getHintInfo(currentHP, maxHP) {
-  const ratio = maxHP > 0 ? currentHP / maxHP : 0;
-  if (ratio >= 1.0) return { confidence: 0.7, mode: "single", label: "probable" };
-  if (ratio >= 0.6) return { confidence: 0.6, mode: "single", label: "possible" };
-  if (ratio >= 0.3) return { confidence: 0.5, mode: "double", label: "hésite" };
-  return { confidence: 0.25, mode: "random", label: "aléatoire" };
+  if (maxHP === 0) return { label: "?", color: "#666" };
+  const pct = currentHP / maxHP;
+  if (pct > 0.66) return { label: "Sain", color: "#5dcaa5" };
+  if (pct > 0.33) return { label: "Blessé", color: "#ef9f27" };
+  return { label: "Mourant", color: "#e24b4a" };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helpers déterministes
+// RNG seedé (utilisé aussi par bossCombat.js)
 // ─────────────────────────────────────────────────────────────
 
 export function hashString(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    hash |= 0;
+  let h = 0;
+  for (let i = 0; i < (str || "").length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
   }
-  return Math.abs(hash);
+  return h;
 }
 
 export function seededRandom(seedStr) {
-  let state = hashString(seedStr) || 1;
-  return function () {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
+  let s = Math.abs(hashString(seedStr)) || 1;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
   };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Maîtrise
+// Maîtrise & HP
 // ─────────────────────────────────────────────────────────────
 
 export function getMasteryInfo(profile, biomeKey) {
-  const points = (profile?.biome_mastery || {})[biomeKey] || 0;
-  let info = { points, level: 0, hpBonus: 0, goldBonus: 0, partialDropBonus: 0 };
-  for (const tier of MASTERY_TIERS) {
-    if (points >= tier.points) {
-      info = {
-        points,
-        level: tier.level,
-        hpBonus: tier.hpBonus,
-        goldBonus: tier.goldBonus,
-        partialDropBonus: tier.partialDropBonus,
-      };
-    }
+  const masteryData = profile?.biome_mastery || {};
+  const score = masteryData[biomeKey]?.score || 0;
+  let tier = MASTERY_TIERS[0];
+  for (const t of MASTERY_TIERS) {
+    if (score >= t.threshold) tier = t;
   }
-  return info;
+  const nextTier = MASTERY_TIERS[tier.level + 1] || null;
+  return {
+    score, level: tier.level, label: tier.label,
+    goldBonus: tier.goldBonus, hpBonus: tier.hpBonus,
+    nextThreshold: nextTier?.threshold || null,
+  };
 }
 
 export function getPlayerMaxHP(profile, biomeKey) {
   const mastery = getMasteryInfo(profile, biomeKey);
-  return COMBAT_MAX_HP + mastery.hpBonus;
+  return COMBAT_MAX_HP + (mastery.hpBonus || 0);
 }
 
 // ─────────────────────────────────────────────────────────────
-// Génération de la vague (déterministe)
+// Génération de l'épopée (5 mobs distincts)
 // ─────────────────────────────────────────────────────────────
 
-export function generateWave(biomeKey, dayStr, waveIndex) {
-  const stats = WAVE_STATS[waveIndex] || WAVE_STATS[WAVE_STATS.length - 1];
-  const rand = seededRandom(`${dayStr}|${biomeKey}|wave${waveIndex}`);
-
-  // Pool de monstres autorisés pour cette vague (difficulté progressive)
-  const pool = WAVE_MONSTER_POOLS[waveIndex] || WAVE_MONSTER_POOLS[WAVE_MONSTER_POOLS.length - 1];
-
+/**
+ * Génère les 5 mobs d'une épopée (1 mob par vague, tous distincts).
+ */
+export function generateEpicMobs(biomeKey, dayStr) {
+  const rng = seededRandom(`${biomeKey}_${dayStr}_epic`);
   const usedIndices = new Set();
-  const monsters = [];
-  for (let i = 0; i < MONSTERS_PER_WAVE; i++) {
-    let poolIdx;
-    let safety = 0;
-    do {
-      poolIdx = Math.floor(rand() * pool.length);
-      safety++;
-    } while (usedIndices.has(poolIdx) && safety < 50);
-    usedIndices.add(poolIdx);
-    const dataIdx = pool[poolIdx];
-    const m = MONSTERS_DATA[dataIdx];
+  const mobs = [];
 
-    // Pattern "heavy" : HP de base +2
-    const isHeavy = m.pattern === "heavy";
-    // Pattern "weak" : grade de base ne sera pas augmenté en effectif (cf getMonsterEffectiveGrade)
+  for (let w = 0; w < MAX_WAVES_PER_DAY; w++) {
+    const pool = WAVE_MONSTER_POOLS[w] || [];
+    const available = pool.filter(idx => !usedIndices.has(idx));
+    const finalPool = available.length > 0 ? available : pool;
+    const chosenIdx = finalPool[Math.floor(rng() * finalPool.length)];
+    usedIndices.add(chosenIdx);
 
-    monsters.push({
-      position: i,
-      name: m.name,
-      icon: m.icon,
-      pattern: m.pattern || "normal",
-      hp: stats.hp + (isHeavy ? 2 : 0),
-      hpMax: stats.hp + (isHeavy ? 2 : 0),
+    const data = MONSTERS_DATA[chosenIdx];
+    const stats = WAVE_STATS[w];
+    mobs.push({
+      waveIdx: w,
+      monsterIdx: chosenIdx,
+      name: data.name,
+      icon: data.icon,
+      pattern: data.pattern,
+      hpMax: stats.hp,
       grade: stats.grade,
-      alive: true,
-      // Champs spécifiques à certains patterns (initialisés ici pour cohérence)
-      reviveUsed: false,  // Pour squelette : true après résurrection
+      // 17/05/2026 — Difficulté progressive
+      dmgMult: stats.dmgMult || 1,
+      armorGrade: stats.armorGrade || 0,
     });
   }
-  return monsters;
+
+  return mobs;
 }
 
 /**
- * Calcule le grade effectif d'un mob (avec enragement et modifs de pattern).
- * Plafond G6, plancher G1.
- *   - "weak" (corbeau) : grade -1 (peut tomber à G0)
- *   - "heavy" (golem)  : grade +1
- *   - enragé (≤60% HP): grade +1
+ * @deprecated Pour compat avec ancien code. Génère 1 seul mob pour la vague indiquée.
  */
-export function getMonsterEffectiveGrade(monster) {
-  let grade = monster.grade;
-  if (monster.pattern === "weak") grade = Math.max(0, grade - 1);
-  else if (monster.pattern === "heavy") grade = Math.min(MAX_RAGE_GRADE, grade + 1);
-
-  const ratio = monster.hpMax > 0 ? monster.hp / monster.hpMax : 0;
-  if (ratio <= RAGE_HP_THRESHOLD && monster.hp > 0) {
-    return { grade: Math.min(grade + 1, MAX_RAGE_GRADE), enraged: true };
-  }
-  return { grade, enraged: false };
+export function generateWave(biomeKey, dayStr, waveIndex) {
+  const mobs = generateEpicMobs(biomeKey, dayStr);
+  return [mobs[waveIndex]];
 }
 
 // ─────────────────────────────────────────────────────────────
-// Génération des intentions par tour
+// Construction d'un combattant mob
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Pour chaque mob vivant, génère une intention (zone visée + indice).
- * Retourne null pour les mobs morts (alignement avec monsters).
- */
-export function generateMonsterIntents(monsters, seedStr) {
-  const rand = seededRandom(seedStr);
-  return monsters.map((m, idx) => {
-    if (!m.alive || m.hp <= 0) return null;
+function buildMobCombatant(mobSpec) {
+  let effGrade = mobSpec.grade;
+  if (mobSpec.pattern === 'weak') effGrade = Math.max(0, effGrade - 1);
+  else if (mobSpec.pattern === 'heavy') effGrade = Math.min(MAX_RAGE_GRADE, effGrade + 1);
 
-    // Pattern "blurry" (Ombre) : force toujours le mode "double" minimum.
-    let hint = getHintInfo(m.hp, m.hpMax);
-    if (m.pattern === "blurry" && hint.mode === "single") {
-      hint = { confidence: 0.5, mode: "double", label: "trouble" };
-    }
+  // 17/05/2026 — Armure mob progressive (G0 vague 1 → G4 vague 5).
+  // Avant : armure G0 partout (peu protectrice, juste pour permettre le jet armure).
+  // Maintenant : la zone touchée a un vrai grade qui force le joueur à monter en
+  // grade d'arme. Tie-break strict (armure > arme) signifie que pour percer
+  // un mob G3 il faut une arme G4+.
+  const armorG = mobSpec.armorGrade ?? 0;
+  return createCombatant({
+    id: `mob_${mobSpec.waveIdx}`,
+    name: mobSpec.name,
+    hp: mobSpec.hpMax,
+    hpMax: mobSpec.hpMax,
+    weapon: { grade: effGrade, dura: MOB_STARTING_DURA },
+    shield: { grade: effGrade, dura: MOB_STARTING_DURA },
+    armor: {
+      head:  { grade: armorG, dura: MOB_STARTING_DURA },
+      torso: { grade: armorG, dura: MOB_STARTING_DURA },
+      arms:  { grade: armorG, dura: MOB_STARTING_DURA },
+      legs:  { grade: armorG, dura: MOB_STARTING_DURA },
+    },
+    pattern: mobSpec.pattern,
+    weaponFloor: 0,
+    destabDuration: 3,
+  });
+}
 
-    const actualZoneIdx = Math.floor(rand() * COMBAT_ZONES.length);
-    let actualZone = COMBAT_ZONES[actualZoneIdx];
-
-    // Pattern "feint" (Dragon) : 50% de chance que zone réelle ≠ zone annoncée.
-    // On gère ça en single mode : si on tire le feint, on inverse zone réelle/annoncée.
-    const isFeint = m.pattern === "feint";
-
-    if (hint.mode === "single") {
-      const r = rand();
-      const honest = r < hint.confidence;
-      let announced = honest ? actualZone : null;
-      if (!honest) {
-        const otherZones = COMBAT_ZONES.filter(z => z !== actualZone);
-        announced = otherZones[Math.floor(rand() * otherZones.length)];
-      }
-      // Feint : 50% chance d'inverser actual/announced si pas déjà en mode "menteur"
-      if (isFeint && rand() < 0.5) {
-        const swap = announced;
-        announced = actualZone;
-        actualZone = swap;
-      }
-      return {
-        monsterIdx: idx,
-        actualZone,
-        announcedZone: announced,
-        mode: "single",
-        confidence: hint.confidence,
-        hintLabel: hint.label,
-      };
-    }
-
-    if (hint.mode === "double") {
-      const otherZones = COMBAT_ZONES.filter(z => z !== actualZone);
-      const altIdx = Math.floor(rand() * otherZones.length);
-      let altZone = otherZones[altIdx];
-      // Feint en mode double : possibilité que la vraie zone soit l'alternative
-      if (isFeint && rand() < 0.5) {
-        const swap = altZone;
-        altZone = actualZone;
-        actualZone = swap;
-      }
-      return {
-        monsterIdx: idx,
-        actualZone,
-        announcedZone: actualZone,
-        alternativeZone: altZone,
-        mode: "double",
-        confidence: hint.confidence,
-        hintLabel: hint.label,
-      };
-    }
-
-    // mode "random"
-    return {
-      monsterIdx: idx,
-      actualZone,
-      announcedZone: null,
-      mode: "random",
-      confidence: hint.confidence,
-      hintLabel: hint.label,
-    };
+function buildPlayerCombatant(profile, currentHP, biomeKey) {
+  const eq = profile?.equipment || {};
+  const hpMax = getPlayerMaxHP(profile, biomeKey);
+  return createCombatant({
+    id: profile?.id || 'player',
+    name: profile?.character_name || 'Aventurier',
+    hp: currentHP,
+    hpMax,
+    weapon: {
+      grade: eq.weapon?.grade ?? 0,
+      dura: eq.weapon?.durability ?? DURA_MAX,
+    },
+    shield: {
+      grade: eq.shield?.grade ?? 0,
+      dura: eq.shield?.durability ?? DURA_MAX,
+    },
+    armor: {
+      head:  { grade: eq.head_def?.grade ?? 0,  dura: eq.head_def?.durability ?? DURA_MAX },
+      torso: { grade: eq.torso_def?.grade ?? 0, dura: eq.torso_def?.durability ?? DURA_MAX },
+      arms:  { grade: eq.arms_def?.grade ?? 0,  dura: eq.arms_def?.durability ?? DURA_MAX },
+      legs:  { grade: eq.legs_def?.grade ?? 0,  dura: eq.legs_def?.durability ?? DURA_MAX },
+    },
+    weaponFloor: 0,
+    destabDuration: 3,
   });
 }
 
 // ─────────────────────────────────────────────────────────────
-// Calcul de défense (avec bouclier)
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Défense effective sur une zone donnée.
- * - armure équipée (slot {zone}_def) : +(1+grade) si présente
- * - bouclier (slot shield) si shieldOnThisZone : +(1+grade_bouclier)
- */
-export function getZoneDefense(profile, zone, shieldOnThisZone = false) {
-  const armorSlot = `${zone}_def`;
-  const armor = profile?.equipment?.[armorSlot];
-  const armorVal = armor ? getCombatItemValue(armor.grade) : 0;
-
-  let shieldVal = 0;
-  if (shieldOnThisZone) {
-    const shield = profile?.equipment?.shield;
-    if (shield) shieldVal = getCombatItemValue(shield.grade);
-  }
-  return armorVal + shieldVal;
-}
-
-/**
- * Détermine si un coup passe : 1 PV perdu si défense < (1+grade mob).
- * Mécanique miroir du PvP zoné.
- */
-export function computeHit(monsterGrade, zoneDefense) {
-  return zoneDefense < (1 + monsterGrade) ? 1 : 0;
-}
-
-// ─────────────────────────────────────────────────────────────
-// État et résolution
+// Initialisation d'un combat de vague
 // ─────────────────────────────────────────────────────────────
 
 export function createInitialWaveState({ profile, biomeKey, waveIndex, dayStr, startingHP, epicMode = false }) {
-  const monsters = generateWave(biomeKey, dayStr, waveIndex);
-  const maxHP = getPlayerMaxHP(profile, biomeKey);
-  // En mode épopée, on autorise startingHP=0 (mort). En classique, plancher 1 PV.
-  const minHP = epicMode ? 0 : PVE_HP_FLOOR;
-  const initialHP = startingHP != null
-    ? Math.max(minHP, Math.min(maxHP, startingHP))
-    : maxHP;
+  if (!profile) throw new Error('createInitialWaveState: profile requis');
+  const mobs = generateEpicMobs(biomeKey, dayStr);
+  const mobSpec = mobs[waveIndex];
+  if (!mobSpec) throw new Error(`Pas de mob pour vague ${waveIndex}`);
 
-  const intents = generateMonsterIntents(
-    monsters,
-    `${dayStr}|${biomeKey}|wave${waveIndex}|turn0`
-  );
+  const rngSeed = `${biomeKey}_${dayStr}_w${waveIndex}_${profile.id}`;
+  const mob = buildMobCombatant(mobSpec);
+  const player = buildPlayerCombatant(profile, startingHP ?? COMBAT_MAX_HP, biomeKey);
 
   return {
+    rngSeed,
     biomeKey,
     waveIndex,
     dayStr,
-    monsters,
-    playerHP: initialHP,
-    playerMaxHP: maxHP,
-    turnIndex: 0,
-    intents,
-    monstersKilled: 0,
+    epicMode,
+    round: 0,
+    log: [],
+    status: 'in_progress',
+    result: null,
+    choicesHistory: [],
+    player,
+    mob,
+    mobSpec,
     killRewards: [],
     goldStolenInWave: 0,
-    epicMode,           // Si true, le joueur peut tomber à 0 PV (status "dead")
-    log: [],
-    status: "in_progress",
-    pendingCounter: null,
+    goldEarned: 0,
   };
 }
 
-export function getAliveMonsters(state) {
-  return state.monsters
-    .map((m, i) => (m.alive && m.hp > 0 ? i : -1))
-    .filter(i => i >= 0);
+// ─────────────────────────────────────────────────────────────
+// Résolution d'un round PvE
+// ─────────────────────────────────────────────────────────────
+
+function getEffectiveMobGrade(mob) {
+  let grade = mob.weapon?.grade ?? 0;
+  if (mob.hp > 0 && mob.hp / mob.hpMax <= RAGE_HP_THRESHOLD) {
+    grade = Math.min(MAX_RAGE_GRADE, grade + 1);
+  }
+  return grade;
 }
 
-/**
- * Phase 1 d'un tour : applique les défenses du joueur (mécanique B + Vision B parade pure).
- *
- * action = {
- *   type: "defend",
- *   defenses: {
- *     [monsterIdx]: { primaryZone, shieldZone }
- *     // primaryZone = zone "épée" (parade pure : annule le coup si bonne zone)
- *     // shieldZone  = zone "bouclier" (armure + bouclier additif, optionnel)
- *   }
- * }
- *
- * Le joueur fait UN choix de défense PAR mob vivant. Pour chaque mob :
- *   - Si la zone que ce mob frappe == primaryZone[mob] → PARADE PURE (0 dégât + contre,
- *     peu importe l'armure ou le grade du mob)
- *   - Sinon si la zone == shieldZone[mob] → tentative absorption armure+bouclier
- *     (si def ≥ 1+grade_mob → 0 dégât, sinon 1 PV perdu, jamais de contre)
- *   - Sinon → armure seule de la zone (idem, sans contre)
- *
- * Retourne un nouveau state. Si parries.length > 0, state.pendingCounter est posé.
- * Sinon, on enchaîne sur advanceTurn() automatiquement.
- */
-export function resolveDefense(state, profile, action) {
-  if (state.status !== "in_progress") return state;
-  if (action.type !== "defend") return state;
+function formatPveEvent(ev, attackerSide, mobName, attZone) {
+  const zLabel = ZONE_LABELS[attZone] || attZone;
+  switch (ev.type) {
+    case 'parry_success':
+      return attackerSide === 'player'
+        ? { type: 'mob_parry', msg: `Le ${mobName} pare votre attaque (${ZONE_LABELS[ev.zone]}).` }
+        : { type: 'player_parry', msg: `Vous parez l'attaque du ${mobName} (${ZONE_LABELS[ev.zone]}).` };
+    case 'parry_fail':
+      return attackerSide === 'player'
+        ? { type: 'mob_parry_fail', msg: `Le ${mobName} tente une parade ratée.` }
+        : { type: 'player_parry_fail', msg: `Votre parade rate.` };
+    case 'attack_miss':
+      return attackerSide === 'player'
+        ? { type: 'player_miss', msg: `Votre attaque rate sa cible.` }
+        : { type: 'mob_miss', msg: `L'attaque du ${mobName} rate.` };
+    case 'shield_active':
+      return attackerSide === 'player'
+        ? { type: 'mob_block', msg: `Le bouclier du ${mobName} (G${ev.shieldGrade}) intercepte votre attaque.` }
+        : { type: 'player_shield', msg: `Bouclier renforce ${zLabel} (+G${ev.shieldGrade}).` };
+    case 'shield_fail':
+      return attackerSide === 'player'
+        ? { type: 'mob_shield_fail', msg: `Le bouclier du ${mobName} rate son jet.` }
+        : { type: 'player_shield_fail', msg: `Bouclier rate son jet.` };
+    case 'shield_off':
+      return { type: 'mob_shield_off', msg: `Le bouclier du ${mobName} est désactivé (${ev.roundsLeft}t).` };
+    case 'block':
+      return attackerSide === 'player'
+        ? { type: 'mob_block', msg: `La défense du ${mobName} (G${ev.defGrade}) bloque votre attaque ${ZONE_LABELS[ev.zone]} (G${ev.attGrade}).` }
+        : { type: 'player_block', msg: `Votre défense ${ZONE_LABELS[ev.zone]} G${ev.defGrade} bloque (G${ev.attGrade}).` };
+    case 'partial_block':
+      return attackerSide === 'player'
+        ? { type: 'mob_partial_block', msg: `La défense du ${mobName} (G${ev.defGrade}) cède sous votre G${ev.attGrade} (${ZONE_LABELS[ev.zone]}).` }
+        : { type: 'player_partial_block', msg: `Votre défense ${ZONE_LABELS[ev.zone]} G${ev.defGrade} cède sous G${ev.attGrade}.` };
+    case 'armor_fail':
+      return attackerSide === 'player'
+        ? { type: 'mob_armor_fail', msg: `L'armure du ${mobName} (${ZONE_LABELS[ev.zone]}) rate son jet.` }
+        : { type: 'player_armor_fail', msg: `Votre armure ${ZONE_LABELS[ev.zone]} rate son jet.` };
+    case 'hit':
+      return attackerSide === 'player'
+        ? { type: 'player_hit', zone: ev.zone, dmg: ev.dmg, msg: `Vous touchez ${ZONE_LABELS[ev.zone]} : -${ev.dmg} HP.` }
+        : { type: 'mob_hit', zone: ev.zone, dmg: ev.dmg, msg: `Le ${mobName} vous touche ${ZONE_LABELS[ev.zone]} : -${ev.dmg} HP.` };
+    case 'drain':
+      return { type: 'gem_drain', msg: `Drain de vie (gemme) : +${ev.amount} HP.` };
+    case 'destabilize':
+      return { type: 'destab',
+               msg: attackerSide === 'player'
+                 ? `Le ${mobName} est déstabilisé !`
+                 : `Vous êtes déstabilisé !` };
+    default:
+      return null;
+  }
+}
 
-  const aliveIdx = getAliveMonsters(state);
-  if (aliveIdx.length === 0) {
-    return { ...state, status: "wave_complete" };
+export function resolveWaveRound(state, playerChoices) {
+  if (state.status !== 'in_progress') return state;
+
+  if (state.round >= MAX_TURNS_PER_MOB) {
+    state.status = 'out_of_turns';
+    state.log.push({ type: 'timeout', msg: `Trop de tours (${MAX_TURNS_PER_MOB}). Le ${state.mob.name} s'enfuit.` });
+    return state;
   }
 
-  const defenses = action.defenses || {};
-  const hasShield = !!profile?.equipment?.shield;
+  const { attack, parry, shield } = playerChoices;
+  if (!COMBAT_ZONES.includes(attack) || !COMBAT_ZONES.includes(parry) || !COMBAT_ZONES.includes(shield)) {
+    throw new Error('resolveWaveRound: zones invalides');
+  }
+  if (parry === shield) {
+    throw new Error('resolveWaveRound: parade et bouclier doivent être sur zones différentes');
+  }
 
-  const parries = [];
-  const hits = [];
-  let newHP = state.playerHP;
-  let goldStolenByThieves = 0;
-  // Modifs HP des mobs accumulées pendant cette phase (drain, healer, regen)
-  // map : monsterIdx → delta HP
-  const monsterHPDelta = {};
-  const addMonsterHp = (mobIdx, delta) => {
-    monsterHPDelta[mobIdx] = (monsterHPDelta[mobIdx] || 0) + delta;
-  };
+  state.round++;
+  state.choicesHistory.push({ round: state.round, ...playerChoices });
 
-  for (const idx of aliveIdx) {
-    const intent = state.intents[idx];
-    if (!intent) continue;
+  const rng = seededRandom(`${state.rngSeed}_r${state.round}`);
 
-    const mob = state.monsters[idx];
-    const eff = getMonsterEffectiveGrade(mob);
-    const zoneAttacked = intent.actualZone;
+  // Regen joueur (gemmes)
+  const regenEvents = applyRegenStart(state.player, rng);
+  regenEvents.forEach(ev => {
+    state.log.push({ type: 'regen', msg: `Regen ${ev.slot} : +1 dura.` });
+  });
 
-    // Récupère les choix de défense pour CE mob spécifiquement
-    const mobDef = defenses[idx] || {};
-    const primaryZone = mobDef.primaryZone || null;
-    const shieldZone =
-      hasShield && mobDef.shieldZone && mobDef.shieldZone !== primaryZone
-        ? mobDef.shieldZone
-        : null;
-
-    const isPrimary = primaryZone && zoneAttacked === primaryZone;
-    const isShielded = !isPrimary && shieldZone && zoneAttacked === shieldZone;
-
-    // Helper : appliquer le coup d'un mob (avec activation des patterns thief/drain)
-    const onHitInflicted = (dmg) => {
-      newHP -= dmg;
-      // Pattern "thief" : vole 5 or si blesse le joueur
-      if (mob.pattern === "thief") {
-        goldStolenByThieves += 5;
-      }
-      // Pattern "drain" : soigne +1 PV à lui-même quand il blesse
-      if (mob.pattern === "drain") {
-        addMonsterHp(idx, 1);
-      }
-    };
-
-    if (isPrimary) {
-      // Vision B : parade pure. Bonne zone = 0 dégât + contre, peu importe l'armure.
-      parries.push({
-        monsterIdx: idx,
-        zone: zoneAttacked,
-        monsterGradeUsed: eff.grade,
-        enraged: eff.enraged,
-      });
-      continue;
-    }
-
-    if (isShielded) {
-      // Défense bouclier : armure + bouclier sur la zone
-      const def = getZoneDefense(profile, zoneAttacked, true);
-      const required = 1 + eff.grade;
-      if (def >= required) {
-        // Coup absorbé, pas de parade (donc pas de contre)
-        hits.push({
-          monsterIdx: idx,
-          zone: zoneAttacked,
-          monsterGradeUsed: eff.grade,
-          enraged: eff.enraged,
-          dmg: 0,
-          defenseTried: true,
-          defenseType: "shielded",
-        });
-        continue;
-      }
-      // Bouclier insuffisant : 1 PV perdu
-      onHitInflicted(1);
-      hits.push({
-        monsterIdx: idx,
-        zone: zoneAttacked,
-        monsterGradeUsed: eff.grade,
-        enraged: eff.enraged,
-        dmg: 1,
-        defenseTried: true,
-        defenseType: "shield_failed",
-      });
-      continue;
-    }
-
-    // Zone non défendue (ni épée ni bouclier sur cette zone) → armure seule
-    const def = getZoneDefense(profile, zoneAttacked, false);
-    const required = 1 + eff.grade;
-    if (def >= required) {
-      hits.push({
-        monsterIdx: idx,
-        zone: zoneAttacked,
-        monsterGradeUsed: eff.grade,
-        enraged: eff.enraged,
-        dmg: 0,
-        defenseTried: false,
-        defenseType: "armor_absorbed",
-      });
-      continue;
-    }
-    onHitInflicted(1);
-    hits.push({
-      monsterIdx: idx,
-      zone: zoneAttacked,
-      monsterGradeUsed: eff.grade,
-      enraged: eff.enraged,
-      dmg: 1,
-      defenseTried: false,
-      defenseType: "uncovered",
+  // Regen bouclier mob : 40% chance +1 dura par tour
+  if (state.mob.shield && state.mob.shield.dura > 0 && state.mob.shield.dura < DURA_MAX && rng() < 0.4) {
+    state.mob.shield.dura = clampDura(state.mob.shield.dura + 1);
+    state.log.push({
+      type: 'mob_shield_regen',
+      msg: `Le bouclier du ${state.mob.name} se renforce (+1 dura, ${state.mob.shield.dura}/${DURA_MAX}).`,
     });
   }
 
-  // ── Patterns post-attaque : healer + regen ──
-  // Healer (Sorcière) : à chaque tour, soigne +1 PV à TOUS les mobs vivants.
-  // Note : la sorcière elle-même est incluse (auto-heal possible mais cap par hpMax).
-  // Regen (Troll) : à chaque tour, +1 PV à lui-même (cap par hpMax).
-  for (const idx of aliveIdx) {
-    const m = state.monsters[idx];
-    if (m.pattern === "healer") {
-      for (const otherIdx of aliveIdx) {
-        addMonsterHp(otherIdx, 1);
-      }
-    }
-    if (m.pattern === "regen") {
-      addMonsterHp(idx, 1);
-    }
-  }
-
-  // Application des deltas HP sur les mobs (cap par hpMax)
-  let monsters = state.monsters;
-  if (Object.keys(monsterHPDelta).length > 0) {
-    monsters = state.monsters.map((m, i) => {
-      const delta = monsterHPDelta[i] || 0;
-      if (delta === 0 || !m.alive) return m;
-      const newMobHp = Math.min(m.hpMax, Math.max(0, m.hp + delta));
-      return { ...m, hp: newMobHp };
-    });
-  }
-
-  // Vol d'or par les voleurs
-  let newGoldStolen = state.goldStolenInWave || 0;
-  if (goldStolenByThieves > 0) {
-    newGoldStolen += goldStolenByThieves;
-  }
-
-  let nextStatus = state.status;
-  // Mode épopée (partagé biome ↔ PvP) : peut tomber à 0 PV (= mort).
-  // Mode classique (mode test V2) : plancher 1 PV maintenu (status "exhausted").
-  if (state.epicMode) {
-    if (newHP <= 0) {
-      newHP = 0;
-      nextStatus = "dead";
-    }
-  } else {
-    if (newHP < PVE_HP_FLOOR) {
-      newHP = PVE_HP_FLOOR;
-      nextStatus = "exhausted";
-    }
-  }
-
-  const newState = {
-    ...state,
-    monsters,
-    playerHP: newHP,
-    goldStolenInWave: newGoldStolen,
-    status: nextStatus,
-    log: [...state.log, {
-      turnIndex: state.turnIndex,
-      action: "defend",
-      defenses,
-      parries,
-      hits,
-      goldStolenByThieves,
-      monsterHPDelta,
-    }],
-  };
-
-  if (parries.length > 0 && nextStatus === "in_progress") {
-    newState.pendingCounter = {
-      availableCounters: parries.length,
-      parries,
-    };
-  } else if (nextStatus === "in_progress") {
-    return advanceTurn(newState);
-  }
-
-  return newState;
-}
-
-/**
- * Phase 2 d'un tour : applique les contre-attaques.
- * targetIndices : tableau d'indices de mobs (1 par contre disponible),
- * peut contenir des doublons (focus possible).
- *
- * À chaque mob tué, on calcule immédiatement sa récompense (or + roll drop)
- * selon sa position dans la séquence de morts (1er=palier 1, 2e=palier 2, 3e=palier 3).
- * Les récompenses sont accumulées dans state.killRewards (un tableau par ordre de mort).
- */
-export function applyCounters(state, profile, targetIndices, options = {}) {
-  if (state.status !== "in_progress" || !state.pendingCounter) return state;
-
-  const rng = options.rng || Math.random;
-  const weapon = profile?.equipment?.weapon;
-  const dmgPerCounter = weapon ? getCombatItemValue(weapon.grade) : 1;
-
-  const monsters = state.monsters.map(m => ({ ...m }));
-  const counterApplied = [];
-  // Compteur de mobs déjà morts AVANT cette vague de contres (pour position de récompense)
-  let alreadyKilled = monsters.filter(m => !m.alive).length;
-  // Cumul des récompenses gagnées dans cette résolution
-  const killRewards = state.killRewards ? [...state.killRewards] : [];
-
-  for (const targetIdx of targetIndices) {
-    const m = monsters[targetIdx];
-    if (!m || !m.alive || m.hp <= 0) continue;
-
-    // Pattern "elusive" (Élémental) : 50% de chance d'esquiver le contre
-    if (m.pattern === "elusive" && rng() < 0.5) {
-      counterApplied.push({ monsterIdx: targetIdx, dmg: 0, dodged: true });
-      continue;
-    }
-
-    m.hp = Math.max(0, m.hp - dmgPerCounter);
-    counterApplied.push({ monsterIdx: targetIdx, dmg: dmgPerCounter });
-
-    if (m.hp <= 0) {
-      // Pattern "revive" (Squelette) : revient à 1 PV une seule fois
-      if (m.pattern === "revive" && !m.reviveUsed) {
-        m.hp = 1;
-        m.reviveUsed = true;
-        counterApplied[counterApplied.length - 1].revived = true;
-        continue;
-      }
-
-      m.alive = false;
-      // Calcul de la récompense pour ce mob, à sa position de kill
-      // Sprint 2C : palier 3 statue royale ajoute +5% drop (bonusDropFlat)
-      const reward = getMobReward(alreadyKilled, m.grade, options.bonusDropFlat || 0);
-      const dropped = rng() < reward.dropChance;
-      killRewards.push({
-        monsterIdx: targetIdx,
-        position: alreadyKilled,    // 0 = 1er, 1 = 2e, 2 = 3e
-        grade: m.grade,
-        gold: reward.gold,
-        dropChance: reward.dropChance,
-        dropped,
+  // Regen armure mob : 40% chance +1 dura par tour, sur chacune des 4 zones
+  for (const zone of COMBAT_ZONES) {
+    const armorZone = state.mob.armor?.[zone];
+    if (armorZone && armorZone.dura > 0 && armorZone.dura < DURA_MAX && rng() < 0.4) {
+      armorZone.dura = clampDura(armorZone.dura + 1);
+      state.log.push({
+        type: 'mob_armor_regen',
+        msg: `L'armure ${ZONE_LABELS[zone]} du ${state.mob.name} se renforce (+1 dura).`,
       });
-      alreadyKilled += 1;
     }
   }
 
-  const monstersKilled = monsters.filter(m => !m.alive).length;
-  let nextStatus = state.status;
-  if (monstersKilled >= MONSTERS_PER_WAVE) {
-    nextStatus = "wave_complete";
+  // Pattern regen mob : 20% chance +1 HP
+  if (state.mob.pattern === 'regen' && state.mob.hp > 0 && state.mob.hp < state.mob.hpMax && rng() < 0.20) {
+    state.mob.hp = Math.min(state.mob.hpMax, state.mob.hp + 1);
+    state.log.push({ type: 'mob_regen', msg: `Le ${state.mob.name} se régénère (+1 HP, ${state.mob.hp}/${state.mob.hpMax}).` });
   }
 
-  const newState = {
-    ...state,
-    monsters,
-    monstersKilled,
-    killRewards,
-    pendingCounter: null,
-    log: [...state.log, { turnIndex: state.turnIndex, action: "counter", counters: counterApplied }],
-    status: nextStatus,
-  };
-
-  if (nextStatus === "in_progress") {
-    return advanceTurn(newState);
-  }
-  return newState;
-}
-
-/**
- * Avance au tour suivant : régénère les intentions des mobs vivants.
- */
-export function advanceTurn(state) {
-  if (state.status !== "in_progress") return state;
-  const newTurn = state.turnIndex + 1;
-
-  // Limite de tours par vague atteinte → vague échouée
-  // Le joueur garde l'or des mobs déjà tués (status "out_of_turns" pour distinguer du "fled").
-  if (newTurn >= MAX_TURNS_PER_WAVE) {
-    return {
-      ...state,
-      turnIndex: newTurn,
-      status: "out_of_turns",
-      pendingCounter: null,
-      log: [...state.log, { turnIndex: newTurn, action: "out_of_turns" }],
-    };
+  // Tick destab mob
+  if (state.mob.destabRoundsLeft > 0) {
+    state.mob.destabRoundsLeft--;
+    if (state.mob.destabRoundsLeft === 0) {
+      state.player.hitStreak = 0;
+      state.log.push({ type: 'destab_end', msg: `Le ${state.mob.name} reprend son bouclier.` });
+    }
   }
 
-  const intents = generateMonsterIntents(
-    state.monsters,
-    `${state.dayStr}|${state.biomeKey}|wave${state.waveIndex}|turn${newTurn}`
+  state.log.push({ type: 'round_start', msg: `── Tour ${state.round} ──` });
+
+  const mobDef = pickRandomDefenseZones(rng);
+  const mobAttZone = COMBAT_ZONES[Math.floor(rng() * 4)];
+
+  // ─── Joueur attaque mob ─────────────────────────────────────────────
+  const playerStrike = resolveStrike(
+    state.player,
+    state.mob,
+    { attZone: attack, defParry: mobDef.parry, defShield: mobDef.shield },
+    rng,
   );
-  return {
-    ...state,
-    turnIndex: newTurn,
-    intents,
-    pendingCounter: null,
-  };
+  playerStrike.events.forEach(ev => {
+    const formatted = formatPveEvent(ev, 'player', state.mob.name, attack);
+    if (formatted) state.log.push(formatted);
+  });
+
+  // Mob mort ? (avec revive éventuel)
+  if (state.mob.hp <= 0) {
+    if (state.mob.pattern === 'revive' && !state.mob.hasRevived) {
+      state.mob.hasRevived = true;
+      state.mob.hp = Math.floor(state.mob.hpMax / 2);
+      state.log.push({
+        type: 'mob_revive',
+        msg: `Le ${state.mob.name} se relève (${state.mob.hp}/${state.mob.hpMax} HP) !`,
+      });
+    } else {
+      // Vraiment mort
+      const reward = getMobReward(state.waveIndex, state.mobSpec.grade);
+      const dropped = rng() < reward.dropPct;
+      state.killRewards.push({
+        gold: reward.gold,
+        dropped,
+        monsterIdx: state.mobSpec.monsterIdx,
+        position: 0,
+        waveIdx: state.waveIndex,
+      });
+      state.goldEarned += reward.gold;
+      state.status = 'wave_complete';
+      state.log.push({
+        type: 'mob_killed',
+        msg: `Le ${state.mob.name} tombe ! +${reward.gold}💰${dropped ? ' +1 drop' : ''}`,
+      });
+      return state;
+    }
+  }
+
+  // ─── Mob attaque joueur ─────────────────────────────────────────────
+  // 17/05/2026 — Dégâts mob multipliés selon la vague (1-2 dmg=1, 3-4 dmg=2, 5 dmg=3)
+  const mobStrike = resolveStrike(
+    state.mob,
+    state.player,
+    { attZone: mobAttZone, defParry: parry, defShield: shield },
+    rng,
+    {
+      attackerWeaponGrade: getEffectiveMobGrade(state.mob),
+      damageMultiplier: state.mobSpec?.dmgMult || 1,
+    },
+  );
+  mobStrike.events.forEach(ev => {
+    const formatted = formatPveEvent(ev, 'mob', state.mob.name, mobAttZone);
+    if (formatted) state.log.push(formatted);
+  });
+
+  // Patterns spéciaux quand le mob touche
+  if (mobStrike.dmg > 0) {
+    if (state.mob.pattern === 'thief') {
+      state.goldStolenInWave += 5;
+      state.log.push({
+        type: 'mob_thief',
+        msg: `Le ${state.mob.name} vole 5 or dans votre bourse !`,
+      });
+    }
+    if (state.mob.pattern === 'drain') {
+      const before = state.mob.hp;
+      state.mob.hp = Math.min(state.mob.hpMax, state.mob.hp + 1);
+      const drainAmount = state.mob.hp - before;
+      state.player.hp = Math.max(PVE_HP_FLOOR, state.player.hp - 1);
+      if (drainAmount > 0) {
+        state.log.push({
+          type: 'mob_drain',
+          msg: `Le ${state.mob.name} draine votre vie (-1 HP) et se soigne (+${drainAmount} HP).`,
+        });
+      }
+    }
+  }
+
+  // 17/05/2026 — Plancher HP passé à 0 : la mort en PvE biome est désormais
+  // possible. Si player.hp <= 0, on marque le combat comme perdu (status 'dead').
+  // Le joueur conserve les récompenses des vagues précédentes (déjà persistées).
+  if (state.player.hp <= 0) {
+    state.player.hp = 0;
+    state.status = 'dead';
+    state.log.push({
+      type: 'player_dead',
+      msg: `Vous tombez face au ${state.mob.name}. La vague est perdue, mais vous gardez vos récompenses des vagues précédentes.`,
+    });
+    return state;
+  }
+
+  // Plancher HP joueur (ne peut pas être négatif)
+  if (state.player.hp < PVE_HP_FLOOR) {
+    state.player.hp = PVE_HP_FLOOR;
+  }
+
+  return state;
 }
 
 export function fleeWave(state) {
-  if (state.status !== "in_progress") return state;
-  return {
-    ...state,
-    status: "fled",
-    pendingCounter: null,
-    log: [...state.log, { turnIndex: state.turnIndex, action: "flee" }],
-  };
+  if (state.status !== 'in_progress') return state;
+  state.status = 'fled';
+  state.log.push({ type: 'flee', msg: `Vous battez en retraite.` });
+  return state;
 }
 
 // ─────────────────────────────────────────────────────────────
-// État booléens
+// Status helpers (compat)
 // ─────────────────────────────────────────────────────────────
 
-export function isWaveComplete(state) { return state.status === "wave_complete"; }
-export function isPlayerExhausted(state) { return state.status === "exhausted"; }
-export function isFled(state) { return state.status === "fled"; }
-export function isOutOfTurns(state) { return state.status === "out_of_turns"; }
-export function isDead(state) { return state.status === "dead"; }
-export function isInProgress(state) { return state.status === "in_progress"; }
+export function isWaveComplete(state) { return state.status === 'wave_complete'; }
+export function isPlayerExhausted(state) { return state.status === 'exhausted'; }
+export function isFled(state) { return state.status === 'fled'; }
+export function isOutOfTurns(state) { return state.status === 'out_of_turns'; }
+export function isDead(state) { return state.status === 'dead'; }
+export function isInProgress(state) { return state.status === 'in_progress'; }
 
 // ─────────────────────────────────────────────────────────────
-// Récompenses
+// Récompenses de vague (compat avec computeWaveRewards de l'ancien code)
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Récompenses cumulatives basées sur les mobs tués (state.killRewards).
- * Chaque mob tué a déjà fait son propre roll de drop au moment du kill.
- * On totalise ici l'or et on liste les drops.
- *
- * Bonus de maîtrise :
- *   - Or : multiplicateur (×1.05 à ×1.20 selon level)
- *   - Drop partiel : pas applicable ici (chaque drop est déjà rollé individuellement)
- *     → le bonus ne s'applique plus aux drops puisqu'on roll par mob.
- *     → Pour compenser, on conserve le bonus or comme seul effet ×% des récompenses.
- *
- * @returns {{
- *   gold, masteryGain, drops (array), label, killCount
- * }}
- */
 export function computeWaveRewards(state, profile, biomeKey, biomeRareKey, options = {}) {
   const mastery = getMasteryInfo(profile, biomeKey);
   const kills = state.killRewards || [];
@@ -848,112 +604,128 @@ export function computeWaveRewards(state, profile, biomeKey, biomeRareKey, optio
 
   if (killCount === 0) {
     return {
-      gold: 0,
-      goldGross: 0,
-      goldStolen,
-      masteryGain: 0,
-      drops: [],
-      label: "no_kill",
-      killCount: 0,
+      gold: 0, goldGross: 0, goldStolen, masteryGain: 0,
+      drops: [], label: "no_kill", killCount: 0,
     };
   }
 
-  // Or cumulé sur tous les mobs tués
   const goldRaw = kills.reduce((sum, k) => sum + k.gold, 0);
   const goldGross = Math.round(goldRaw * (1 + mastery.goldBonus));
-  // Net après vol par les voleurs (Brigand)
   const gold = Math.max(0, goldGross - goldStolen);
 
-  // Drops cumulés (1 entrée par mob qui a drop)
   const drops = kills
     .filter(k => k.dropped)
     .map(k => ({ key: biomeRareKey, fromMonsterIdx: k.monsterIdx, position: k.position }));
 
-  const masteryGain = killCount;
-
-  let label;
-  if (killCount >= MONSTERS_PER_WAVE) label = "full";
-  else if (killCount === 2) label = "partial2";
-  else label = "partial1";
-
   return {
-    gold,                  // or net (après vol)
-    goldGross,             // or brut (avant vol)
-    goldStolen,            // or volé par les voleurs
-    masteryGain,
-    drops,                 // tableau de drops obtenus
-    dropped: drops.length > 0,
-    dropKey: drops.length > 0 ? biomeRareKey : null,
-    dropCount: drops.length,
-    label,
+    gold, goldGross, goldStolen,
+    masteryGain: killCount,
+    drops,
+    label: state.status === 'wave_complete' ? 'success' : state.status,
     killCount,
   };
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helpers description (UI)
+// Compat avec ancien CombatScreen.jsx (deprecated)
 // ─────────────────────────────────────────────────────────────
 
-export const ZONE_LABELS_FR = {
-  head: "tête",
-  torso: "torse",
-  arms: "bras",
-  legs: "jambes",
-};
-
-// Article défini avec apostrophe/élision quand le mot commence par voyelle.
-// Permet de générer correctement "la tête", "le torse", "les bras", "les jambes".
-const ZONE_ARTICLE_FR = {
-  head: "la",
-  torso: "le",
-  arms: "les",
-  legs: "les",
-};
-
-function zoneWithArticle(zoneKey) {
-  return `${ZONE_ARTICLE_FR[zoneKey]} ${ZONE_LABELS_FR[zoneKey]}`;
+/** @deprecated */
+export function getZoneDefense(profile, zone, shieldOnThisZone = false) {
+  const eq = profile?.equipment || {};
+  const armor = eq[`${zone}_def`];
+  const shield = eq.shield;
+  let def = armor ? getCombatItemValue(armor.grade ?? 0) : 0;
+  if (shieldOnThisZone && shield) def += getCombatItemValue(shield.grade ?? 0);
+  return def;
 }
 
+/** @deprecated */
+export function getMonsterEffectiveGrade(monster) {
+  return { grade: monster?.grade ?? 0, enraged: false };
+}
+
+/** @deprecated */
+export function computeHit(monsterGrade, zoneDefense) {
+  return zoneDefense >= 1 + monsterGrade ? 0 : 1;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Legacy exports (deprecated, gardés pour compat build)
+// ─────────────────────────────────────────────────────────────
+
+/** @deprecated Plus utilisé (combat 3-mobs supprimé). Stub vide pour compat. */
+export function getAliveMonsters(state) {
+  // Avant : retournait la liste des mobs vivants dans state.monsters.
+  // Maintenant 1 seul mob : on retourne [state.mob] s'il est en vie.
+  if (state?.mob && state.mob.hp > 0) return [{ ...state.mob, idx: 0 }];
+  return [];
+}
+
+/** @deprecated Plus utilisé. */
+export function generateMonsterIntents(monsters, seedStr) {
+  return [];
+}
+
+/** @deprecated Plus utilisé (combat 3-mobs). */
+export function resolveDefense(state, profile, action) {
+  return state;
+}
+
+/** @deprecated Plus utilisé. */
+export function applyCounters(state, profile, targetIndices, options = {}) {
+  return state;
+}
+
+/** @deprecated Plus utilisé. */
+export function advanceTurn(state) {
+  return state;
+}
+
+/** Labels FR des zones (compat ancien code). */
+export const ZONE_LABELS_FR = {
+  head: 'Tête',
+  torso: 'Torse',
+  arms: 'Bras',
+  legs: 'Jambes',
+};
+
+/** @deprecated Plus d'intents (combat tour-par-tour). */
 export function describeIntent(monster, intent) {
-  if (!intent) return "";
-  if (intent.mode === "single" && intent.confidence === 1.0) {
-    return `${monster.name} va frapper ${zoneWithArticle(intent.announcedZone)}`;
-  }
-  if (intent.mode === "single") {
-    return `${monster.name} vise probablement ${zoneWithArticle(intent.announcedZone)}`;
-  }
-  if (intent.mode === "double") {
-    return `${monster.name} hésite entre ${zoneWithArticle(intent.announcedZone)} et ${zoneWithArticle(intent.alternativeZone)}`;
-  }
-  return `${monster.name} frappe au hasard`;
+  return { icon: '⚔️', label: 'Attaque', desc: 'Combat tour-par-tour' };
+}
+
+/** @deprecated Stub compat. */
+export function describeWaveState(state) {
+  if (!state) return '';
+  if (state.status === 'wave_complete') return 'Vague terminée';
+  if (state.status === 'fled') return 'Repli';
+  if (state.status === 'out_of_turns') return 'Trop long !';
+  if (state.status === 'dead') return '💀 Mort au combat';
+  return `Tour ${state.round + 1}`;
 }
 
 /**
- * Description courte du pattern d'un mob, pour affichage en UI.
- * Retourne null si le mob n'a pas de pattern spécial à signaler.
+ * Retourne une description lisible d'un pattern monstre.
+ * Patterns supportés (post-refonte mai 2026) :
+ *   normal, weak, heavy, thief, drain, regen, revive
+ * Patterns dépréciés (compat affichage Codex) :
+ *   feint, blurry, elusive, healer (ne sont plus appliqués en combat)
  */
 export function describePattern(pattern) {
   switch (pattern) {
+    case "normal":  return { icon: "⚔️", label: "Standard", desc: "Aucun effet spécial" };
     case "weak":    return { icon: "🪶", label: "Frêle", desc: "Grade -1 (plus facile)" };
-    case "blurry":  return { icon: "👻", label: "Flou", desc: "Indice toujours imprécis" };
+    case "heavy":   return { icon: "🪨", label: "Massif", desc: "Grade +1 (plus dur)" };
     case "thief":   return { icon: "💰", label: "Voleur", desc: "Vole 5 or s'il vous blesse" };
-    case "elusive": return { icon: "💨", label: "Insaisissable", desc: "50% chance d'esquiver les contres" };
-    case "drain":   return { icon: "🩸", label: "Vampirique", desc: "+1 PV à lui-même s'il vous blesse" };
-    case "feint":   return { icon: "🌀", label: "Trompeur", desc: "Peut feinter (zone réelle ≠ annoncée)" };
-    case "revive":  return { icon: "💀", label: "Persistant", desc: "Revient à 1 PV une fois après mort" };
-    case "heavy":   return { icon: "🪨", label: "Massif", desc: "Grade +1, +2 PV (plus tanky)" };
-    case "healer":  return { icon: "✨", label: "Guérisseur", desc: "Soigne +1 PV à TOUS les mobs vivants à chaque tour" };
-    case "regen":   return { icon: "🌿", label: "Régénération", desc: "+1 PV à lui-même chaque tour" };
+    case "drain":   return { icon: "🩸", label: "Vampirique", desc: "+1 PV à lui-même ET -1 PV bonus quand il vous touche" };
+    case "regen":   return { icon: "🌿", label: "Régénération", desc: "20% chance de regagner 1 PV par tour" };
+    case "revive":  return { icon: "💀", label: "Persistant", desc: "Revient à la moitié de ses PV une fois après mort" };
+    // Patterns dépréciés (legacy, ne sont plus dans le jeu mais peuvent apparaître dans Codex)
+    case "blurry":  return { icon: "👻", label: "Flou", desc: "(déprécié)" };
+    case "elusive": return { icon: "💨", label: "Insaisissable", desc: "(déprécié)" };
+    case "feint":   return { icon: "🌀", label: "Trompeur", desc: "(déprécié)" };
+    case "healer":  return { icon: "✨", label: "Guérisseur", desc: "(déprécié)" };
     default: return null;
   }
-}
-
-export function describeWaveState(state) {
-  if (state.status === "wave_complete") return `Vague terminée : ${state.monstersKilled}/${MONSTERS_PER_WAVE} mobs tués`;
-  if (state.status === "fled") return `Repli : ${state.monstersKilled} mob(s) tué(s)`;
-  if (state.status === "exhausted") return `Épuisement : ${state.monstersKilled} mob(s) tué(s)`;
-  if (state.status === "out_of_turns") return `Trop long ! Hors temps : ${state.monstersKilled} mob(s) tué(s)`;
-  if (state.status === "dead") return `💀 Mort au combat : ${state.monstersKilled} mob(s) tué(s)`;
-  const alive = getAliveMonsters(state).length;
-  return `Tour ${state.turnIndex + 1} : ${alive} mob(s) en vie, joueur ${state.playerHP}/${state.playerMaxHP} PV`;
 }

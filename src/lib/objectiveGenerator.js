@@ -15,7 +15,6 @@ export const QUEST_REWARDS = {
   pvp:         5,
   cauldron:    5,
   dice:        5,
-  statue:      5,
 };
 
 // ── T2_DEPOSIT_ITEMS : dérivé automatique depuis ITEMS ──
@@ -126,14 +125,6 @@ export const QUEST_TEMPLATES = {
     reward: "small",
   },
 
-  statue: {
-    title: "🗿 Offrande royale",
-    description: () => "La statue itinérante attend votre tribut. Faites une offrande aujourd'hui.",
-    target_item: () => "any",
-    target_quantity: 1,
-    reward: "small",
-  },
-
   // ── Quête métier : titre/desc/item/qty définis dans PROFESSION_QUESTS ──
   profession: {
     reward: "big",
@@ -186,7 +177,7 @@ export const PROFESSION_QUESTS = {
 // Parmi ce pool, on tire 5 quêtes au hasard pour compléter les 6 du jour.
 const POOL_OF_RANDOM_QUESTS = [
   "deposit", "sell", "produce", "travel", "contribute",     // 5 anciennes
-  "deposit_t1", "buy", "pvp", "cauldron", "dice", "statue", // 6 nouvelles
+  "deposit_t1", "buy", "pvp", "cauldron", "dice",           // 5 nouvelles
 ];
 
 function pickRandom(arr) {
@@ -335,14 +326,6 @@ export function generatePlayerObjectives(player, cityId, ecoSettings = {}) {
           description:     QUEST_TEMPLATES.dice.description(),
           target_item:     QUEST_TEMPLATES.dice.target_item(),
           target_quantity: QUEST_TEMPLATES.dice.target_quantity,
-        });
-      case "statue":
-        return base("statue", {
-          type:            "statue",
-          title:           QUEST_TEMPLATES.statue.title,
-          description:     QUEST_TEMPLATES.statue.description(),
-          target_item:     QUEST_TEMPLATES.statue.target_item(),
-          target_quantity: QUEST_TEMPLATES.statue.target_quantity,
         });
       default:
         return null;

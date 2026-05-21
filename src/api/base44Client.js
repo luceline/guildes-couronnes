@@ -41,8 +41,6 @@ const COLLECTION_MAP = {
   TavernDiceChallenge:  'tavern_dice_challenges',
   WeeklyLottery:        'weekly_lottery',
   LotteryTicket:        'lottery_tickets',
-  RoyalStatue:          'royal_statue',
-  StatueContribution:   'statue_contributions',
   MagicCauldron:        'magic_cauldron',
   CauldronDailyInputs:  'cauldron_daily_inputs',
   CauldronUses:         'cauldron_uses',
@@ -52,6 +50,7 @@ const COLLECTION_MAP = {
   TombolaState:         'tombola_state',
   TombolaParticipations:'tombola_participations',
   TombolaHistory:       'tombola_history',
+  CommandContract:      'command_contract',
 };
 
 // Collections qui stockent tout dans un champ JSON data

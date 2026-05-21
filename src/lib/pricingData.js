@@ -209,8 +209,8 @@ export function calculateDynamicPrices(listings = [], recipes = []) {
   });
 
   // === ÉTAPE 4 : Retourner fourchettes (min/max) ===
-  // Sprint 2C fix : on inclut aussi tier1 (T1 de base) pour que les valorisations
-  // (ex: dons à la statue royale) puissent calculer la valeur des ressources brutes.
+  // On inclut aussi tier1 (T1 de base) pour que les valorisations
+  // (ex: nourrissage du chaudron) puissent calculer la valeur des ressources brutes.
   const result = { tier1: {}, tier2: {}, tier3: {}, tier4: {}, tier5: {} };
 
   // T1 : on retourne les prix tels quels (déjà calculés depuis SUGGESTED_PRICES_T1)

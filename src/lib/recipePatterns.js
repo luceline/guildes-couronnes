@@ -59,6 +59,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Meuble (cadre boisé) + Lingots fer (plaques) + Potion (huile protectrice) + Parchemin (brevet) → 1 Tunique de travail",
   },
   
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_etai_recolte (Bûcheron T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_etai_recolte",
     name: "Étai de récolte",
@@ -75,6 +79,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Planches ×1 + Charbon ×1 + Farine ×1 → 1 Étai de récolte",
   },
+  */
 
   // ════ MINEUR ════
   {
@@ -143,6 +148,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 240,
     description: "Pierre ×1 + Minerai ×1 + Bois brut ×1 → 1 Pierre à aiguiser",
   },
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_marteau_armurier (Mineur T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_marteau_armurier",
     name: "Marteau d'armurier",
@@ -159,6 +168,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Charbon ×1 + Pierre taillée ×1 + Fil ×1 → 1 Marteau d'armurier",
   },
+  */
 
   // ════ FERMIER ════
   {
@@ -209,6 +219,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Farine + Extrait (Alchimiste, levain actif) + Encre (Marchand, cachet boulangers) → 3 pains",
   },
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_ragout (Fermier T4) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_ragout",
     name: "Ragoût",
@@ -226,6 +240,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 960,
     description: "Pain (base) + Lingots fer (marmite) + Tissu (étamine) + Potion soin (bouillon fortifiant) → 2 ragoûts",
   },
+  */
   
   // ════ TISSERAND ════
   {
@@ -278,6 +293,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Tissu + Lingots fer (armatures) + Lingots or (fermoirs dorés) + Parchemin (étiquette) → 1 Sac de voyage",
   },
   
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_bandeau_erudit (Tisserand T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_bandeau_erudit",
     name: "Bandeau d'érudit",
@@ -294,6 +313,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Fil ×1 + Farine ×1 + Extrait ×1 → 1 Bandeau d'érudit",
   },
+  */
 
   // ════ FORGERON ════
   {
@@ -312,6 +332,25 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 240,
     description: "Pierre + Bois (Bûcheron, combustion) + Laine (Tisserand, soufflet) → 2 charbons",
   },
+  // 17/05/2026 — Le Forgeron peut aussi tailler la pierre.
+  // Recette parallèle à craft_pierre_brute (Mineur), avec ses propres inputs
+  // basés sur les ressources T1 du Forgeron (pierre brute du sol).
+  {
+    id: "craft_pierre_brute_forgeron",
+    name: "Pierre taillée",
+    icon: "🗿",
+    profession: "Forgeron",
+    tier: 2,
+    inputs: [
+      { key: "pierre",      quantity: 1 }, // Forgeron T1 (propre)
+      { key: "bois_brut",   quantity: 1 }, // Bûcheron T1
+      { key: "ble",         quantity: 1 }, // Fermier T1
+    ],
+    output: { key: "pierre_brute", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Pierre (Forgeron) + Bois (Bûcheron) + Blé (Fermier) → 1 Pierre taillée (2 points de réparation)",
+  },
   {
     id: "craft_epee_courte",
     name: "Outil multifonction",
@@ -328,6 +367,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Charbon (forge) + Pierre taillée + Quartz poli → 1 Outil multifonction (durabilité 10, débloque craft T3).",
   },
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_epee_longue (Forgeron T4 (input T5 désactivés)) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_epee_longue",
     name: "Outil multifonction renforcé",
@@ -345,7 +388,12 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 960,
     description: "Outil multifonction + Tissu + Lingots fer + Meuble → 1 Outil multifonction renforcé (durabilité 10, débloque craft T5).",
   },
+  */
   
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_affutage_maitre (Forgeron T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_affutage_maitre",
     name: "Affûtage de maître",
@@ -362,6 +410,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Charbon ×1 + Pierre taillée ×1 + Quartz poli ×1 → 1 Affûtage de maître",
   },
+  */
 
   // ════ ALCHIMISTE ════
   {
@@ -412,6 +461,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Extrait + Fil (Tisserand, filtre médicinal) + Encre (Marchand, étiquette dosage) → 2 potions de soin",
   },
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_potion_endur (Alchimiste T4) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_potion_endur",
     name: "Potion d'endurance",
@@ -429,6 +482,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 960,
     description: "Potion soin + Pain (nutriments) + Lingots or (or colloïdal) + Parchemin (formule) → 1 potion d'endurance",
   },
+  */
   
   // ════ ORFÈVRE ════
   {
@@ -482,6 +536,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Lingot or + Tissu (polissage) + Outil multifonction (moule acier) + Parchemin (certificat) → 1 lingot raffiné [Fonderie]",
   },
   
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_bon_tresor_orfevre (Orfèvre T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_bon_tresor_orfevre",
     name: "Bon du Trésor",
@@ -498,6 +556,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Quartz poli ×1 + Encre ×1 + Fil ×1 → 1 Bon du Trésor",
   },
+  */
 
   // ════ MARCHAND ════
   {
@@ -550,6 +609,10 @@ export const CRAFTING_RECIPES_REFACTORED = [
     description: "Parchemin + Outil multifonction (sceau de forge) + Meuble (bureau) + Potion soin (cachet alchimique) → 1 contrat artisan",
   },
     
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_bon_tresor_marchand (Marchand T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_bon_tresor_marchand",
     name: "Bon du Trésor",
@@ -566,6 +629,11 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Encre ×1 + Quartz poli ×1 + Planches ×1 → 1 Bon du Trésor",
   },
+  */
+  // ─── DÉSACTIVÉ 20/05/2026 — refonte items en cours ────────────────────
+  // Recette craft_carnet_commande (Marchand T3) : sera supprimée définitivement demain.
+  // Le commentaire ci-dessous préserve la définition pour rollback éventuel.
+  /*
   {
     id: "craft_carnet_commande",
     name: "Carnet de commande",
@@ -582,6 +650,7 @@ export const CRAFTING_RECIPES_REFACTORED = [
     cooldown: 480,
     description: "Encre ×1 + Farine ×1 + Planches ×1 → 1 Carnet de commande",
   },
+  */
 
   // ════════════════════════════════════════════════
   // T1 COMBAT : items équipables (Forgeron + Tisserand)
@@ -688,6 +757,49 @@ export const CRAFTING_RECIPES_REFACTORED = [
     costGold: 0,
     cooldown: 60,
     description: "Laine + Bois + Minerai → 1 Jambière (grade 0).",
+  },
+
+  // ════════════════════════════════════════════════════════════════
+  // 17/05/2026 — RECETTES UNIVERSELLES (profession: null)
+  // Premier set de recettes accessibles à TOUS les métiers.
+  // Filet de sécurité pour réparer l'équipement de combat quand
+  // l'offre Forgeron/Mineur est insuffisante sur le marché. Coût
+  // plus élevé que les équivalents pierre_taillee / marteau_armurier
+  // pour garder l'incitation à utiliser les outils spécialisés.
+  // ════════════════════════════════════════════════════════════════
+  {
+    id: "craft_reparation_universelle",
+    name: "Réparation universelle",
+    icon: "🔩",
+    profession: null,
+    tier: 2,
+    inputs: [
+      { key: "bois_brut",   quantity: 1 },
+      { key: "pierre",      quantity: 1 },
+      { key: "minerai_fer", quantity: 1 },
+      { key: "laine_brute", quantity: 1 },
+    ],
+    output: { key: "reparation_universelle", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Bois + Pierre + Minerai + Laine → 1 Réparation universelle (+2 dura combat).",
+  },
+  {
+    id: "craft_trousse_reparation",
+    name: "Trousse de réparation",
+    icon: "🧰",
+    profession: null,
+    tier: 3,
+    inputs: [
+      { key: "pierre_brute", quantity: 1 },
+      { key: "fil",          quantity: 1 },
+      { key: "planches",     quantity: 1 },
+      { key: "quartz_poli",  quantity: 1 },
+    ],
+    output: { key: "trousse_reparation", quantity: 1 },
+    costGold: 0,
+    cooldown: 240,
+    description: "Pierre taillée + Fil + Planches + Quartz poli → 1 Trousse de réparation (+10 dura combat).",
   },
 ];
 

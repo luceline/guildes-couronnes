@@ -8,6 +8,7 @@ import ModesIntroModal from "../components/ModesIntroModal";
 import { useVillageViewMode } from "@/lib/useVillageViewMode";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { base44 } from "@/api/base44Client";
+import { awardSales } from "@/lib/playerCumulators";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -35,9 +36,7 @@ import ElectionPanel from "../components/ElectionPanel";
 import WarehouseUnified from "../components/WarehouseUnified";
 import ChallengeForm from "../components/ChallengeForm";
 import MaireDashboard from "../components/MaireDashboard";
-import RoyalStatuePanel from "../components/RoyalStatuePanel";
 import MairieContent from "../components/city/MairieContent";
-import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
 import { checkCityDome } from "@/lib/cauldronEffects";
 import { notifyTavern } from "@/lib/tavernNotifier";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
@@ -94,7 +93,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   // 11/05/2026 : préférence affichage village (carte vs menu portrait)
   const { mode: villageMode } = useVillageViewMode();
 
-  // ─── States locaux à CityView (banque, dépôts, statue, dôme) ───
+  // ─── States locaux à CityView (banque, dépôts, dôme) ───
   const [contributing, setContributing] = useState(false);
   const [depositObjectives, setDepositObjectives] = useState([]);
   const [depositT1Objectives, setDepositT1Objectives] = useState([]);
@@ -108,7 +107,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
    const [taxInput, setTaxInput] = useState(null);
    const [lingotPriceInput, setLingotPriceInput] = useState(null);
    const [salaryInput, setSalaryInput] = useState(null);
-   const [activeStatue, setActiveStatue] = useState(null);
    const [activeDome, setActiveDome] = useState(null); // { protected: bool, expiresAt }
 
   // ─── Hook ville : tous les calculs et handlers de la mairie ───
@@ -129,12 +127,6 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
   // (appro, urgence).
   // selectedAtelier, challengeTarget, routes, allCitiesForMilitary :
   // déplacés dans useCityState (hook ci-dessus).
-
-  useEffect(() => {
-    let cancelled = false;
-    loadActiveStatue().then(s => { if (!cancelled) setActiveStatue(s); });
-    return () => { cancelled = true; };
-  }, [city?.id]);
 
   // Charge l'état du dôme de la ville + rafraîchissement automatique toutes les 60s
   useEffect(() => {
@@ -313,7 +305,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       base44.entities.PlayerProfile.update(profile.id, {
         gold: (profile.gold || 0) + actualGold,
         inventory: newInv,
-        cumul_ventes_or: (profile.cumul_ventes_or || 0) + actualGold,
+        ...awardSales(profile, actualGold),
       }),
     ]);
     await logGold(profile.user_email, profile.character_name, city.id, city.name,
@@ -365,7 +357,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
       base44.entities.PlayerProfile.update(profile.id, {
         gold: (profile.gold || 0) + actualGold,
         inventory: newInv,
-        cumul_ventes_or: (profile.cumul_ventes_or || 0) + actualGold,
+        ...awardSales(profile, actualGold),
       }),
     ]);
     await logGold(profile.user_email, profile.character_name, city.id, city.name,
@@ -531,10 +523,9 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
           >
             🏛️ Mairie{domeActive && <span className="ml-1">🛡️</span>}
           </TabsTrigger>
-          {/* Onglets T5/Taverne/Statue retirés (10/05/2026) :
+          {/* Onglets T5/Taverne retirés (10/05/2026) :
               - T5 : en refonte, plus rien à afficher
               - Taverne : drawer accessible depuis VillageView
-              - Statue : voir RoyalStatuePanel dans l'onglet mairie
           */}
         </TabsList>
 
@@ -663,7 +654,7 @@ export default function CityView({ profile, city, homeCity, onRefresh }) {
 
 
 
-        {/* TabsContent T5/Taverne/Statue retirés (10/05/2026) — drawerifiés ailleurs */}
+        {/* TabsContent T5/Taverne retirés (10/05/2026) — drawerifiés ailleurs */}
 
         {/* ── HABITANTS ── */}
       </Tabs>

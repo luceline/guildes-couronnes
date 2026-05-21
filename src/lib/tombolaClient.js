@@ -17,6 +17,13 @@ import { base44 } from "@/api/base44Client";
 
 const CYCLE_DAYS = 3;
 
+// 17/05/2026 — Plafond journalier d'achat de billets par joueur.
+// Passé de 5 à 20 en parallèle de l'introduction du boost cagnotte
+// quotidien (1% trésorerie de chaque ville → tombola). Anti-monopole
+// conservé (un riche ne peut pas acheter 500 billets et truquer le tirage)
+// mais plus permissif pour soutenir les nouveaux flux d'or.
+export const MAX_BILLETS_PER_DAY = 20;
+
 /**
  * Génère cycle_id (string YYYY-MM-DD) à partir d'un cycle_debut ISO.
  */
@@ -237,7 +244,7 @@ export async function recordBilletPurchase(buyer, qty = 1) {
     }
     const cycleId = getCycleIdFromState(state);
 
-    // 2. Plafond 5/jour : check
+    // 2. Plafond /jour : check
     const todayStr = new Date().toISOString().split("T")[0];
     const existing = await base44.entities.TombolaParticipations.filter({
       cycle_id: cycleId,
@@ -245,11 +252,11 @@ export async function recordBilletPurchase(buyer, qty = 1) {
     }).catch(() => []);
     const myPart = existing[0];
     const billetsToday = (myPart?.billets_today || {})[todayStr] || 0;
-    if (billetsToday + qty > 5) {
-      const remaining = Math.max(0, 5 - billetsToday);
+    if (billetsToday + qty > MAX_BILLETS_PER_DAY) {
+      const remaining = Math.max(0, MAX_BILLETS_PER_DAY - billetsToday);
       return {
         ok: false,
-        error: `Plafond journalier atteint : ${billetsToday}/5 billets aujourd'hui. ${
+        error: `Plafond journalier atteint : ${billetsToday}/${MAX_BILLETS_PER_DAY} billets aujourd'hui. ${
           remaining > 0 ? `Vous pouvez encore en acheter ${remaining}.` : "Revenez demain."
         }`,
       };
@@ -302,11 +309,11 @@ export async function canBuyBillets(buyer, qty = 1) {
     }).catch(() => []);
     const myPart = existing[0];
     const billetsToday = (myPart?.billets_today || {})[todayStr] || 0;
-    const remaining = Math.max(0, 5 - billetsToday);
+    const remaining = Math.max(0, MAX_BILLETS_PER_DAY - billetsToday);
     if (qty > remaining) {
       return {
         ok: false,
-        reason: `Plafond : ${billetsToday}/5 aujourd'hui. ${remaining > 0 ? `Encore ${remaining} possible(s).` : "Revenez demain."}`,
+        reason: `Plafond : ${billetsToday}/${MAX_BILLETS_PER_DAY} aujourd'hui. ${remaining > 0 ? `Encore ${remaining} possible(s).` : "Revenez demain."}`,
       };
     }
     return { ok: true, remaining };

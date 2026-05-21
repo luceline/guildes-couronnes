@@ -38,12 +38,15 @@ export function showXPToast(amount, xpGain, options = {}) {
   }
 
   // Toast principal : gain XP avec style or scintillant (en HAUT-DROITE
-  // pour ne pas se superposer aux toasts d'action en bas-droite)
+  // pour ne pas se superposer aux toasts d'action en bas-droite).
+  // 17/05/2026 : zIndex 100000 explicite pour passer au-dessus des drawers
+  // Vaul (z-50) et autres overlays. Sans ça, le toast peut apparaître
+  // assombri/illisible derrière le scrim d'un drawer ouvert.
   _lastXPToastId = toast.custom(
     (t) => (
       <div
         className="bg-gradient-to-r from-amber-500/95 to-yellow-400/95 text-amber-950 rounded-lg shadow-lg px-4 py-2.5 flex items-center gap-3 border border-amber-300 backdrop-blur-sm"
-        style={{ minWidth: "240px" }}
+        style={{ minWidth: "240px", zIndex: 100000, position: "relative" }}
       >
         <span className="text-2xl animate-pulse" style={{ animationDuration: "1.2s" }}>{icon}</span>
         <div className="flex-1">
@@ -52,7 +55,7 @@ export function showXPToast(amount, xpGain, options = {}) {
         </div>
       </div>
     ),
-    { duration: 1800, position: "top-right" }
+    { duration: 1800, position: "top-center" }
   );
 
   // Toast level-up : plus gros, plus long, effet "burst" or — en HAUT-CENTRE
@@ -63,7 +66,7 @@ export function showXPToast(amount, xpGain, options = {}) {
         (t) => (
           <div
             className="bg-gradient-to-br from-yellow-300 via-amber-400 to-yellow-500 text-amber-950 rounded-xl shadow-2xl px-5 py-3.5 flex items-center gap-3 border-2 border-yellow-200"
-            style={{ minWidth: "260px", boxShadow: "0 0 30px rgba(251, 191, 36, 0.5)" }}
+            style={{ minWidth: "260px", boxShadow: "0 0 30px rgba(251, 191, 36, 0.5)", zIndex: 100000, position: "relative" }}
           >
             <span className="text-3xl animate-bounce" style={{ animationDuration: "0.6s" }}>🌟</span>
             <div className="flex-1">

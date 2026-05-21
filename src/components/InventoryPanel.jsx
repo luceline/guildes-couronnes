@@ -24,6 +24,7 @@ import {
 import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
 import { flattenToT1, calculateT1MarketValue, SUGGESTED_PRICES_T1 } from "../lib/pricingData";
 import { getLevelFromXP, grantXP } from "../lib/playerLevelSystem";
+import { awardXP } from "../lib/playerCumulators";
 import { RARE_RESOURCES, XP_PER_RARE_RESOURCE } from "../lib/rareResources";
 
 // RARE_RESOURCES retiré : utiliser la source de vérité @/lib/rareResources.
@@ -172,16 +173,15 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
     if (!item || item.quantity <= 0) return;
     setActivating(resourceKey);
     try {
-      const newXP    = (profile.player_xp_total || 0) + XP_PER_RARE_RESOURCE;
-      const oldLevel = getLevelFromXP(profile.player_xp_total || 0);
-      const newLevel = getLevelFromXP(newXP);
+      const xpResult = awardXP(profile, XP_PER_RARE_RESOURCE);
       const newInv   = removeFromInventory(inventory, resourceKey, 1);
       await base44.entities.PlayerProfile.update(profile.id, {
-        inventory: newInv, player_xp_total: newXP, player_level: newLevel,
+        inventory: newInv,
+        ...xpResult.updates,
       });
       const rare = RARE_RESOURCES[resourceKey];
-      toast.success(newLevel > oldLevel
-        ? `🎉 ${rare.name} activée ! +${XP_PER_RARE_RESOURCE} XP — Niveau ${newLevel} !`
+      toast.success(xpResult.leveledUp
+        ? `🎉 ${rare.name} activée ! +${XP_PER_RARE_RESOURCE} XP — Niveau ${xpResult.newLevel} !`
         : `✨ ${rare.name} activée ! +${XP_PER_RARE_RESOURCE} XP`, { duration: 3000 });
       onRefresh?.();
     } catch { toast.error("Erreur lors de l'activation"); }
@@ -526,7 +526,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         // Blé / Farine / Pain : +X faim instant (REFONTE v5 : valeurs simplifiées)
         const maxH = getMaxHunger(profile, cityHungerBonus);
         updates.hunger = Math.min(maxH, currentHunger + (itemDef.value || 5));
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+        if (itemDef.xp_reward) Object.assign(updates, awardXP(profile, itemDef.xp_reward).updates);
         // Festin empoisonné actif → drain énergie
         const festinDrain = getFestinHungerDrain(city);
         if (festinDrain > 0) {
@@ -536,7 +536,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
         // Herbes / Extrait / Potion de soin : +X énergie instant (REFONTE v5)
         const maxFatigue = (profile.fatigue_max || 20) + (profile.energy_max_bonus_value || 0);
         updates.fatigue = Math.min(maxFatigue, (profile.fatigue ?? 20) + (itemDef.value || 5));
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+        if (itemDef.xp_reward) Object.assign(updates, awardXP(profile, itemDef.xp_reward).updates);
       } else if (itemDef.effect === "magic_gold_reward") {
         // 11/05/2026 : Couronne en bronze — restitue valeur dynamique des T1
         // cumulés dans la chaîne + bonus fixe (itemDef.value).
@@ -597,7 +597,7 @@ export default function InventoryPanel({ profile, city, homeCity, onRefresh }) {
           return;
         }
         updates.hp = Math.min(COMBAT_MAX_HP, currentHp + (itemDef.value || 5));
-        if (itemDef.xp_reward) updates.player_xp_total = (profile.player_xp_total || 0) + itemDef.xp_reward;
+        if (itemDef.xp_reward) Object.assign(updates, awardXP(profile, itemDef.xp_reward).updates);
       } else if (itemDef.effect === "housing_maintenance") {
         const expires15 = new Date(Date.now() + 15 * 86400000).toISOString().split("T")[0];
         updates.meuble_expires_at = expires15;

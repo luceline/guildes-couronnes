@@ -16,7 +16,7 @@
  *
  * Hors périmètre (restent dans CityView) :
  *   - Banque (depositObjectives, sellToWarehouseAmounts, handleSell...)
- *   - Statue royale (activeStatue, activeDome)
+ *   - Dôme de protection (activeDome)
  *   - Devenir maire / Sceau royal (handleBuySceau, handleBecomeMayor)
  *   - Élection / vote satisfaction
  */

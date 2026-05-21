@@ -90,13 +90,6 @@ const NARRATIONS = {
     "L'aubergiste te tape sur l'épaule. \"À la table de hazart, le courage de jouer compte autant que la victoire. {reward} pièces.\"",
     "Aldebert sourit en faisant tinter une bourse. \"Que les dés roulent, que les or tournent. {reward} pièces pour avoir animé la taverne.\"",
   ],
-
-  // Offrande à la statue itinérante
-  statue: [
-    "Aldebert s'incline légèrement. \"La couronne remarque toujours ceux qui donnent. {reward} pièces, modeste écho de ta générosité.\"",
-    "Le vieux conteur lève les yeux vers une statue imaginaire. \"Le marbre se souvient. {reward} pièces pour ta dévotion.\"",
-    "Aldebert hoche la tête, grave. \"Une offrande sincère vaut mille flatteries. {reward} pièces, et la reconnaissance discrète du royaume.\"",
-  ],
 };
 
 /** Hash simple pour rendre la sélection déterministe par (quête, jour). */

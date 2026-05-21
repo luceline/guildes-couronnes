@@ -58,3 +58,15 @@ export function getPvpRank(cumul = 0) {
   if (cumul >= 1)  return { label: "Écuyer",             icon: "🗡️", next: "Chevalier",         nextAt: 3   };
   return                  { label: "Manant",             icon: "🌾", next: "Écuyer",            nextAt: 1   };
 }
+
+// ── Couronnes : prestige magique (17/05/2026) ──
+// Score = nb T1 cumulés nécessaires au craft + 10 par rang de couronne.
+// Échelle : fer 34, bronze 92, argent 174, or 256.
+export function getCouronnesRank(cumul = 0) {
+  if (cumul >= 5000) return { label: "Souverain du Royaume", icon: "👑", next: null,                  nextAt: null };
+  if (cumul >= 1500) return { label: "Grand Couronné",       icon: "🏛️", next: "Souverain du Royaume", nextAt: 5000 };
+  if (cumul >= 500)  return { label: "Couronné",             icon: "🎖️", next: "Grand Couronné",       nextAt: 1500 };
+  if (cumul >= 100)  return { label: "Vassal Loyal",         icon: "🛡️", next: "Couronné",             nextAt: 500  };
+  if (cumul >= 34)   return { label: "Apprenti Couronnier",  icon: "⚒️", next: "Vassal Loyal",         nextAt: 100  };
+  return                    { label: "Sans Titre",           icon: "🪙", next: "Apprenti Couronnier",  nextAt: 34   };
+}

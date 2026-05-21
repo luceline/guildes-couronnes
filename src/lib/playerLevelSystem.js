@@ -5,6 +5,10 @@
 // Niveaux 1-50, courbe exponentielle
 // +5% drop rare + -2% cooldown par 5 niveaux
 
+// 18/05/2026 — Concours mensuel : l'XP gagnée est aussi comptée dans
+// cumul_xp_mois (reset paresseux + récompenses 100/50/20 top 3 le 1er).
+import { getMonthlyUpdates } from "./monthlyRanking";
+
 const MAX_PLAYER_LEVEL = 50;
 
 // XP requise par niveau (courbe exponentielle : 1.15× multiplicateur)
@@ -160,7 +164,12 @@ export function grantXP(profile, xpAmount) {
   const newLevel = getLevelFromXP(newXPTotal);
   const leveledUp = newLevel > oldLevel;
 
-  const updates = { player_xp_total: newXPTotal };
+  // 18/05/2026 — Concours mensuel : on injecte aussi cumul_xp_mois (et le
+  // reset paresseux si nécessaire) directement dans les updates retournés.
+  // Les appelants n'ont rien à faire en plus, ça passe transparent.
+  const monthlyUpdates = getMonthlyUpdates(profile, { xp: xpAmount });
+
+  const updates = { player_xp_total: newXPTotal, ...monthlyUpdates };
   if (leveledUp) updates.player_level = newLevel;
 
   return { newXPTotal, oldLevel, newLevel, leveledUp, updates };

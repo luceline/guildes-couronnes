@@ -43,8 +43,6 @@ import SavoirHubPage from "@/pages/SavoirHubPage";
 import ComptoirDrawer from "@/components/ComptoirDrawer";
 import SystemMessageBanner from "@/components/SystemMessageBanner";
 import RankingPageWrapper from "@/pages/RankingPageWrapper";
-import RoyalStatuePanel from "@/components/RoyalStatuePanel";
-import { loadActiveStatue, isStatueInCity } from "@/lib/royalStatueHelpers";
 
 const SPRITE_BASE = "/sprites/village";
 
@@ -69,9 +67,6 @@ const DRAWER_TARGETS = {
   comptoir: { title: "Comptoir bancaire", Component: ComptoirDrawer, needsProps: true },
   // Classement : accessible via le sprite trophée (toujours visible — 10/05/2026)
   classement: { title: "Classement", Component: RankingPageWrapper },
-  // Statue royale (10/05/2026) : drawer d'offrandes, accessible quand la
-  // statue est hébergée par la ville actuelle.
-  statue_royale: { title: "Statue royale", Component: RoyalStatuePanel, needsProps: true },
 };
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -186,9 +181,6 @@ const BUILD_SLOTS = {
   maison_2:      { type: "maison",        sprite: "logement_maison",             col: 12, row: 9,  gridW: 1, gridH: 1, scale: 0.5, flip: true  },
 
 
-  // Statue royale (entite separee mais affichee comme un building si presente dans city.buildings)
-  statue_royale: { type: "statue_royale", sprite: "construction_statue_royale",  col: 16, row: 6,  gridW: 1, gridH: 1, scale: 1.35, flip: false },
-
   // trophee : déplacé dans FIXED_BUILDINGS (toujours visible — 10/05/2026, redirige vers classement)
 };
 
@@ -251,20 +243,6 @@ const DECORS = [
 export default function VillageView({ profile, city, onOpenModal, onShowBuildingInfo, onRefresh }) {
   const navigate = useNavigate();
   const [openDrawer, setOpenDrawer] = useState(null);
-
-  // ── Statue royale (10/05/2026) ──────────────────────────────────────
-  // La statue royale est une entité séparée (RoyalStatue) en BDD, pas dans
-  // city.buildings. On la charge à part et on l'ajoute comme sprite si elle
-  // est hébergée par la ville actuelle (current_city_id).
-  const [royalStatue, setRoyalStatue] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    loadActiveStatue()
-      .then((s) => { if (!cancelled) setRoyalStatue(s); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [city?.id]);
-  const statueIsHere = !!royalStatue && isStatueInCity(royalStatue, city?.id);
 
   const handleBuildingClick = (target) => {
     if (DRAWER_TARGETS[target]) {
@@ -360,25 +338,11 @@ export default function VillageView({ profile, city, onOpenModal, onShowBuilding
       scale: s.scale, flip: s.flip,
       // 11/05/2026 : les bâtiments construits (scierie, mine, moulin...) sont
       // des effets passifs sans drawer/menu, donc pas de label affiché.
-      // La statue royale a son propre label (cf. bloc ci-dessous).
       label: null,
       target: s.type,
       level: s.level,
       upgraded: false,
     })),
-    // Statue royale (10/05/2026) : entité séparée RoyalStatue en BDD,
-    // pas dans city.buildings. On l'ajoute si elle est hébergée par la
-    // ville actuelle (current_city_id).
-    ...(statueIsHere ? [{
-      key: "statue_royale",
-      sprite: "construction_statue_royale",
-      col: 16, row: 6, gridW: 1, gridH: 1,
-      scale: 1.35, flip: false,
-      label: "Statue royale",
-      target: "statue_royale",
-      level: 1,
-      upgraded: false,
-    }] : []),
   ].map(b => {
     const center = gridCenter(b.col, b.row, b.gridW, b.gridH);
     return { ...b, cx: center.cx, cy: center.cy };

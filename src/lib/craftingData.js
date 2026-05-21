@@ -150,6 +150,10 @@ export const ITEMS = {
     biome_profession: "Forgeron", biome_key: "forge",
     use: "Restaure +1 durabilité à votre épée équipée.",
   },
+  jeton_guilde: {
+    name: "Jeton de la guilde", icon: "🪙", category: "jetons", tier: 1,
+    use: "Jeton de guilde. Usage à définir.",
+  },
 
   // ════════════════════════════════
   // T1 COMBAT — items équipables (Forgeron + Tisserand)
@@ -223,8 +227,8 @@ export const ITEMS = {
   },
   pierre_brute: {
     name: "Pierre taillée", icon: "🗿", category: "pierre", tier: 2,
-    trigger: "passive", effect: "energy_max_bonus", value: 3,
-    use: "Passif : +3 énergie max.",
+    trigger: "consumed", effect: "repair_combat_gear", value: 5,
+    use: "Consommée : 5 points de réparation à répartir entre vos 6 pièces équipées.",
   },
   fil: {
     name: "Fil", icon: "🧵", category: "tissu", tier: 2,
@@ -269,6 +273,16 @@ export const ITEMS = {
     name: "Pierre à aiguiser", icon: "🪊", category: "pierre", tier: 2,
     trigger: "consumed", effect: "recharge_artisan_tool", value: 5,
     use: "Consommée : +5 charges à votre outil d'artisan (cap 25).",
+  },
+
+  // 17/05/2026 — Item universel de réparation (filet de sécurité).
+  // Effet équivalent à la Pierre taillée (Mineur, +2 dura) mais accessible
+  // à tous les métiers via la recette universelle. Le coût plus élevé
+  // (4 T1 multi-métiers) en fait une option de dépannage, pas un substitut.
+  reparation_universelle: {
+    name: "Réparation universelle", icon: "🔩", category: "outils", tier: 2,
+    trigger: "consumed", effect: "repair_combat_gear", value: 5,
+    use: "Consommée : 5 points de réparation à répartir entre vos 6 pièces équipées.",
   },
 
   // ════════════════════════════════
@@ -330,8 +344,16 @@ export const ITEMS = {
   },
   marteau_armurier: {
     name: "Marteau d'armurier", icon: "🔨", category: "fer", tier: 3,
-    trigger: "consumed", effect: "repair_combat_gear", value: 10,
-    use: "Consommé : 10 points de réparation à répartir entre vos 6 pièces équipées.",
+    trigger: "consumed", effect: "repair_combat_gear", value: 20,
+    use: "Consommé : 20 points de réparation à répartir entre vos 6 pièces équipées.",
+  },
+  // 17/05/2026 — Pendant universel du Marteau d'armurier (Forgeron, +10 dura).
+  // Recette universelle (sans profession), coût plus élevé (4 T2 multi-métiers).
+  // Filet de sécurité quand aucun Forgeron n'est dispo pour produire des marteaux.
+  trousse_reparation: {
+    name: "Trousse de réparation", icon: "🧰", category: "outils", tier: 3,
+    trigger: "consumed", effect: "repair_combat_gear", value: 20,
+    use: "Consommée : 20 points de réparation à répartir entre vos 6 pièces équipées.",
   },
   bandeau_erudit: {
     name: "Bandeau d'érudit", icon: "🎓", category: "tissu", tier: 3,
@@ -340,8 +362,8 @@ export const ITEMS = {
   },
   affutage_maitre: {
     name: "Affûtage de maître", icon: "⚙️", category: "fer", tier: 3,
-    trigger: "consumed", effect: "recharge_artisan_tool", value: 20,
-    use: "Consommé : +20 charges à votre outil d'artisan (cap 25, surplus perdu).",
+    trigger: "consumed", effect: "recharge_artisan_tool", value: 25,
+    use: "Consommé : +25 charges à votre outil d'artisan (cap 25, surplus perdu).",
   },
   bon_tresor: {
     name: "Bon du Trésor", icon: "💼", category: "or", tier: 3,
@@ -413,6 +435,28 @@ export const ITEMS = {
     // À l'utilisation : calcule prix dynamique des T1 sous-jacents au chaudron,
     // additionne, ajoute +100, crédite le joueur. Cf. handleApplyConsumed.
     use: "Consommée : donne X + 100 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~270-300 or selon marché). Craftée au Chaudron magique.",
+  },
+  // 17/05/2026 — Échelle des couronnes magiques (sink T2/T3).
+  // Toutes utilisent magic_gold_reward : valeur dynamique des T1 cumulés
+  // + bonus fixe (value). On-ramp progressif :
+  //   fer    : 8 T2 centraux × 1, +20  or, cd 3h   (entrée accessible)
+  //   bronze : 8 T3 centraux × 1, +100 or, cd 6h   (existant)
+  //   argent : 8 T3 centraux × 2, +200 or, cd 12h
+  //   or     : 8 T3 centraux × 3, +400 or, cd 24h  (endgame coop)
+  couronne_fer: {
+    name: "Couronne en fer", icon: "👑", category: "magique", tier: "magique",
+    trigger: "consumed", effect: "magic_gold_reward", value: 20,
+    use: "Consommée : donne X + 20 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~25-45 or selon marché). Craftée au Chaudron magique.",
+  },
+  couronne_argent: {
+    name: "Couronne en argent", icon: "👑", category: "magique", tier: "magique",
+    trigger: "consumed", effect: "magic_gold_reward", value: 200,
+    use: "Consommée : donne X + 200 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~540-600 or selon marché). Craftée au Chaudron magique.",
+  },
+  couronne_or: {
+    name: "Couronne en or", icon: "👑", category: "magique", tier: "magique",
+    trigger: "consumed", effect: "magic_gold_reward", value: 400,
+    use: "Consommée : donne X + 400 or, où X est la valeur dynamique du marché des matières premières T1 nécessaires à sa fabrication (~810-900 or selon marché). Craftée au Chaudron magique.",
   },
 
   // ════════════════════════════════
@@ -681,6 +725,66 @@ export const MAGIC_RECIPES = [
     ],
     output: { key: "couronne_bronze", quantity: 1 },
     cooldown: 21600, // 6h en secondes
+    costGold: 0,
+  },
+  // ─────────────────────────────────────────────────────────────────────
+  // 17/05/2026 — Échelle des couronnes magiques (sink T2/T3 progressif).
+  // ─────────────────────────────────────────────────────────────────────
+  {
+    id: "craft_couronne_fer",
+    name: "Couronne en fer",
+    icon: "👑",
+    description: "L'humble couronne du forgeron, ouvrée des huit métiers du royaume au tier inférieur. Convient aux apprentis qui n'ont pas encore maîtrisé les arts supérieurs.",
+    inputs: [
+      { key: "planches",     quantity: 1 }, // Bûcheron T2
+      { key: "pierre_brute", quantity: 1 }, // Mineur T2
+      { key: "farine",       quantity: 1 }, // Fermier T2
+      { key: "fil",          quantity: 1 }, // Tisserand T2
+      { key: "charbon",      quantity: 1 }, // Forgeron T2
+      { key: "extrait",      quantity: 1 }, // Alchimiste T2
+      { key: "quartz_poli",  quantity: 1 }, // Orfèvre T2
+      { key: "encre",        quantity: 1 }, // Marchand T2
+    ],
+    output: { key: "couronne_fer", quantity: 1 },
+    cooldown: 10800, // 3h en secondes
+    costGold: 0,
+  },
+  {
+    id: "craft_couronne_argent",
+    name: "Couronne en argent",
+    icon: "👑",
+    description: "Une couronne lustrée, doublement ornée des fruits de chaque profession. Témoigne d'un artisan accompli capable de mobiliser un sérieux stock de matières premières.",
+    inputs: [
+      { key: "meuble",      quantity: 2 }, // Bûcheron T3 ×2
+      { key: "lingots_fer", quantity: 2 }, // Mineur T3 ×2
+      { key: "pain",        quantity: 2 }, // Fermier T3 ×2
+      { key: "tissu",       quantity: 2 }, // Tisserand T3 ×2
+      { key: "epee_courte", quantity: 2 }, // Forgeron T3 ×2
+      { key: "lingots_or",  quantity: 2 }, // Orfèvre T3 ×2
+      { key: "parchemin",   quantity: 2 }, // Marchand T3 ×2
+      { key: "potion_soin", quantity: 2 }, // Alchimiste T3 ×2
+    ],
+    output: { key: "couronne_argent", quantity: 1 },
+    cooldown: 43200, // 12h en secondes
+    costGold: 0,
+  },
+  {
+    id: "craft_couronne_or",
+    name: "Couronne en or",
+    icon: "👑",
+    description: "L'œuvre ultime des huit métiers du royaume, exigeant trois pièces de chaque art majeur. Souvent fruit d'une collaboration entre plusieurs artisans patients.",
+    inputs: [
+      { key: "meuble",      quantity: 3 }, // Bûcheron T3 ×3
+      { key: "lingots_fer", quantity: 3 }, // Mineur T3 ×3
+      { key: "pain",        quantity: 3 }, // Fermier T3 ×3
+      { key: "tissu",       quantity: 3 }, // Tisserand T3 ×3
+      { key: "epee_courte", quantity: 3 }, // Forgeron T3 ×3
+      { key: "lingots_or",  quantity: 3 }, // Orfèvre T3 ×3
+      { key: "parchemin",   quantity: 3 }, // Marchand T3 ×3
+      { key: "potion_soin", quantity: 3 }, // Alchimiste T3 ×3
+    ],
+    output: { key: "couronne_or", quantity: 1 },
+    cooldown: 86400, // 24h en secondes
     costGold: 0,
   },
 ];

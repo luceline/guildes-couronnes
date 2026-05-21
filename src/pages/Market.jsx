@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getInventoryWeight, getEffectiveMaxWeight, wouldExceedCapacity, getMarketTaxDiscount } from "../lib/gameData";
 import { ITEMS, EQUIPMENT_KEYS } from "../lib/craftingData";
-import { getItemName, getCanonicalItemKey } from "../lib/itemHelpers";
+import { getItemName, getItemIcon, getCanonicalItemKey } from "../lib/itemHelpers";
 import { removeFromInventory } from "../lib/inventoryHelpers";
 import { SUGGESTED_PRICES_T1, SUGGESTED_PRICES_SPECIAL, getPriceMultiplier, getSuggestedPrice, calculateDynamicPrices } from "../lib/pricingData";
 import { CRAFTING_RECIPES_REFACTORED } from "../lib/recipePatterns";
@@ -23,8 +23,11 @@ import { Slider } from "@/components/ui/slider";
 import { ITEM_CATEGORIES } from "../lib/gameData";
 import ItemTooltip from "../components/ItemTooltip";
 import MarketInsights from "../components/MarketInsights";
+import CommandBoardPanel from "../components/CommandBoardPanel";
+import { awardSales } from "@/lib/playerCumulators";
 import { toast } from "sonner";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { logGold } from '@/lib/goldLog';
 
 
@@ -64,6 +67,7 @@ function getPriceHint(itemKey, price, multiplier = 1.0, dynamicPrices = {}) {
 
 
 export default function Market({ profile, city, homeCity, onRefresh }) {
+  const navigate = useNavigate();
   const [listings, setListings] = useState([]);       // annonces de la ville actuelle, pas les miennes
   const [myListings, setMyListings] = useState([]);   // toutes mes annonces actives (toutes villes)
   const [loading, setLoading] = useState(true);
@@ -407,7 +411,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           const sellerShare = qty * 1;
           await base44.entities.PlayerProfile.update(sellers[0].id, {
             gold: (sellers[0].gold || 0) + sellerShare,
-            cumul_ventes_or: (sellers[0].cumul_ventes_or || 0) + sellerShare,
+            ...awardSales(sellers[0], sellerShare),
           });
           await logGold(listing.seller_email, sellers[0].character_name, listing.city_id, "",
             sellerShare, "vente", `Vente ${qty}× Billet de fortune (1💰/billet, Tombola)`);
@@ -688,7 +692,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
       await base44.entities.PlayerProfile.update(sellers[0].id, {
         gold: (sellers[0].gold || 0) + sellerGoldNet,
         debt_by_city: sellerDebtByCity,
-        cumul_ventes_or: (sellers[0].cumul_ventes_or || 0) + sellerTotal,
+        ...awardSales(sellers[0], sellerTotal),
       });
       // Verser les remboursements aux trésoreries des villes créancières
       for (const [cid, amount] of Object.entries(sellerCityPayments)) {
@@ -1062,7 +1066,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 />
                 {sellForm.itemKey === "billet_fortune" && (
                   <p className="text-xs font-body mt-1 text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                    🎫 Prix imposé : 3 or par billet (1💰 vendeur · 1💰 cagnotte · 1💰 détruit). Plafond acheteur : 5 billets/cycle.
+                    🎫 Prix imposé : 3 or par billet (1💰 vendeur · 1💰 cagnotte · 1💰 détruit). Plafond acheteur : 20 billets/jour.
                   </p>
                 )}
                 {sellForm.itemKey && sellForm.itemKey !== "billet_fortune" && sellForm.price > 0 && (() => {
@@ -1117,7 +1121,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                 const q = pickerQuery.trim().toLowerCase();
                 const filtered = q
                   ? sellableInventory.filter(i =>
-                      (i.item_name || "").toLowerCase().includes(q)
+                      getItemName(i.item_key, i.item_name).toLowerCase().includes(q)
                       || (i.item_key || "").toLowerCase().includes(q)
                     )
                   : sellableInventory;
@@ -1154,8 +1158,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                           key={`${item.item_key}-${itemGrade ?? "ng"}-${itemDurability ?? "nd"}-${mapIdx}`}
                           type="button"
                           onClick={() => {
-                            const resolvedKey = item.item_key ||
-                              Object.entries(ITEMS).find(([, def]) => def.name === item.item_name)?.[0] || "";
+                            // Résolution clé : helper robuste qui gère key vide + legacy names
+                            const resolvedKey = getCanonicalItemKey(item.item_key, item.item_name) || "";
                             // Billet de fortune : prix forcé à 3 or (Tombola)
                             const forcedPrice = resolvedKey === "billet_fortune" ? 3 : sellForm.price;
                             setSellForm({
@@ -1175,8 +1179,8 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                               : "hover:bg-muted border border-transparent"
                           }`}
                         >
-                          <span className="text-xl">{ITEM_CATEGORIES[item.item_category]?.icon || "📦"}</span>
-                          <span className="flex-1 truncate">{item.item_name}</span>
+                          <span className="text-xl">{getItemIcon(item.item_key, ITEM_CATEGORIES[item.item_category]?.icon) || "📦"}</span>
+                          <span className="flex-1 truncate">{getItemName(item.item_key, item.item_name)}</span>
                           <Badge variant="secondary" className="font-body text-xs">×{item.quantity}</Badge>
                         </button>
                       );
@@ -1208,6 +1212,7 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
           <TabsTrigger value="buy">🛒 Acheter ({listings.length})</TabsTrigger>
           <TabsTrigger value="mine">📦 Mes annonces ({myListings.length})</TabsTrigger>
           <TabsTrigger value="orders">🚚 Mes commandes ({(profile.pending_packages || []).length})</TabsTrigger>
+          <TabsTrigger value="contracts">📜 Contrats</TabsTrigger>
         </TabsList>
 
         {/* ── BUY TAB ── */}
@@ -1540,15 +1545,23 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                          {/* Bouton récupération physique : actif uniquement si on est dans la bonne ville */}
+                          {/* Bouton dépendant du contexte :
+                                - si on est dans la bonne ville : récupère le colis
+                                - sinon : redirige vers la page de voyage */}
                           <Button
                             size="sm"
                             variant={isHere ? "default" : "outline"}
-                            disabled={!isHere || pickingUp === pkg.package_id}
-                            onClick={() => handlePickup(pkg, { viaRelais: false })}
+                            disabled={pickingUp === pkg.package_id}
+                            onClick={() => {
+                              if (isHere) {
+                                handlePickup(pkg, { viaRelais: false });
+                              } else {
+                                navigate("/travel");
+                              }
+                            }}
                             className="font-heading"
                           >
-                            {pickingUp === pkg.package_id ? "..." : isHere ? "📦 Récupérer" : "🐴 Voyagez"}
+                            {pickingUp === pkg.package_id ? "..." : isHere ? "📦 Récupérer" : "🐴 Voyager"}
                           </Button>
                           {/* Bouton relais postal : visible uniquement si on est ailleurs ET la ville actuelle a un relais */}
                           {!isHere && hasRelaisHere && (
@@ -1571,6 +1584,14 @@ export default function Market({ profile, city, homeCity, onRefresh }) {
               );
             });
           })()}
+        </TabsContent>
+
+        {/* ── CONTRACTS TAB ── */}
+        <TabsContent value="contracts" className="space-y-3 mt-4">
+          <CommandBoardPanel
+            profile={profile}
+            onProfileUpdate={onRefresh}
+          />
         </TabsContent>
       </Tabs>
     </div>

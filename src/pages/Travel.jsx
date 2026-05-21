@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { checkAndAwardObjective, filterTodayActiveObjectives } from "@/lib/questRewards";
 import { logGold } from '@/lib/goldLog';
 import { useCityEvents } from "@/lib/useCityEvents";
-import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import {
   ROAD_TYPES, ROAD_COLORS,
   getDailyRouteCost, computeTravelCost, computeWallToll, getRouteType,
@@ -37,9 +36,6 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
   // ── Sprint 5B : buff Procession des routes (-50% temps voyage) ──
   // On lit les buffs sur la ville d'origine du joueur (pas la ville actuelle si en visite)
   const cityEvents = useCityEvents(homeCity?.id || city?.id);
-
-  // ── Sprint 2C : palier 4 statue royale (-20% voyage, péage détruit) ──
-  const royalStatue = useRoyalStatue(profile?.home_city_id);
 
   useEffect(() => {
     async function load() {
@@ -156,10 +152,6 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
       plumeUsed = true;
       toll = 0;
     }
-    // ── Sprint 2C : palier 4 statue royale annule le péage (Mur d'enceinte) ──
-    if (royalStatue.hasPalier(4) && toll > 0) {
-      toll = 0;
-    }
 
     const visited = [...new Set([...(profile.visited_cities || []), destId])];
 
@@ -264,9 +256,6 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     }
 
     let toll = computeWallToll(arrivalCity, profile);
-    // ── Sprint 2C : palier 4 statue royale annule le péage (Mur d'enceinte) ──
-    const palier4TollWaived = royalStatue.hasPalier(4) && toll > 0;
-    if (palier4TollWaived) toll = 0;
 
     // ── Hook chaudron 💨 Plume de vent : prochain voyage GRATUIT (frais ET péage à 0) ──
     // Refonte mai 2026 : compteur cumulable (free_travels_remaining) au lieu d'un booléen.
@@ -302,11 +291,9 @@ export default function Travel({ profile, city, homeCity, onRefresh }) {
     const travelDiscount = Math.max(passiveTravelDiscount, legacyTravelDiscount);
     // ── Hook événement mairie : 🛣️ Procession des routes (-50% temps voyage, cumul multiplicatif) ──
     const processionMultiplier = cityEvents.hasBuff("road_procession") ? 0.50 : 1.0;
-    // ── Sprint 2C : Palier 4 statue royale (-20% temps voyage, cumul multiplicatif) ──
-    const statuePalier4Multiplier = royalStatue.hasPalier(4) ? 0.80 : 1.0;
     const actualMinutes = travelDiscount > 0
-      ? Math.max(1, Math.round(baseMinutes * (1 - travelDiscount) * processionMultiplier * statuePalier4Multiplier))
-      : Math.max(1, Math.round(baseMinutes * processionMultiplier * statuePalier4Multiplier));
+      ? Math.max(1, Math.round(baseMinutes * (1 - travelDiscount) * processionMultiplier))
+      : Math.max(1, Math.round(baseMinutes * processionMultiplier));
     const arrivalTime = new Date(Date.now() + actualMinutes * 60 * 1000).toISOString();
 
     // Système unifié : 1 point aléatoire faim/énergie

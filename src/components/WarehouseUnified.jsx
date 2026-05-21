@@ -8,6 +8,9 @@ import { ITEM_CATEGORIES } from "../lib/gameData";
 import { ITEMS as GAME_ITEMS } from "../lib/craftingData";
 // REFONTE MARCHAND (10/05/2026) : prix dynamique pour la revente Marchand à l'entrepôt.
 import { SUGGESTED_PRICES_T1 } from "../lib/pricingData";
+// 18/05/2026 — Refacto cumulateurs : tous les incréments ventes/contributions
+// passent désormais par awardSales/awardContribution/awardMulti (gère all-time + mensuel).
+import { awardSales, awardContribution, awardMulti } from "@/lib/playerCumulators";
 
 const WAREHOUSE_LABELS = {
   bois_brut:   "Bois brut",
@@ -256,8 +259,7 @@ export default function WarehouseUnified({
           base44.entities.PlayerProfile.update(profile.id, {
             gold: (profile.gold || 0) + totalGold,
             inventory: newInv,
-            cumul_ventes_or: (profile.cumul_ventes_or || 0) + totalGold,
-            cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + actualQty,
+            ...awardMulti(profile, { sales: totalGold, contributions: actualQty }),
             merchant_warehouse_sold_today: buildNewMerchantSoldToday(totalGold),
           }),
         ]);
@@ -329,8 +331,7 @@ export default function WarehouseUnified({
           base44.entities.PlayerProfile.update(profile.id, {
             gold: (profile.gold || 0) + (isGold ? -actualQty + actualGold : actualGold),
             inventory: isGold ? newInv : newInv,
-            cumul_ventes_or: (profile.cumul_ventes_or || 0) + actualGold,
-            cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + actualQty,
+            ...awardMulti(profile, { sales: actualGold, contributions: actualQty }),
             // Quota Marchand : tracker l'or vendu aujourd'hui (null pour non-Marchand)
             ...(isMarchand ? { merchant_warehouse_sold_today: buildNewMerchantSoldToday(actualGold) } : {}),
           }),
@@ -388,7 +389,7 @@ export default function WarehouseUnified({
           base44.entities.PlayerProfile.update(profile.id, {
             gold: isGold ? (profile.gold || 0) - qty : (profile.gold || 0),
             inventory: isGold ? (profile.inventory || []) : newInv,
-            cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + qty,
+            ...awardContribution(profile, qty),
           })
         ]);
         await logWarehouse(profile, city, "deposit", itemKey, WAREHOUSE_LABELS[itemKey] || itemKey, isGold ? 0 : qty, "player");
@@ -471,8 +472,7 @@ export default function WarehouseUnified({
           base44.entities.PlayerProfile.update(profile.id, {
             gold: (profile.gold || 0) + actualGold,
             inventory: newInv,
-            cumul_ventes_or: (profile.cumul_ventes_or || 0) + actualGold,
-            cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + actualQty,
+            ...awardMulti(profile, { sales: actualGold, contributions: actualQty }),
           }),
         ]);
         await logGold(profile.user_email, profile.character_name, city.id, city.name,
@@ -519,7 +519,7 @@ export default function WarehouseUnified({
           }),
           base44.entities.PlayerProfile.update(profile.id, {
             inventory: newInv,
-            cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + qty,
+            ...awardContribution(profile, qty),
           }),
         ]);
         toast.success(`📦 ${qty}× ${itemKey} versé(e)s à l'entrepôt : les bâtiments de la ville vous en seront reconnaissants !`);

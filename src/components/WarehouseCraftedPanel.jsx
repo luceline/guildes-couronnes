@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { removeFromInventory } from "@/lib/inventoryHelpers";
+import { awardContribution } from "@/lib/playerCumulators";
 
 const T2_ITEMS = [
   { key: "planches",    name: "Planches",     icon: "🪵", tier: 2, usedBy: "Construction" },
@@ -67,7 +68,7 @@ export default function WarehouseCraftedPanel({
       base44.entities.City.update(city.id, { warehouse: newWarehouse }),
       base44.entities.PlayerProfile.update(profile.id, {
         inventory: newInv,
-        cumul_contributions_warehouse: (profile.cumul_contributions_warehouse || 0) + qty,
+        ...awardContribution(profile, qty),
       }),
     ]);
 

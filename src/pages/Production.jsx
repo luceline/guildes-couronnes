@@ -9,7 +9,6 @@ import TargetCityModal from "@/components/TargetCityModal";
 import SpyReportModal from "@/components/SpyReportModal";
 import { applyCauldronEffect, applyCityProtect, executeStealTreasury, executeSpyCity } from "@/lib/cauldronEffects";
 import { useCityEvents } from "@/lib/useCityEvents";
-import { useRoyalStatue } from "@/lib/useRoyalStatue";
 import PlayerStatusBar from "../components/PlayerStatusBar";
 import {
   PROFESSIONS, ITEM_CATEGORIES, getInventoryWeight, getMaxWeight, getMaxFatigue,
@@ -22,6 +21,7 @@ import {
   getPassiveCharbonDoubleProdBonus,
 } from "../lib/gameData";
 import { logGold } from '@/lib/goldLog';
+import { awardXP } from '@/lib/playerCumulators';
 import { getPriceMultiplier } from "../lib/pricingData";
 import {
   PROFESSION_PRODUCTION, CRAFTING_RECIPES, ITEMS, ITEM_EFFECTS,
@@ -60,11 +60,6 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   // de mairie s'appliquent aux résidents de la ville où ils sont organisés.
   const cityEventsHookId = homeCity?.id || city?.id;
   const cityEvents = useCityEvents(cityEventsHookId);
-
-  // ── Sprint 2C : paliers de la statue royale ──
-  // La statue royale, si présente dans la ville d'origine du joueur, accorde
-  // 5 paliers progressifs de bonus. On utilise un hook qui se rafraîchit toutes les 2 min.
-  const royalStatue = useRoyalStatue(profile?.home_city_id);
 
   useEffect(() => {
     base44.entities.EconomySettings.filter({ setting_key: "global" }).then(res => {
@@ -137,7 +132,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
   // ── Bonus de production centralisés via useProductionBonuses ──
   // Source unique pour : cooldowns effectifs, yields farm/craft, bonus ville (fatigue/hunger).
   const bonuses = useProductionBonuses({
-    profile, city, cityBuildings, cityEvents, royalStatue,
+    profile, city, cityBuildings, cityEvents,
     buildingLevels, buildingBonuses,
   });
   const { cityFatigueBonus, cityHungerBonus } = bonuses;
@@ -657,7 +652,8 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     // ── XP reward sur consommation (effets génériques qui ont encore xp_reward) ──
     if (itemDef.xp_reward) {
       const freshPxp = await base44.entities.PlayerProfile.get(profile.id).catch(() => null);
-      updates.player_xp_total = (freshPxp?.player_xp_total || 0) + itemDef.xp_reward;
+      const profileForXp = freshPxp || profile;
+      Object.assign(updates, awardXP(profileForXp, itemDef.xp_reward).updates);
     }
 
     // ── Buff biome harvest bonus (T1) ──
@@ -786,7 +782,7 @@ export default function Production({ profile, city, homeCity, onRefresh, default
     const recipe = allRecipes.find(r => r.id === recipeId);
     if (!recipe) return 0;
     // 14/05/2026 — Le calcul du cooldown effectif (outil, tracts, lingot ville,
-    // pierre de feu, fête du travail, statue palier 1, level joueur, etc.) est
+    // pierre de feu, fête du travail, level joueur, etc.) est
     // centralisé dans useProductionBonuses (hooks/useProductionBonuses.js).
     const effectiveCooldown = bonuses.computeEffectiveCooldown(recipe);
     const elapsed = (Date.now() - new Date(lastProduced).getTime()) / 1000;

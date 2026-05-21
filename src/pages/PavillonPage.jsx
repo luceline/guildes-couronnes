@@ -49,11 +49,13 @@ export default function PavillonPage() {
   const [myParticipation, setMyParticipation] = useState(null);  // participation du joueur sur ce cycle
   const [totalParticipants, setTotalParticipants] = useState(0);
   const [history, setHistory] = useState([]);        // 5 derniers tirages
+  const [cities, setCities] = useState([]);          // 17/05/2026 — pour afficher contributions tombola par ville (1% trésorerie/jour)
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [showHistory, setShowHistory] = useState(false);
+  const [showContributions, setShowContributions] = useState(false);
 
-  // ── Charger l'état complet (state + my participation + history) ──
+  // ── Charger l'état complet (state + my participation + history + cities) ──
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -85,11 +87,19 @@ export default function PavillonPage() {
       }
 
       // 4. Historique : 5 derniers tirages
-      const allHistory = await base44.entities.TombolaHistory.list({
-        sort: "-date_tirage",
-        limit: 5,
-      }).catch(() => []);
+      // 17/05/2026 (fix) : signature base44Client.list est (sort, limit), pas
+      // un objet { sort, limit }. L'ancien appel échouait silencieusement
+      // (avalé par .catch(() => [])) et l'historique restait vide alors que
+      // la BDD contenait bien des tirages.
+      const allHistory = await base44.entities.TombolaHistory
+        .list("-date_tirage", 5)
+        .catch(() => []);
       setHistory(allHistory.slice(0, 5));
+
+      // 5. Villes : pour calculer les contributions quotidiennes au pot (1% trésorerie)
+      const allCities = await base44.entities.City.list().catch(() => []);
+      // On exclut les villes "bot" et celles à trésorerie nulle pour clarté UX
+      setCities((allCities || []).filter(c => !c.is_bot_city));
     } catch (e) {
       console.error("[PavillonPage] loadAll error", e);
     } finally {
@@ -131,10 +141,23 @@ export default function PavillonPage() {
   const myBillets = myParticipation?.billets_count || 0;
   const myShare = totalBillets > 0 ? ((myBillets / totalBillets) * 100).toFixed(1) : "0";
 
-  // Plafond 5/jour : lire le compteur du jour
+  // Plafond /jour : lire le compteur du jour (17/05/2026 : passé de 5 à 20)
   const todayStr = new Date().toISOString().split("T")[0];
   const billetsToday = (myParticipation?.billets_today || {})[todayStr] || 0;
-  const remainingToday = Math.max(0, 5 - billetsToday);
+  const remainingToday = Math.max(0, 20 - billetsToday);
+
+  // 17/05/2026 — Contributions tombola : 1% de la trésorerie de chaque ville
+  // est ajouté à la cagnotte chaque jour (cron VPS). Cf. tombola.js côté serveur.
+  const cityContributions = cities
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      treasury: c.gold_treasury || 0,
+      contribution: Math.floor((c.gold_treasury || 0) * 0.01),
+    }))
+    .filter(c => c.contribution > 0)
+    .sort((a, b) => b.contribution - a.contribution);
+  const totalContributionPerDay = cityContributions.reduce((s, c) => s + c.contribution, 0);
 
   return (
     <div className="space-y-4 p-1">
@@ -155,6 +178,47 @@ export default function PavillonPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* ── Contributions des villes (17/05/2026) ──
+          Chaque jour, 1% de la trésorerie de chaque ville est versé à la cagnotte
+          par le cron VPS server_reset_v2/tombola.js. Cette section affiche la
+          répartition attendue au prochain reset (06:00 UTC). */}
+      {cityContributions.length > 0 && (
+        <Card className="border-amber-200">
+          <CardHeader
+            className="pb-2 cursor-pointer hover:bg-muted/30 transition-colors"
+            onClick={() => setShowContributions(!showContributions)}
+          >
+            <CardTitle className="font-heading text-sm flex items-center justify-between">
+              <span>🏛️ Contributions des villes</span>
+              <span className="text-xs font-body font-normal">
+                {totalContributionPerDay}💰/jour
+                <span className="ml-1 text-muted-foreground">{showContributions ? "▼" : "▶"}</span>
+              </span>
+            </CardTitle>
+          </CardHeader>
+          {showContributions && (
+            <CardContent className="space-y-1 text-xs font-body pt-0">
+              <p className="text-muted-foreground italic mb-2">
+                Chaque aurore, 1% de la trésorerie de chaque cité alimente le pot du Marchand.
+              </p>
+              {cityContributions.map(c => (
+                <div key={c.id} className="flex justify-between items-center py-0.5">
+                  <span className="text-foreground">📍 {c.name}</span>
+                  <span className="text-muted-foreground">
+                    trésorerie {c.treasury}💰 →
+                    <strong className="text-amber-700 ml-1">+{c.contribution}💰/jour</strong>
+                  </span>
+                </div>
+              ))}
+              <p className="text-[11px] text-muted-foreground italic mt-2 pt-2 border-t border-border">
+                Soit <strong>{totalContributionPerDay * 3}💰</strong> attendus sur le cycle de 3 jours,
+                avant les billets des joueurs.
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* ── Stats du cycle ── */}
       <Card>
@@ -189,7 +253,7 @@ export default function PavillonPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Billets aujourd'hui</span>
-            <strong>{billetsToday} / 5</strong>
+            <strong>{billetsToday} / 20</strong>
             {remainingToday === 0 && (
               <Badge variant="outline" className="ml-2 text-[10px] text-red-600 border-red-300">
                 Plafond atteint
@@ -203,7 +267,7 @@ export default function PavillonPage() {
           {myBillets === 0 && (
             <p className="text-xs text-muted-foreground italic mt-2">
               💡 Achetez des billets sur le marché ou via l'atelier d'un Marchand (3💰 le billet,
-              max 5/jour, 15 sur le cycle de 3 jours).
+              max 20/jour, 60 sur le cycle de 3 jours).
             </p>
           )}
         </CardContent>

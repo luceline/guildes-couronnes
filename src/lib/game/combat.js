@@ -215,8 +215,8 @@ export function getPlayerHP(profile) {
 }
 
 export function isPlayerKO(profile) {
+  // KO 48h retiré du jeu (16/05/2026) — seul HP=0 compte désormais
   if (getPlayerHP(profile) <= 0) return true;
-  if (profile?.hp_ko_until && new Date(profile.hp_ko_until) > new Date()) return true;
   return false;
 }
 

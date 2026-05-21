@@ -2,26 +2,31 @@
  * CityPage : page-passerelle qui affiche soit la VillageView (en ville),
  * soit la BiomeView (dans un biome).
  *
- * Comportement (10/05/2026) :
- * - Si le joueur est physiquement dans un biome (travel_destination_id
- *   startsWith "biome:" + pas en voyage) → BiomeView (map immersive)
- * - Sinon → CityView (map ville classique)
+ * Comportement :
+ * - Mode repos (bot_city) → ReposView (prime sur tout)
+ * - Si dans un biome :
+ *   - Mode menu (portrait) → VillageMenuView (avec tuile biome dynamique)
+ *   - Mode map (paysage) → BiomeView (map immersive)
+ * - Sinon → CityView (qui gère lui-même menu vs map)
  *
- * Note : c'est ici (et pas dans TravelPage) que la bascule biome se fait,
- * car la route /city est la route "localisation" du joueur (le bouton
- * dans le header affiche le nom de la localisation : ville ou biome).
+ * Maj 16/05/2026 : la bascule biome respecte désormais le mode d'affichage
+ * (menu/map) pour permettre le jeu portrait-only quand l'onglet "Mairie"
+ * remplace par "Biome".
  */
 import { usePlayerData } from "../lib/usePlayerData";
 import { BIOMES } from "../lib/biomes";
 import { MAX_HUNGER } from "@/lib/gameData";
 import { base44 } from "@/api/base44Client";
 import { isInRepos } from "@/lib/repos";
+import { useVillageViewMode } from "@/lib/useVillageViewMode";
 import CityView from "./CityView";
+import VillageMenuView from "../components/VillageMenuView";
 import BiomeView from "../components/BiomeView";
 import ReposView from "../components/ReposView";
 
 export default function CityPage() {
   const { profile, city, homeCity, loading, refresh } = usePlayerData();
+  const { mode } = useVillageViewMode();
 
   // Migration : initialiser la faim pour les anciens profils
   if (profile && (profile.hunger === undefined || profile.hunger === null)) {
@@ -44,16 +49,27 @@ export default function CityPage() {
     return <ReposView profile={profile} onRefresh={refresh} />;
   }
 
-  // Si le joueur est dans un biome : afficher la BiomeView (map immersive
-  // 10/05/2026). On accepte 2 conditions :
-  // 1. current_biome est set (mode "vrai voyage arrivé")
-  // 2. travel_destination_id.startsWith("biome:") (mode "exploration directe")
+  // Si le joueur est dans un biome : afficher BiomeView (map paysage)
+  // OU VillageMenuView (menu portrait), selon le mode d'affichage actif.
+  // 16/05/2026 : la VillageMenuView affiche désormais une tuile "Biome"
+  // dynamique en lieu et place de la tuile "Mairie", qui ouvre BiomeHub.
   const biomeKey = profile?.current_biome
     || (profile?.travel_destination_id?.startsWith("biome:")
         ? profile.travel_destination_id.replace("biome:", "")
         : null);
 
   if (profile && !profile.is_traveling && biomeKey && BIOMES[biomeKey]) {
+    if (mode === "menu") {
+      // Mode portrait : VillageMenuView (la tuile biome est ajoutée automatiquement)
+      return (
+        <VillageMenuView
+          profile={profile}
+          city={city || homeCity}
+          onRefresh={refresh}
+        />
+      );
+    }
+    // Mode paysage : BiomeView immersive
     return (
       <BiomeView
         profile={profile}

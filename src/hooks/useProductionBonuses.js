@@ -6,8 +6,8 @@
 // Pourquoi ce hook :
 // Dans Production.jsx, le calcul des bonus était dupliqué entre getCooldownLeft,
 // handleFarm et handleCraft (lingot ville, level joueur, événements mairie,
-// statue royale, charbon passif, biome, etc.). Chaque ajout d'un nouveau bonus
-// devait être fait à 2-3 endroits, source d'incohérences. Ce hook unifie tout.
+// charbon passif, biome, etc.). Chaque ajout d'un nouveau bonus devait être fait
+// à 2-3 endroits, source d'incohérences. Ce hook unifie tout.
 //
 // API exposée :
 //   - cityFatigueBonus / cityHungerBonus : bonus ville pour stats joueur
@@ -44,7 +44,6 @@ import {
  * @param {Object} args.city - ville courante du joueur (peut être null)
  * @param {Array}  args.cityBuildings - bâtiments de la ville
  * @param {Object} args.cityEvents - hook useCityEvents() (avec .hasBuff)
- * @param {Object} args.royalStatue - hook useRoyalStatue() (avec .hasPalier)
  * @param {Object} args.buildingLevels - { scierie: N, mine: N, ... } (0 si absent)
  * @param {Object} args.buildingBonuses - { atelier: bool, ... } (rétro-compat legacy)
  *
@@ -55,7 +54,6 @@ export function useProductionBonuses({
   city,
   cityBuildings,
   cityEvents,
-  royalStatue,
   buildingLevels,
   buildingBonuses,
 }) {
@@ -69,9 +67,9 @@ export function useProductionBonuses({
   // 2. computeEffectiveCooldown — durée cooldown réelle pour une recette
   // ─────────────────────────────────────────────────────────────────────────
   // Combine : outil d'artisan, malus tracts, bonus lingot ville, passif cooldown,
-  // pierre de feu (chaudron), fête du travail (événement mairie), statue palier 1,
-  // bonus niveau joueur. Le malus tracts est multiplicatif (×1.2), tous les autres
-  // sont des réductions appliquées multiplicativement.
+  // pierre de feu (chaudron), fête du travail (événement mairie), bonus niveau joueur.
+  // Le malus tracts est multiplicatif (×1.2), tous les autres sont des réductions
+  // appliquées multiplicativement.
   const computeEffectiveCooldown = (recipe) => {
     if (!recipe) return 0;
     const hasToolCharges = (profile?.tool_charges || 0) > 0;
@@ -90,8 +88,6 @@ export function useProductionBonuses({
     const pierreFeuBonus = pierreFeuActive ? (profile.craft_speed_buff_value || 0.30) : 0;
     // Événement mairie : 🛠️ Fête du travail : -50% durée crafts (cumul multiplicatif)
     const workFestivalBonus = cityEvents.hasBuff("work_festival") ? 0.50 : 0;
-    // Sprint 2C : palier 1 statue royale : -10% cooldown crafts (cumul multiplicatif)
-    const statuePalier1Bonus = royalStatue.hasPalier(1) ? 0.10 : 0;
     const levelBonuses = getPlayerLevelBonuses(profile?.player_level || 1);
     const levelCooldownBonus = levelBonuses.cooldownBonus / 100; // −1% par niveau
     return (
@@ -101,7 +97,6 @@ export function useProductionBonuses({
       (1 - tempCooldownBonus) *
       (1 - pierreFeuBonus) *
       (1 - workFestivalBonus) *
-      (1 - statuePalier1Bonus) *
       (1 - levelCooldownBonus) *
       tractsMalus
     );

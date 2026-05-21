@@ -19,7 +19,6 @@ const TYPE_META = {
   pvp:        { icon: "⚔️", label: "Duel",         color: "bg-red-50 border-red-200" },
   cauldron:   { icon: "🪄", label: "Magie",        color: "bg-violet-50 border-violet-200" },
   dice:       { icon: "🎲", label: "Hasart",       color: "bg-orange-50 border-orange-200" },
-  statue:     { icon: "🗿", label: "Offrande",     color: "bg-stone-50 border-stone-200" },
 };
 
 function useCountdown() {

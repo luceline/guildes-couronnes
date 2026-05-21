@@ -26,7 +26,7 @@
 //   mayor.js       : MAYOR_*, MAINTENANCE_*, getCityDailyMaintenance, PROFESSION_CHANGE_COST
 //   travel.js      : ROAD_TYPES, ROAD_COLORS, computeTravelCost, computeWallToll, getDailyRouteCost, getRouteType
 //   taxes.js       : generateDailyTax*, PARCHEMIN_REWARDS, SCEAU_*, TIER_ACTION_COST
-//   rankings.js    : STREAK_REWARDS, getStreakReward, getVendeurRank, getContributeurRank, getPvpRank, RARE_RESOURCE_XP
+//   rankings.js    : STREAK_REWARDS, getStreakReward, getVendeurRank, getContributeurRank, getPvpRank, getCouronnesRank, RARE_RESOURCE_XP
 //   warehouse.js   : WAREHOUSE_BUYBACK_PRICES, WAREHOUSE_DAILY_SELL_CAP, generateWarehouseBuybackPrices
 //   competitive.js : COMPETITIVE_ITEMS
 //   time.js        : getTodayDateStr

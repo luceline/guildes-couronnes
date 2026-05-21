@@ -99,7 +99,6 @@ export default function ChallengeDefenseForm({ challenge, defender, onClose, onR
       if (Object.keys(defenderUpdates).length > 0) {
         ops.push(base44.entities.PlayerProfile.update(freshDefender.id, defenderUpdates));
       }
-
       const isRiposte = !!(challenge.parent_challenge_id && challenge.parent_challenge_id !== "");
       const ripostWindow = isRiposte ? null : resolution.riposte_window_until;
 
